@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Menu Online | Ristoranti & Bar</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <nav class="nav">
+        <div class="logo">Menu<span>Cloud</span></div>
+        <div class="nav-actions">
+          <a class="nav-link" href="#funzionalita">Funzionalità</a>
+          <a class="nav-link" href="#demo">Demo</a>
+          <a class="nav-link" href="#prezzi">Prezzi</a>
+          <button class="btn btn-outline">Accedi</button>
+        </div>
+      </nav>
+
+      <div class="hero-content">
+        <div>
+          <p class="pill">Nuovo: menu dinamici con QR personalizzato</p>
+          <h1>Il menu online che racconta il tuo locale</h1>
+          <p class="subtitle">
+            Crea un’esperienza digitale elegante per clienti di ristoranti, bar e bistrot. Aggiorna i
+            piatti in tempo reale, gestisci le lingue e ricevi ordini al tavolo.
+          </p>
+          <div class="hero-cta">
+            <button class="btn btn-primary">Inizia gratis</button>
+            <button class="btn btn-secondary">Richiedi demo</button>
+          </div>
+          <div class="stats">
+            <div>
+              <strong>1.200+</strong>
+              <span>locali attivi</span>
+            </div>
+            <div>
+              <strong>45s</strong>
+              <span>per pubblicare un menu</span>
+            </div>
+            <div>
+              <strong>4,9★</strong>
+              <span>valutazione media</span>
+            </div>
+          </div>
+        </div>
+        <div class="hero-card" aria-label="Anteprima menu">
+          <div class="card-header">
+            <div>
+              <h3>Osteria Mare Blu</h3>
+              <p>Menu digitale · 4 sezioni</p>
+            </div>
+            <span class="badge">Aperto</span>
+          </div>
+          <div class="card-section">
+            <h4>Specialità del giorno</h4>
+            <div class="menu-item">
+              <div>
+                <p>Risotto ai frutti di mare</p>
+                <span>Riso Carnaroli, cozze, vongole, gamberi</span>
+              </div>
+              <strong>€ 16</strong>
+            </div>
+            <div class="menu-item">
+              <div>
+                <p>Frittura leggera</p>
+                <span>Calamari e verdure, salsa agrumata</span>
+              </div>
+              <strong>€ 14</strong>
+            </div>
+          </div>
+          <div class="card-section">
+            <h4>Cocktail</h4>
+            <div class="menu-item">
+              <div>
+                <p>Negroni Mediterraneo</p>
+                <span>Gin al rosmarino, vermouth, arancia</span>
+              </div>
+              <strong>€ 9</strong>
+            </div>
+          </div>
+          <button class="btn btn-primary full">Ordina dal tavolo</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="section" id="funzionalita">
+        <div class="section-header">
+          <h2>Tutto quello che serve per un menu smart</h2>
+          <p>Automatizza la gestione e aumenta lo scontrino medio con suggerimenti intelligenti.</p>
+        </div>
+        <div class="grid">
+          <article>
+            <h3>Editor drag & drop</h3>
+            <p>Organizza sezioni, foto e allergeni con un editor semplice anche da mobile.</p>
+          </article>
+          <article>
+            <h3>Multilingua immediato</h3>
+            <p>Traduce il menu in oltre 12 lingue e attiva la lingua automatica via browser.</p>
+          </article>
+          <article>
+            <h3>Ordini al tavolo</h3>
+            <p>Ricevi richieste direttamente in cucina, senza app per il cliente.</p>
+          </article>
+          <article>
+            <h3>Analisi e vendite</h3>
+            <p>Scopri i piatti più richiesti e invia promozioni mirate con i QR dinamici.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section highlight" id="demo">
+        <div class="section-header">
+          <h2>Un menu che si adatta al momento</h2>
+          <p>Attiva modalità brunch, happy hour o take-away con un solo click.</p>
+        </div>
+        <div class="timeline">
+          <div>
+            <h4>Mattina</h4>
+            <p>Colazioni, caffetteria, pasticceria.</p>
+          </div>
+          <div>
+            <h4>Pomeriggio</h4>
+            <p>Snack leggeri, insalate e centrifughe.</p>
+          </div>
+          <div>
+            <h4>Sera</h4>
+            <p>Menu degustazione e cocktail d’autore.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="prezzi">
+        <div class="section-header">
+          <h2>Prezzi chiari, nessuna sorpresa</h2>
+          <p>Scegli il piano più adatto al tuo locale. Puoi sempre cambiare in seguito.</p>
+        </div>
+        <div class="pricing">
+          <article class="price-card">
+            <h3>Starter</h3>
+            <p class="price">€ 19<span>/mese</span></p>
+            <ul>
+              <li>Menu digitale illimitato</li>
+              <li>QR personalizzato</li>
+              <li>Supporto via chat</li>
+            </ul>
+            <button class="btn btn-secondary">Scegli Starter</button>
+          </article>
+          <article class="price-card featured">
+            <h3>Pro</h3>
+            <p class="price">€ 39<span>/mese</span></p>
+            <ul>
+              <li>Ordini al tavolo</li>
+              <li>Analisi vendite avanzate</li>
+              <li>Promozioni automatiche</li>
+            </ul>
+            <button class="btn btn-primary">Scegli Pro</button>
+          </article>
+          <article class="price-card">
+            <h3>Enterprise</h3>
+            <p class="price">Su misura</p>
+            <ul>
+              <li>Multi-location</li>
+              <li>Account dedicato</li>
+              <li>Integrazioni personalizzate</li>
+            </ul>
+            <button class="btn btn-secondary">Parla con noi</button>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div>
+        <div class="logo">Menu<span>Cloud</span></div>
+        <p>Digitalizza il tuo menu e sorprendi i clienti.</p>
+      </div>
+      <div>
+        <h4>Contatti</h4>
+        <p>info@menucloud.it</p>
+        <p>+39 02 1234 5678</p>
+      </div>
+      <div>
+        <h4>Risorse</h4>
+        <p>Centro assistenza</p>
+        <p>Guide rapide</p>
+      </div>
+    </footer>
+  </body>
+</html>
