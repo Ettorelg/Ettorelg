@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Accedi | MenuCloud</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="login-body">
+    <main class="login">
+      <section class="login-panel">
+        <a class="logo" href="/">Menu<span>Cloud</span></a>
+        <h1>Benvenuto nell’area clienti</h1>
+        <p>
+          Gestisci menu, QR dinamici e ordini al tavolo dal tuo pannello. Accedi con le credenziali
+          fornite dal team MenuCloud.
+        </p>
+        <div class="login-highlight">
+          <div>
+            <strong>Supporto dedicato</strong>
+            <span>Chat live 7/7 per i tuoi eventi.</span>
+          </div>
+          <div>
+            <strong>Menu aggiornati</strong>
+            <span>Modifica prezzi e piatti in tempo reale.</span>
+          </div>
+          <div>
+            <strong>Report smart</strong>
+            <span>Analisi immediate su vendite e preferenze.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="login-card" aria-labelledby="login-title">
+        <h2 id="login-title">Accedi</h2>
+        <p class="login-subtitle">Inserisci email e password per continuare.</p>
+        <form class="login-form">
+          <label>
+            Email
+            <input type="email" name="email" placeholder="nome@locale.it" required />
+          </label>
+          <label>
+            Password
+            <input type="password" name="password" placeholder="••••••••" required />
+          </label>
+          <div class="login-options">
+            <label class="checkbox">
+              <input type="checkbox" name="remember" />
+              Ricordami
+            </label>
+            <a href="#">Password dimenticata?</a>
+          </div>
+          <button class="btn btn-primary full" type="submit">Entra</button>
+        </form>
+        <div class="login-footer">
+          <p>Non hai un account? <a href="/">Richiedi l’accesso</a></p>
+          <p class="login-help">Problemi di accesso? <strong>contatta il supporto</strong>.</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
