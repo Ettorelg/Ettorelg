@@ -1,9 +1,14 @@
 import os
 from urllib.parse import urlparse
 
+DEFAULT_DATABASE_URL = (
+    "postgresql://postgres:xBwFtlhJXquzSKZITlyUjtBfzGnqQIyt"
+    "@postgres.railway.internal:5432/railway"
+)
+
 
 def build_db_config() -> dict:
-    database_url = os.getenv("DATABASE_URL")
+    database_url = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
     if database_url:
         parsed = urlparse(database_url)
         return {
