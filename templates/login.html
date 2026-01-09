@@ -1,68 +1,195 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="it">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Accedi | MenuCloud</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap"
-      rel="stylesheet"
-    />
-  </head>
-  <body class="login-body">
-    <main class="login">
-      <section class="login-panel">
-        <a class="logo" href="/">Menu<span>Cloud</span></a>
-        <h1>Benvenuto nell’area clienti</h1>
-        <p>
-          Gestisci menu, QR dinamici e ordini al tavolo dal tuo pannello. Accedi con le credenziali
-          fornite dal team MenuCloud.
-        </p>
-        <div class="login-highlight">
-          <div>
-            <strong>Supporto dedicato</strong>
-            <span>Chat live 7/7 per i tuoi eventi.</span>
-          </div>
-          <div>
-            <strong>Menu aggiornati</strong>
-            <span>Modifica prezzi e piatti in tempo reale.</span>
-          </div>
-          <div>
-            <strong>Report smart</strong>
-            <span>Analisi immediate su vendite e preferenze.</span>
-          </div>
-        </div>
-      </section>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Eliminacode</title>
 
-      <section class="login-card" aria-labelledby="login-title">
-        <h2 id="login-title">Accedi</h2>
-        <p class="login-subtitle">Inserisci email e password per continuare.</p>
-        <form class="login-form">
-          <label>
-            Email
-            <input type="email" name="email" placeholder="nome@locale.it" required />
-          </label>
-          <label>
-            Password
-            <input type="password" name="password" placeholder="••••••••" required />
-          </label>
-          <div class="login-options">
-            <label class="checkbox">
-              <input type="checkbox" name="remember" />
-              Ricordami
-            </label>
-            <a href="#">Password dimenticata?</a>
-          </div>
-          <button class="btn btn-primary full" type="submit">Entra</button>
-        </form>
-        <div class="login-footer">
-          <p>Non hai un account? <a href="/">Richiedi l’accesso</a></p>
-          <p class="login-help">Problemi di accesso? <strong>contatta il supporto</strong>.</p>
+    <style>
+		body {
+			font-family: 'Inter', Arial, sans-serif;
+			margin: 0;
+			height: 100vh;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+
+			/* 🔥 SFONDO IMMAGINE */
+			background: url("/static/background.png") no-repeat center center fixed;
+			background-size: cover;
+		}
+		body::before {
+			content: "";
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: rgba(0, 0, 0, 0.35); /* leggero scurimento */
+			backdrop-filter: blur(1px);
+			z-index: -1;
+		}
+
+
+        .login-card {
+            background: white;
+            padding: 40px 35px;
+            border-radius: 18px;
+            width: 100%;
+            max-width: 410px;
+
+            /* ombra elegante */
+            box-shadow: 0 10px 35px rgba(0,0,0,0.12);
+            text-align: center;
+        }
+
+		.logo {
+			width: 240px;           /* aumentato da 150px */
+			max-width: 80%;         /* evita che superi la card su schermi piccoli */
+			margin-bottom: 20px;    
+		}
+
+
+        h2 {
+            margin: 5px 0 25px 0;
+            color: #003366;
+            font-size: 26px;
+            font-weight: 600;
+        }
+
+        .form-group {
+            text-align: left;
+            margin-bottom: 18px;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 14px;
+            color: #003366;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 14px;
+            margin-top: 5px;
+            font-size: 15px;
+            border-radius: 8px;
+            border: 1px solid #c9d6e2;
+            outline: none;
+            transition: border 0.2s, box-shadow 0.2s;
+        }
+
+        input:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.2);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 13px;
+            margin-top: 15px;
+
+            background: linear-gradient(to right, #004aad, #007bff);
+            color: white;
+            font-size: 17px;
+            font-weight: 600;
+
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.25s;
+        }
+
+        .btn:hover {
+            transform: scale(1.03);
+        }
+
+        .forgot-password {
+            margin-top: 12px;
+            font-size: 14px;
+            color: #007bff;
+            text-decoration: none;
+            transition: 0.2s;
+        }
+
+        .forgot-password:hover {
+            text-decoration: underline;
+        }
+
+        .download-app {
+            margin-top: 25px;
+            padding: 12px 20px;
+            text-align: center;
+            font-size: 16px;
+
+            background: #ffffff;
+            color: #004aad;
+            font-weight: 600;
+
+            border-radius: 10px;
+            border: 2px solid #004aad;
+            text-decoration: none;
+
+            transition: 0.25s;
+        }
+
+        .download-app:hover {
+            background: #004aad;
+            color: white;
+            transform: scale(1.05);
+        }
+		.error-box {
+            background: rgba(220, 53, 69, 0.12);
+            border: 1px solid #dc3545;
+            color: #dc3545;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <div class="login-card">
+
+        <!-- Logo AlphaSystem -->
+        <img src="/static/logo1.png" 
+			 alt="AlphaSystem Logo" 
+			 class="logo">
+			 
+		{% if error %}
+        <div class="error-box">
+            {{ error }}
         </div>
-      </section>
-    </main>
-  </body>
+        {% endif %}
+
+
+
+
+        <form method="POST">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" name="username" required>
+            </div>
+
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" required>
+            </div>
+
+            <button type="submit" class="btn">Accedi</button>
+            <a href="#" class="forgot-password">Hai dimenticato la password?</a>
+        </form>
+    </div>
+
+    <!-- Download App -->
+    <a href="/download/app-debug.apk" class="download-app" download>
+        📥 Scarica l'App Android
+    </a>
+
+</body>
 </html>
