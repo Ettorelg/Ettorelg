@@ -83,18 +83,45 @@ def logout():
     session.clear()
     return redirect("/login")
 
-
 @app.route("/dashboard_user")
 def dashboard_user():
     if "user_id" not in session:
         return redirect("/login")
 
+    # sezione iniziale
     return render_template(
         "dashboard_user.html",
         username=session.get("username", "utente"),
-        active_page="home"
+        active_section="home"
     )
 
+
+@app.route("/dashboard_user/section/<section>")
+def dashboard_user_section(section: str):
+    if "user_id" not in session:
+        abort(401)
+
+    allowed = {
+        "home",
+        "prodotti",
+        "categorie",
+        "sottocategorie",
+        "allergeni",
+        "negozio",
+        "orari",
+        "qrcode",
+        "anteprima",
+        "licenze",
+        "account",
+    }
+    if section not in allowed:
+        abort(404)
+
+    # Qui in futuro carichi dati da DB per ogni sezione
+    # Esempio: if section == "prodotti": products = ...
+    # return render_template("sections/prodotti.html", products=products)
+
+    return render_template(f"sections/{section}.html", username=session.get("username", "utente"))
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
