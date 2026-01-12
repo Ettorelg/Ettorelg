@@ -89,8 +89,11 @@ def dashboard_user():
     if "user_id" not in session:
         return redirect("/login")
 
-    # per ora mostriamo solo una pagina semplice
-    return render_template("dashboard_user.html", username=session.get("username"))
+    return render_template(
+        "dashboard_user.html",
+        username=session.get("username", "utente"),
+        active_page="home"
+    )
 
 
 if __name__ == "__main__":
