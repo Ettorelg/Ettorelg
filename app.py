@@ -30,9 +30,29 @@ if os.getenv("DATABASE_URL") and os.getenv("AUTO_INIT_DB", "true").lower() == "t
 def index():
     return render_template("index.html")
 
-
-@app.route("/login")
+@app.route("/login", methods=["GET", "POST"])
 def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        db = Database()
+        result = db.execute_query(
+            "SELECT id, username, admin FROM utenti WHERE username = %s AND password = %s",
+            (username, password)
+        )
+
+        if result:
+            user_id, username, is_admin = result[0]
+            session["user_id"] = user_id
+            session["username"] = username
+            session["is_admin"] = is_admin
+            db.close()
+            return redirect("/dashboard_admin") if is_admin else redirect("/dashboard_user")
+        else:
+            db.close()
+            return render_template("login.html", error="Username o password errati.")
+
     return render_template("login.html")
 
 
