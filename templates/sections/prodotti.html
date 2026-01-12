@@ -76,10 +76,11 @@
     </div>
 
     <div class="field">
-      <label>Immagine (URL facoltativo)</label>
-      <input id="immagine_url" placeholder="https://..." />
+      <label>Immagine (PNG/JPG/WEBP)</label>
+      <input id="immagine" type="file" accept="image/png,image/jpeg,image/webp" />
+      <div class="muted">Facoltativa. In modifica puoi caricare una nuova immagine per sostituire.</div>
     </div>
-  </div>
+
 
   <div class="field">
     <label>Descrizione</label>
@@ -197,97 +198,100 @@
   }
 
   function resetForm(){
-    f("id").value = "";
-    f("nome").value = "";
-    f("prezzo_euro").value = "";
-    f("descrizione").value = "";
-    f("disponibile").value = "true";
-    f("id_categoria").value = "";
-    f("id_sottocategoria").innerHTML = `<option value="">—</option>`;
-    f("id_sottocategoria").disabled = true;
-    f("immagine_url").value = "";
-    modeHint.textContent = "Modalità: creazione";
-    f("saveBtn").textContent = "Salva prodotto";
-  }
-
-  window.editProduct = async function(id){
-    const p = products.find(x => x.id === id);
-    if(!p) return;
-
-    f("id").value = p.id;
-    f("nome").value = p.nome;
-    f("prezzo_euro").value = p.prezzo_euro;
-    f("descrizione").value = p.descrizione || "";
-    f("disponibile").value = p.disponibile ? "true" : "false";
-    f("id_categoria").value = p.id_categoria ? String(p.id_categoria) : "";
-    await loadSubcategories(p.id_categoria, p.id_sottocategoria);
-    f("immagine_url").value = p.immagine_url || "";
-
-    modeHint.textContent = "Modalità: modifica";
-    f("saveBtn").textContent = "Aggiorna prodotto";
-    showToast("Modifica prodotto: aggiorna i campi e salva.");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  window.deleteProduct = async function(id){
-    const p = products.find(x => x.id === id);
-    if(!p) return;
-    if(!confirm(`Eliminare "${p.nome}"?`)) return;
-
-    const res = await fetch(`/api/prodotti/${id}`, { method: "DELETE" });
-    if(!res.ok) { showToast("Errore eliminazione"); return; }
-    await loadProducts();
-    showToast("Prodotto eliminato.");
-    if(String(f("id").value) === String(id)) resetForm();
-  }
-
-  f("id_categoria").addEventListener("change", async () => {
-    const catId = toNumberOrNull(f("id_categoria").value);
-    await loadSubcategories(catId, null);
-  });
-
-  f("resetBtn").addEventListener("click", () => resetForm());
-
-  form.addEventListener("submit", async (ev) => {
+      f("id").value = "";
+      f("nome").value = "";
+      f("prezzo_euro").value = "";
+      f("descrizione").value = "";
+      f("disponibile").value = "true";
+      f("id_categoria").value = "";
+      f("id_sottocategoria").innerHTML = `<option value="">—</option>`;
+      f("id_sottocategoria").disabled = true;
+      f("immagine_url").value = "";
+      modeHint.textContent = "Modalità: creazione";
+      f("saveBtn").textContent = "Salva prodotto";
+    }
+  
+    window.editProduct = async function(id){
+      const p = products.find(x => x.id === id);
+      if(!p) return;
+  
+      f("id").value = p.id;
+      f("nome").value = p.nome;
+      f("prezzo_euro").value = p.prezzo_euro;
+      f("descrizione").value = p.descrizione || "";
+      f("disponibile").value = p.disponibile ? "true" : "false";
+      f("id_categoria").value = p.id_categoria ? String(p.id_categoria) : "";
+      await loadSubcategories(p.id_categoria, p.id_sottocategoria);
+      f("immagine_url").value = p.immagine_url || "";
+  
+      modeHint.textContent = "Modalità: modifica";
+      f("saveBtn").textContent = "Aggiorna prodotto";
+      showToast("Modifica prodotto: aggiorna i campi e salva.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  
+    window.deleteProduct = async function(id){
+      const p = products.find(x => x.id === id);
+      if(!p) return;
+      if(!confirm(`Eliminare "${p.nome}"?`)) return;
+  
+      const res = await fetch(`/api/prodotti/${id}`, { method: "DELETE" });
+      if(!res.ok) { showToast("Errore eliminazione"); return; }
+      await loadProducts();
+      showToast("Prodotto eliminato.");
+      if(String(f("id").value) === String(id)) resetForm();
+    }
+  
+    f("id_categoria").addEventListener("change", async () => {
+      const catId = toNumberOrNull(f("id_categoria").value);
+      await loadSubcategories(catId, null);
+    });
+  
+    f("resetBtn").addEventListener("click", () => resetForm());
+  
+    form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
-
-    const payload = {
-      nome: f("nome").value.trim(),
-      prezzo_euro: f("prezzo_euro").value.trim(),
-      descrizione: f("descrizione").value.trim(),
-      disponibile: f("disponibile").value === "true",
-      id_categoria: toNumberOrNull(f("id_categoria").value),
-      id_sottocategoria: toNumberOrNull(f("id_sottocategoria").value),
-      immagine_url: f("immagine_url").value.trim()
-    };
-
+  
     const id = f("id").value ? Number(f("id").value) : null;
-
+  
+    const fd = new FormData();
+    fd.append("nome", f("nome").value.trim());
+    fd.append("prezzo_euro", f("prezzo_euro").value.trim());
+    fd.append("descrizione", f("descrizione").value.trim());
+    fd.append("disponibile", f("disponibile").value === "true" ? "true" : "false");
+    fd.append("id_categoria", f("id_categoria").value || "");
+    fd.append("id_sottocategoria", f("id_sottocategoria").value || "");
+  
+    const fileInput = document.getElementById("immagine");
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+      fd.append("immagine", fileInput.files[0]);
+    }
+  
+    const removeCb = document.getElementById("remove_image");
+    if (removeCb) fd.append("remove_image", removeCb.checked ? "true" : "false");
+  
     let res;
     if(!id){
-      res = await fetch("/api/prodotti", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      res = await fetch("/api/prodotti", { method: "POST", body: fd });
     }else{
-      res = await fetch(`/api/prodotti/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      res = await fetch(`/api/prodotti/${id}`, { method: "PUT", body: fd });
     }
-
+  
     if(!res.ok){
       const err = await res.json().catch(()=>({}));
       showToast(err.error || "Errore salvataggio");
       return;
     }
-
+  
     await loadProducts();
     showToast(id ? "Prodotto aggiornato." : "Prodotto creato.");
-    if(!id) resetForm();
+  
+    // reset file input e checkbox
+    if (!id) resetForm();
+    if (fileInput) fileInput.value = "";
+    if (removeCb) removeCb.checked = false;
   });
+
 
   function escapeHtml(s){
     return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
