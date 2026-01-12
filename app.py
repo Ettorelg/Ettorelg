@@ -30,30 +30,31 @@ if os.getenv("DATABASE_URL") and os.getenv("AUTO_INIT_DB", "true").lower() == "t
 def index():
     return render_template("index.html")
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
+@app.route("/dashboard_user")
+def dashboard_user():
+    if "user_id" not in session:
+        return redirect("/login")
 
-        db = Database()
-        result = db.execute_query(
-            "SELECT id, username, admin FROM utenti WHERE username = %s AND password = %s",
-            (username, password)
-        )
+    user_id = session["user_id"]
+    db = Database()
 
-        if result:
-            user_id, username, is_admin = result[0]
-            session["user_id"] = user_id
-            session["username"] = username
-            session["is_admin"] = is_admin
-            db.close()
-            return redirect("/dashboard_admin") if is_admin else redirect("/dashboard_user")
-        else:
-            db.close()
-            return render_template("login.html", error="Username o password errati.")
+    # Recupera le licenze dell'utente
+    licenze = db.execute_query(
+        "SELECT tipo, data_scadenza FROM licenze WHERE id_utente = %s", (user_id,)
+    )
 
-    return render_template("login.html")
+    # Controlla se le licenze specifiche sono attive
+    eliminacode_attiva = any(licenza[0] == "eliminacode" for licenza in licenze)
+    prenotazioni_attiva = any(licenza[0] == "prenotazioni" for licenza in licenze)
+
+    db.close()
+    return render_template(
+        "dashboard_user.html",
+        username=session["username"],
+        licenze=licenze,
+        eliminacode_attiva=eliminacode_attiva,
+        prenotazioni_attiva=prenotazioni_attiva
+    )
 
 
 if __name__ == "__main__":
