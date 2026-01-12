@@ -1,2 +1,305 @@
+<style>
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:6px;min-width:220px;flex:1}
+  label{font-size:12px;opacity:.85}
+  input, select, textarea{
+    padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.05); color: #e7ecff; outline:none;
+  }
+  textarea{min-height:90px;resize:vertical}
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{
+    border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    color:#e7ecff;border-radius:12px;padding:10px 12px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn:hover{background: rgba(255,255,255,.09);}
+  .btn.primary{background: rgba(110,168,254,.18); border-color: rgba(110,168,254,.35);}
+  .btn.danger{background: rgba(255,80,80,.14); border-color: rgba(255,80,80,.35);}
+  .muted{opacity:.75;font-size:13px}
+  .table{
+    width:100%; border-collapse:separate; border-spacing:0; margin-top:14px;
+    border:1px solid rgba(255,255,255,.12); border-radius:14px; overflow:hidden;
+  }
+  .table th, .table td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.10); vertical-align:top}
+  .table th{font-size:12px; text-transform:uppercase; letter-spacing:.06em; opacity:.75; background: rgba(255,255,255,.03)}
+  .table tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.14);font-size:12px;opacity:.9}
+  .right{white-space:nowrap}
+  .thumb{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.12);object-fit:cover;background:rgba(255,255,255,.04)}
+  .toast{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
+  .hidden{display:none}
+</style>
+
 <h2>Prodotti</h2>
-<p>Qui metteremo: lista prodotti, aggiunta/modifica/elimina, prezzo €, allergeni, immagine facoltativa.</p>
+<p class="muted">Aggiungi, modifica o elimina i prodotti del tuo menù. Tutto resta dentro la dashboard.</p>
+
+<div class="toast hidden" id="toast"></div>
+
+<form id="productForm">
+  <input type="hidden" id="id" />
+
+  <div class="row">
+    <div class="field">
+      <label>Nome *</label>
+      <input id="nome" required placeholder="Es. Pizza Margherita" />
+    </div>
+
+    <div class="field">
+      <label>Prezzo (€) *</label>
+      <input id="prezzo_euro" required inputmode="decimal" placeholder="Es. 7.50" />
+    </div>
+
+    <div class="field" style="max-width:240px">
+      <label>Disponibile</label>
+      <select id="disponibile">
+        <option value="true">Sì</option>
+        <option value="false">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>Categoria</label>
+      <select id="id_categoria">
+        <option value="">—</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Sottocategoria</label>
+      <select id="id_sottocategoria" disabled>
+        <option value="">—</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Immagine (URL facoltativo)</label>
+      <input id="immagine_url" placeholder="https://..." />
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Descrizione</label>
+    <textarea id="descrizione" placeholder="Ingredienti, note, ecc."></textarea>
+  </div>
+
+  <div class="actions" style="margin-top:10px">
+    <button class="btn primary" type="submit" id="saveBtn">Salva prodotto</button>
+    <button class="btn" type="button" id="resetBtn">Nuovo</button>
+    <span class="muted" id="modeHint">Modalità: creazione</span>
+  </div>
+</form>
+
+<table class="table" id="table">
+  <thead>
+    <tr>
+      <th>Prodotto</th>
+      <th>Categoria</th>
+      <th>Prezzo</th>
+      <th>Stato</th>
+      <th class="right">Azioni</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<script>
+  // Questo script gira quando la sezione viene inserita nel DOM.
+  // Non dipende da librerie.
+
+  const toast = document.getElementById("toast");
+  const tbody = document.getElementById("tbody");
+  const form = document.getElementById("productForm");
+  const modeHint = document.getElementById("modeHint");
+
+  const f = (id) => document.getElementById(id);
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.remove("hidden");
+    setTimeout(() => toast.classList.add("hidden"), 2500);
+  }
+
+  function toNumberOrNull(v){
+    if(v === "" || v === null || v === undefined) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  let products = [];
+  let categories = [];
+
+  async function loadCategories(){
+    const res = await fetch("/api/categorie");
+    if(!res.ok) throw new Error("Errore categorie");
+    const data = await res.json();
+    categories = data.items || [];
+
+    const sel = f("id_categoria");
+    sel.innerHTML = `<option value="">—</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
+  }
+
+  async function loadSubcategories(categoriaId, preselect=null){
+    const scSel = f("id_sottocategoria");
+    if(!categoriaId){
+      scSel.innerHTML = `<option value="">—</option>`;
+      scSel.disabled = true;
+      return;
+    }
+    const res = await fetch(`/api/sottocategorie?categoria_id=${encodeURIComponent(categoriaId)}`);
+    if(!res.ok) throw new Error("Errore sottocategorie");
+    const data = await res.json();
+    const items = data.items || [];
+    scSel.disabled = false;
+    scSel.innerHTML = `<option value="">—</option>` + items.map(s => `<option value="${s.id}">${escapeHtml(s.nome)}</option>`).join("");
+    if(preselect) scSel.value = String(preselect);
+  }
+
+  async function loadProducts(){
+    const res = await fetch("/api/prodotti");
+    if(!res.ok) throw new Error("Errore prodotti");
+    const data = await res.json();
+    products = data.items || [];
+    renderTable();
+  }
+
+  function renderTable(){
+    tbody.innerHTML = products.map(p => {
+      const cat = p.categoria_nome || "—";
+      const sub = p.sottocategoria_nome ? ` / ${p.sottocategoria_nome}` : "";
+      const badge = p.disponibile ? `<span class="badge">Disponibile</span>` : `<span class="badge" style="opacity:.6">Non disponibile</span>`;
+      const thumb = p.immagine_url ? `<img class="thumb" src="${escapeAttr(p.immagine_url)}" alt="">` : `<div class="thumb"></div>`;
+
+      return `
+        <tr>
+          <td>
+            <div style="display:flex; gap:10px; align-items:flex-start">
+              ${thumb}
+              <div>
+                <div style="font-weight:650">${escapeHtml(p.nome)}</div>
+                <div class="muted">${escapeHtml(p.descrizione || "")}</div>
+              </div>
+            </div>
+          </td>
+          <td>${escapeHtml(cat)}${escapeHtml(sub)}</td>
+          <td class="right">€ ${escapeHtml(p.prezzo_euro)}</td>
+          <td>${badge}</td>
+          <td class="right">
+            <button class="btn" type="button" onclick="editProduct(${p.id})">Modifica</button>
+            <button class="btn danger" type="button" onclick="deleteProduct(${p.id})">Elimina</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function resetForm(){
+    f("id").value = "";
+    f("nome").value = "";
+    f("prezzo_euro").value = "";
+    f("descrizione").value = "";
+    f("disponibile").value = "true";
+    f("id_categoria").value = "";
+    f("id_sottocategoria").innerHTML = `<option value="">—</option>`;
+    f("id_sottocategoria").disabled = true;
+    f("immagine_url").value = "";
+    modeHint.textContent = "Modalità: creazione";
+    f("saveBtn").textContent = "Salva prodotto";
+  }
+
+  window.editProduct = async function(id){
+    const p = products.find(x => x.id === id);
+    if(!p) return;
+
+    f("id").value = p.id;
+    f("nome").value = p.nome;
+    f("prezzo_euro").value = p.prezzo_euro;
+    f("descrizione").value = p.descrizione || "";
+    f("disponibile").value = p.disponibile ? "true" : "false";
+    f("id_categoria").value = p.id_categoria ? String(p.id_categoria) : "";
+    await loadSubcategories(p.id_categoria, p.id_sottocategoria);
+    f("immagine_url").value = p.immagine_url || "";
+
+    modeHint.textContent = "Modalità: modifica";
+    f("saveBtn").textContent = "Aggiorna prodotto";
+    showToast("Modifica prodotto: aggiorna i campi e salva.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  window.deleteProduct = async function(id){
+    const p = products.find(x => x.id === id);
+    if(!p) return;
+    if(!confirm(`Eliminare "${p.nome}"?`)) return;
+
+    const res = await fetch(`/api/prodotti/${id}`, { method: "DELETE" });
+    if(!res.ok) { showToast("Errore eliminazione"); return; }
+    await loadProducts();
+    showToast("Prodotto eliminato.");
+    if(String(f("id").value) === String(id)) resetForm();
+  }
+
+  f("id_categoria").addEventListener("change", async () => {
+    const catId = toNumberOrNull(f("id_categoria").value);
+    await loadSubcategories(catId, null);
+  });
+
+  f("resetBtn").addEventListener("click", () => resetForm());
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+
+    const payload = {
+      nome: f("nome").value.trim(),
+      prezzo_euro: f("prezzo_euro").value.trim(),
+      descrizione: f("descrizione").value.trim(),
+      disponibile: f("disponibile").value === "true",
+      id_categoria: toNumberOrNull(f("id_categoria").value),
+      id_sottocategoria: toNumberOrNull(f("id_sottocategoria").value),
+      immagine_url: f("immagine_url").value.trim()
+    };
+
+    const id = f("id").value ? Number(f("id").value) : null;
+
+    let res;
+    if(!id){
+      res = await fetch("/api/prodotti", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    }else{
+      res = await fetch(`/api/prodotti/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      showToast(err.error || "Errore salvataggio");
+      return;
+    }
+
+    await loadProducts();
+    showToast(id ? "Prodotto aggiornato." : "Prodotto creato.");
+    if(!id) resetForm();
+  });
+
+  function escapeHtml(s){
+    return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+  }
+  function escapeAttr(s){
+    return escapeHtml(s).replaceAll("'","&#39;");
+  }
+
+  // bootstrap
+  (async function init(){
+    resetForm();
+    await loadCategories();
+    await loadProducts();
+  })();
+</script>
