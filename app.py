@@ -33,37 +33,49 @@ def index():
     return redirect("/login")
 
 
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "").strip()
+    if request.method == "GET":
+        return render_template("login.html")
 
-        if not username or not password:
-            return render_template("login.html", error="Inserisci username e password.")
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "").strip()
 
-        db = Database()
-        result = db.execute_query(
-            "SELECT id, username, admin FROM utenti WHERE username = %s AND password = %s",
-            (username, password)
-        )
+    if not username or not password:
+        return render_template("login.html", error="Inserisci username e password.")
 
-        if result:
-            user_id, username_db, is_admin = result[0]
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, username, admin FROM utenti WHERE username = %s AND password = %s",
+                (username, password),
+            )
+            row = cur.fetchone()
+    finally:
+        conn.close()
 
-            session["user_id"] = user_id
-            session["username"] = username_db
-            session["is_admin"] = bool(is_admin)
-
-            db.close()
-            return redirect("/dashboard_admin") if is_admin else redirect("/dashboard_user")
-
-        db.close()
+    if not row:
         return render_template("login.html", error="Username o password errati.")
 
-    # GET
-    return render_template("login.html")
+    user_id, username_db, is_admin = row
+
+    session["user_id"] = user_id
+    session["username"] = username_db
+    session["is_admin"] = bool(is_admin)
+
+    if is_admin:
+        return redirect("/dashboard_admin")
+    else:
+        return redirect("/dashboard_user")
+        
+@app.route("/dashboard_admin")
+def dashboard_admin():
+    if not session.get("is_admin"):
+        return redirect("/login")
+
+    return render_template("dashboard_admin.html", username=session.get("username"))
+
 
 
 @app.route("/logout")
