@@ -1,1 +1,407 @@
 
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1a2e;
+      --panel2:#111f38;
+      --text:#e7ecff;
+      --muted:#aab4d6;
+      --border:rgba(255,255,255,.12);
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius:14px;
+      --sidebar-w: 280px;
+      --sidebar-collapsed: 78px;
+      --accent: #6ea8fe;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg, #070c16 0%, #0b1220 60%, #070c16 100%);
+      color:var(--text);
+    }
+
+    /* Layout */
+    .app{
+      display:flex;
+      min-height:100vh;
+    }
+
+    /* Sidebar */
+    .sidebar{
+      position: sticky;
+      top:0;
+      height:100vh;
+      width: var(--sidebar-w);
+      background: linear-gradient(180deg, var(--panel) 0%, #0b152a 100%);
+      border-right:1px solid var(--border);
+      box-shadow: var(--shadow);
+      transition: width .22s ease;
+      overflow:hidden;
+    }
+    .sidebar.collapsed{
+      width: var(--sidebar-collapsed);
+    }
+
+    .sb-top{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:18px 16px;
+      border-bottom:1px solid var(--border);
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+    }
+    .brand .logo{
+      width:38px; height:38px; border-radius:10px;
+      background: radial-gradient(circle at 30% 30%, #7c3aed 0%, #2563eb 55%, #0ea5e9 100%);
+      box-shadow: 0 8px 18px rgba(0,0,0,.35);
+      flex: 0 0 auto;
+    }
+    .brand .titles{
+      display:flex;
+      flex-direction:column;
+      line-height:1.1;
+      min-width:0;
+    }
+    .brand .titles strong{
+      font-size:14px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .brand .titles span{
+      font-size:12px; color:var(--muted);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+
+    .toggle-btn{
+      margin-left:auto;
+      width:40px; height:40px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.05);
+      color: var(--text);
+      cursor:pointer;
+      display:grid;
+      place-items:center;
+      transition: transform .12s ease, background .12s ease;
+    }
+    .toggle-btn:hover{ background: rgba(255,255,255,.09); }
+    .toggle-btn:active{ transform: scale(.98); }
+
+    .sb-nav{
+      padding: 12px 10px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .nav-item{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding: 12px 12px;
+      border-radius: 12px;
+      color: var(--text);
+      text-decoration:none;
+      border:1px solid transparent;
+      transition: background .12s ease, border-color .12s ease;
+    }
+    .nav-item:hover{
+      background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.06);
+    }
+    .nav-item.active{
+      background: rgba(110,168,254,.16);
+      border-color: rgba(110,168,254,.22);
+    }
+    .icon{
+      width:26px;
+      height:26px;
+      border-radius:10px;
+      display:grid;
+      place-items:center;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.08);
+      flex: 0 0 auto;
+      font-size:14px;
+    }
+    .label{
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      font-size:14px;
+    }
+    .sidebar.collapsed .label,
+    .sidebar.collapsed .titles{
+      display:none;
+    }
+
+    .sb-bottom{
+      margin-top:auto;
+      padding: 12px 10px 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Main */
+    .main{
+      flex:1;
+      padding: 18px;
+    }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding: 14px 16px;
+      background: rgba(255,255,255,.03);
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .topbar h1{
+      margin:0;
+      font-size:16px;
+      font-weight:650;
+    }
+    .topbar .user{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color: var(--muted);
+      font-size:13px;
+    }
+    .pill{
+      padding: 6px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+    }
+
+    .grid{
+      margin-top:16px;
+      display:grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap:16px;
+    }
+    .card{
+      background: rgba(255,255,255,.03);
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      min-height: 140px;
+    }
+    .card h2{
+      margin:0 0 6px;
+      font-size:14px;
+    }
+    .card p{
+      margin:0;
+      color: var(--muted);
+      font-size:13px;
+      line-height:1.4;
+    }
+
+    .cta-row{
+      display:flex;
+      gap:10px;
+      margin-top:12px;
+      flex-wrap:wrap;
+    }
+    .btn{
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.05);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor:pointer;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-size:13px;
+    }
+    .btn:hover{ background: rgba(255,255,255,.08); }
+    .btn.primary{
+      border-color: rgba(110,168,254,.35);
+      background: rgba(110,168,254,.18);
+    }
+
+    /* Mobile: sidebar overlay */
+    .overlay{
+      position:fixed;
+      inset:0;
+      background: rgba(0,0,0,.5);
+      display:none;
+    }
+    .overlay.show{ display:block; }
+
+    @media (max-width: 920px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 760px){
+      .sidebar{
+        position: fixed;
+        left:0;
+        top:0;
+        transform: translateX(-100%);
+        z-index: 50;
+        width: var(--sidebar-w);
+        transition: transform .22s ease;
+      }
+      .sidebar.open{
+        transform: translateX(0);
+      }
+      .main{ padding: 14px; }
+      .mobile-open{
+        display:inline-flex;
+      }
+    }
+
+    .mobile-open{
+      display:none;
+    }
+  </style>
+</head>
+<body>
+  <div id="overlay" class="overlay" onclick="closeSidebarMobile()"></div>
+
+  <div class="app">
+    <aside id="sidebar" class="sidebar">
+      <div class="sb-top">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <div class="titles">
+            <strong>Alpha Menu</strong>
+            <span>{{ username }}</span>
+          </div>
+        </div>
+        <button class="toggle-btn" onclick="toggleSidebar()" title="Comprimi/Espandi" aria-label="Comprimi/Espandi">
+          ☰
+        </button>
+      </div>
+
+      <nav class="sb-nav">
+        {# Esempio voci menu: url + label + icon #}
+        <a class="nav-item {{ 'active' if active_page=='home' else '' }}" href="/dashboard_user">
+          <div class="icon">🏠</div><div class="label">Home</div>
+        </a>
+
+        <a class="nav-item {{ 'active' if active_page=='prodotti' else '' }}" href="/prodotti">
+          <div class="icon">🧾</div><div class="label">Prodotti</div>
+        </a>
+
+        <a class="nav-item {{ 'active' if active_page=='categorie' else '' }}" href="/categorie">
+          <div class="icon">📁</div><div class="label">Categorie</div>
+        </a>
+
+        <a class="nav-item {{ 'active' if active_page=='negozio' else '' }}" href="/negozio">
+          <div class="icon">🏪</div><div class="label">Negozio</div>
+        </a>
+
+        <a class="nav-item {{ 'active' if active_page=='qrcode' else '' }}" href="/qrcode">
+          <div class="icon">🔳</div><div class="label">QR Code</div>
+        </a>
+
+        <a class="nav-item {{ 'active' if active_page=='licenze' else '' }}" href="/licenze">
+          <div class="icon">🔐</div><div class="label">Licenze</div>
+        </a>
+      </nav>
+
+      <div class="sb-bottom">
+        <a class="nav-item" href="/logout">
+          <div class="icon">🚪</div><div class="label">Logout</div>
+        </a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="btn mobile-open" onclick="openSidebarMobile()">☰ Menu</button>
+          <h1>Dashboard</h1>
+        </div>
+        <div class="user">
+          <span class="pill">Utente: {{ username }}</span>
+        </div>
+      </div>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Stato rapido</h2>
+          <p>Da qui gestisci prodotti, categorie e personalizzazione del tuo menù online.</p>
+
+          <div class="cta-row">
+            <a class="btn primary" href="/prodotti">➕ Aggiungi / Gestisci prodotti</a>
+            <a class="btn" href="/negozio">⚙️ Impostazioni negozio</a>
+            <a class="btn" href="/qrcode">🔳 QR Code</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Licenze</h2>
+          <p>Qui puoi vedere quali moduli sono attivi (es. prenotazioni, eliminacode).</p>
+          <div class="cta-row">
+            <a class="btn" href="/licenze">Apri licenze</a>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+
+    // Desktop collapse/expand
+    function toggleSidebar(){
+      // su mobile usa overlay/open
+      if (window.matchMedia("(max-width: 760px)").matches) {
+        if (sidebar.classList.contains('open')) closeSidebarMobile();
+        else openSidebarMobile();
+        return;
+      }
+      sidebar.classList.toggle('collapsed');
+      localStorage.setItem('sb_collapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
+    }
+
+    // Mobile open/close
+    function openSidebarMobile(){
+      sidebar.classList.add('open');
+      overlay.classList.add('show');
+    }
+    function closeSidebarMobile(){
+      sidebar.classList.remove('open');
+      overlay.classList.remove('show');
+    }
+
+    // Restore desktop state
+    (function restore(){
+      const collapsed = localStorage.getItem('sb_collapsed') === '1';
+      if (!window.matchMedia("(max-width: 760px)").matches) {
+        sidebar.classList.toggle('collapsed', collapsed);
+      }
+    })();
+
+    // On resize: remove mobile overlay
+    window.addEventListener('resize', () => {
+      if (!window.matchMedia("(max-width: 760px)").matches) {
+        closeSidebarMobile();
+      }
+    });
+  </script>
+</body>
+</html>
