@@ -2,11 +2,12 @@ import os
 from pathlib import Path
 
 import psycopg2
-from flask import Flask, render_template
+from flask import Flask, render_template, request, redirect, session
 
 from db_config import build_db_config
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
 
 
 def init_db() -> None:
@@ -22,40 +23,65 @@ def init_db() -> None:
         conn.close()
 
 
+# Esegui init schema solo se sei in ambiente con DB configurato
 if os.getenv("DATABASE_URL") and os.getenv("AUTO_INIT_DB", "true").lower() == "true":
     init_db()
 
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return redirect("/login")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        return render_template("login.html")
+
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "").strip()
+
+    if not username or not password:
+        return render_template("login.html", error="Inserisci username e password.")
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, username, admin FROM utenti WHERE username = %s AND password = %s",
+                (username, password),
+            )
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        return render_template("login.html", error="Username o password errati.")
+
+    user_id, username_db, is_admin = row
+    session["user_id"] = user_id
+    session["username"] = username_db
+    session["is_admin"] = bool(is_admin)
+
+    # qui puoi gestire admin/user
+    return redirect("/dashboard_user")
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
+
 
 @app.route("/dashboard_user")
 def dashboard_user():
     if "user_id" not in session:
         return redirect("/login")
 
-    user_id = session["user_id"]
-    db = Database()
-
-    # Recupera le licenze dell'utente
-    licenze = db.execute_query(
-        "SELECT tipo, data_scadenza FROM licenze WHERE id_utente = %s", (user_id,)
-    )
-
-    # Controlla se le licenze specifiche sono attive
-    eliminacode_attiva = any(licenza[0] == "eliminacode" for licenza in licenze)
-    prenotazioni_attiva = any(licenza[0] == "prenotazioni" for licenza in licenze)
-
-    db.close()
-    return render_template(
-        "dashboard_user.html",
-        username=session["username"],
-        licenze=licenze,
-        eliminacode_attiva=eliminacode_attiva,
-        prenotazioni_attiva=prenotazioni_attiva
-    )
+    # per ora mostriamo solo una pagina semplice
+    return render_template("dashboard_user.html", username=session.get("username"))
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
