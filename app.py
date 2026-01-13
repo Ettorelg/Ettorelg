@@ -220,54 +220,25 @@ def api_prodotti_list():
         conn.close()
 
 
-@app.post("/api/categorie")
-def api_categorie_create():
+@app.get("/api/categorie")
+def api_categorie_list():
     if "user_id" not in session:
         return jsonify({"error": "unauthorized"}), 401
-
-    data = request.get_json(silent=True) or {}
-    nome = (data.get("nome") or "").strip()
-    visibile = bool(data.get("visibile", True))
-    ordine = data.get("ordine")
-
-    if not nome:
-        return jsonify({"error": "nome obbligatorio"}), 400
-
-    # ordine opzionale
-    ordine_int = None
-    if ordine is not None and ordine != "":
-        try:
-            ordine_int = int(ordine)
-        except Exception:
-            return jsonify({"error": "ordine non valido"}), 400
-
     shop_id = get_user_shop_id(session["user_id"])
     if not shop_id:
-        return jsonify({"error": "negozio non trovato"}), 400
+        return jsonify({"items": []})
 
     conn = psycopg2.connect(**build_db_config())
     try:
-        with conn:
-            with conn.cursor() as cur:
-                if ordine_int is None:
-                    cur.execute("""
-                        INSERT INTO categorie (id_negozio, nome, ordine, visibile)
-                        VALUES (%s, %s,
-                            (SELECT COALESCE(MAX(ordine), 0) + 10 FROM categorie WHERE id_negozio = %s),
-                            %s
-                        )
-                        RETURNING id
-                    """, (shop_id, nome, shop_id, visibile))
-                else:
-                    cur.execute("""
-                        INSERT INTO categorie (id_negozio, nome, ordine, visibile)
-                        VALUES (%s, %s, %s, %s)
-                        RETURNING id
-                    """, (shop_id, nome, ordine_int, visibile))
-
-                new_id = cur.fetchone()[0]
-
-        return jsonify({"ok": True, "id": new_id})
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, nome
+                FROM categorie
+                WHERE id_negozio = %s AND visibile = TRUE
+                ORDER BY ordine ASC, nome ASC
+            """, (shop_id,))
+            cats = [{"id": r[0], "nome": r[1]} for r in cur.fetchall()]
+        return jsonify({"items": cats})
     finally:
         conn.close()
 
@@ -481,9 +452,18 @@ def api_categorie_create():
     data = request.get_json(silent=True) or {}
     nome = (data.get("nome") or "").strip()
     visibile = bool(data.get("visibile", True))
+    ordine = data.get("ordine")
 
     if not nome:
         return jsonify({"error": "nome obbligatorio"}), 400
+
+    # ordine opzionale
+    ordine_int = None
+    if ordine is not None and ordine != "":
+        try:
+            ordine_int = int(ordine)
+        except Exception:
+            return jsonify({"error": "ordine non valido"}), 400
 
     shop_id = get_user_shop_id(session["user_id"])
     if not shop_id:
@@ -493,18 +473,28 @@ def api_categorie_create():
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO categorie (id_negozio, nome, ordine, visibile)
-                    VALUES (%s, %s,
-                        (SELECT COALESCE(MAX(ordine), 0) + 10 FROM categorie WHERE id_negozio = %s),
-                        %s
-                    )
-                    RETURNING id
-                """, (shop_id, nome, shop_id, visibile))
+                if ordine_int is None:
+                    cur.execute("""
+                        INSERT INTO categorie (id_negozio, nome, ordine, visibile)
+                        VALUES (%s, %s,
+                            (SELECT COALESCE(MAX(ordine), 0) + 10 FROM categorie WHERE id_negozio = %s),
+                            %s
+                        )
+                        RETURNING id
+                    """, (shop_id, nome, shop_id, visibile))
+                else:
+                    cur.execute("""
+                        INSERT INTO categorie (id_negozio, nome, ordine, visibile)
+                        VALUES (%s, %s, %s, %s)
+                        RETURNING id
+                    """, (shop_id, nome, ordine_int, visibile))
+
                 new_id = cur.fetchone()[0]
+
         return jsonify({"ok": True, "id": new_id})
     finally:
         conn.close()
+
 
 
 @app.put("/api/categorie/<int:categoria_id>")
