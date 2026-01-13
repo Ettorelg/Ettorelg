@@ -209,6 +209,11 @@
       f("immagine_url").value = "";
       modeHint.textContent = "Modalità: creazione";
       f("saveBtn").textContent = "Salva prodotto";
+    const fileInput = document.getElementById("immagine");
+    if (fileInput) fileInput.value = "";
+    const removeCb = document.getElementById("remove_image");
+    if (removeCb) removeCb.checked = false;
+
     }
   
     window.editProduct = async function(id){
@@ -228,6 +233,11 @@
       f("saveBtn").textContent = "Aggiorna prodotto";
       showToast("Modifica prodotto: aggiorna i campi e salva.");
       window.scrollTo({ top: 0, behavior: "smooth" });
+      const removeCb = document.getElementById("remove_image");
+      if (removeCb) removeCb.checked = false;
+      const fileInput = document.getElementById("immagine");
+      if (fileInput) fileInput.value = "";
+
     }
   
     window.deleteProduct = async function(id){
