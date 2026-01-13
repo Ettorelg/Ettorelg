@@ -164,7 +164,7 @@
       res = await fetch("/api/categorie", {
         method: "POST",
         headers: { "Content-Type":"application/json" },
-        body: JSON.stringify({ nome: payload.nome, visibile: payload.visibile })
+        body: JSON.stringify(payload)   // <-- INVIA TUTTO (nome, ordine, visibile)
       });
     } else {
       res = await fetch(`/api/categorie/${id}`, {
@@ -173,6 +173,7 @@
         body: JSON.stringify(payload)
       });
     }
+
 
     if(!res.ok){
       const err = await res.json().catch(()=>({}));
