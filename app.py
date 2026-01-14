@@ -447,9 +447,14 @@ from flask import jsonify
 @app.post("/api/categorie")
 def api_categorie_create():
     if "user_id" not in session:
-        return jsonify({"error": "unauthorized"}), 401
+        return jsonify({"error": "unauthorized", "detail": "sessione assente"}), 401
 
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+    print("DEBUG /api/categorie JSON:", data)
+
+    if not data:
+        return jsonify({"error": "bad_request", "detail": "JSON mancante o non valido"}), 400
+
     nome = (data.get("nome") or "").strip()
     visibile = bool(data.get("visibile", True))
     ordine = data.get("ordine")
@@ -457,7 +462,6 @@ def api_categorie_create():
     if not nome:
         return jsonify({"error": "nome obbligatorio"}), 400
 
-    # ordine opzionale
     ordine_int = None
     if ordine is not None and ordine != "":
         try:
@@ -466,6 +470,8 @@ def api_categorie_create():
             return jsonify({"error": "ordine non valido"}), 400
 
     shop_id = get_user_shop_id(session["user_id"])
+    print("DEBUG shop_id:", shop_id)
+
     if not shop_id:
         return jsonify({"error": "negozio non trovato"}), 400
 
@@ -490,10 +496,16 @@ def api_categorie_create():
                     """, (shop_id, nome, ordine_int, visibile))
 
                 new_id = cur.fetchone()[0]
+                print("DEBUG inserted categoria id:", new_id)
 
         return jsonify({"ok": True, "id": new_id})
+    except Exception as e:
+        conn.rollback()
+        print("DEBUG INSERT ERROR:", repr(e))
+        return jsonify({"error": "db_error", "detail": str(e)}), 500
     finally:
         conn.close()
+
 
 
 
