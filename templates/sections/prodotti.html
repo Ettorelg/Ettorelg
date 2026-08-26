@@ -57,6 +57,7 @@
   .bulk-operations{margin-top:32px;padding:14px 18px;border:1px solid rgba(255,255,255,.15);border-radius:14px;background:rgba(255,255,255,.025)}
   .bulk-operations summary{cursor:pointer;font-weight:650;color:#cfe0ff}
   .bulk-operations .bulk-tools{margin-bottom:0}
+  .advanced-divider{border:0;border-top:1px solid rgba(255,255,255,.13);margin:18px 0}
   .tool-group-title{margin:18px 0 0;font-size:14px;font-weight:650;color:#dbe8ff}
   .search-tools{margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,255,255,.16)}
 </style>
@@ -159,6 +160,14 @@
     <div class="field"><label for="bulkAvailability">Azione</label><select id="bulkAvailability"><option value="true">Attiva prodotti</option><option value="false">Disattiva prodotti</option></select></div>
     <button class="btn" type="button" id="applyBulkAvailability">Applica</button>
   </div>
+  <hr class="advanced-divider" />
+  <h4 class="tool-group-title">Ordina prodotti per categoria</h4>
+  <p class="muted">L’ordinamento predefinito è alfabetico (A–Z).</p>
+  <div class="bulk-tools">
+    <div class="field"><label for="sortCategory">Categoria</label><select id="sortCategory"><option value="">Seleziona categoria</option></select></div>
+    <div class="field"><label for="sortMode">Ordinamento</label><select id="sortMode"><option value="alphabetical">Alfabetico (A–Z)</option></select></div>
+    <button class="btn" type="button" id="applyCategorySort">Ordina prodotti</button>
+  </div>
 </details>
 
 <section class="products-list-panel" aria-labelledby="productsListTitle">
@@ -256,6 +265,8 @@
     if (filter) filter.innerHTML = `<option value="">Tutte le categorie</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
     const bulkCategory = f("bulkCategory");
     if (bulkCategory) bulkCategory.innerHTML = `<option value="">Seleziona categoria</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
+    const sortCategory = f("sortCategory");
+    if (sortCategory) sortCategory.innerHTML = `<option value="">Seleziona categoria</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
   }
 
   async function loadSubcategories(categoriaId, preselect=null){
@@ -422,6 +433,23 @@
     f("filterCategory").addEventListener("change", renderTable);
     f("filterAvailability").addEventListener("change", renderTable);
     f("bulkCategory").addEventListener("change", () => loadBulkSubcategories(f("bulkCategory").value));
+    f("applyCategorySort").addEventListener("click", async () => {
+      const id_categoria = f("sortCategory").value;
+      if (!id_categoria) { showToast("Seleziona una categoria da ordinare."); return; }
+      const res = await fetch("/api/prodotti/ordina", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_categoria, mode: f("sortMode").value })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || err.error || "Errore ordinamento prodotti");
+        return;
+      }
+      const data = await res.json();
+      await loadProducts();
+      showToast(`${data.updated} prodotti ordinati alfabeticamente.`);
+    });
+
     f("applyBulkAvailability").addEventListener("click", async () => {
       const id_categoria = f("bulkCategory").value;
       const id_sottocategoria = f("bulkSubcategory").value;
