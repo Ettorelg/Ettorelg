@@ -1,4 +1,5 @@
 import io
+import csv
 import os
 import re
 import hmac
@@ -202,6 +203,8 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS descrizione_estesa TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS logo_url TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS copertina_url TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS colore_accento TEXT NOT NULL DEFAULT '#9d3e27'")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS colore_sfondo TEXT NOT NULL DEFAULT '#f7f3ed'")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS orari_negozio (
                         id SERIAL PRIMARY KEY,
@@ -242,6 +245,15 @@ def init_db() -> None:
                     )
                 """)
                 cur.execute("ALTER TABLE traduzioni_menu ADD COLUMN IF NOT EXISTS testo_originale TEXT NOT NULL DEFAULT ''")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS menu_visite (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                        lingua TEXT NOT NULL DEFAULT 'it',
+                        visited_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS menu_visite_negozio_data ON menu_visite (id_negozio, visited_at DESC)")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_email_unique ON utenti (LOWER(email)) WHERE email IS NOT NULL")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_google_sub_unique ON utenti (google_sub) WHERE google_sub IS NOT NULL")
                 cur.execute("""
@@ -820,6 +832,7 @@ def dashboard_user_section(section: str):
         "anteprima",
         "licenze",
         "lingue",
+        "statistiche",
         "account",
     }
     if section not in allowed:
@@ -827,7 +840,7 @@ def dashboard_user_section(section: str):
 
     shop_required_sections = {
         "prodotti", "categorie", "sottocategorie", "allergeni",
-        "menu_online", "qrcode", "anteprima", "lingue",
+        "menu_online", "qrcode", "anteprima", "lingue", "statistiche",
     }
     if section in shop_required_sections and not get_user_shop_id(session["user_id"]):
         return (
@@ -861,6 +874,7 @@ def api_negozio():
     fields = (
         "nome", "indirizzo", "citta", "cap", "provincia", "email",
         "telefono", "nazione", "descrizione_breve", "descrizione_estesa",
+        "colore_accento", "colore_sfondo",
     )
     required_fields = ("nome", "indirizzo", "citta", "cap", "provincia", "descrizione_breve", "descrizione_estesa")
     conn = psycopg2.connect(**build_db_config())
@@ -886,6 +900,8 @@ def api_negozio():
 
                 data = request.get_json(silent=True) or {}
                 values = {field: (data.get(field) or "").strip() for field in fields}
+                values["colore_accento"] = values["colore_accento"] if re.fullmatch(r"#[0-9a-fA-F]{6}", values["colore_accento"]) else "#9d3e27"
+                values["colore_sfondo"] = values["colore_sfondo"] if re.fullmatch(r"#[0-9a-fA-F]{6}", values["colore_sfondo"]) else "#f7f3ed"
                 missing = [field for field in required_fields if not values[field]]
                 if missing:
                     return jsonify({"error": "campi obbligatori mancanti", "fields": missing}), 400
@@ -1071,6 +1087,40 @@ def api_orari():
         conn.close()
 
 
+@app.get("/api/statistiche")
+def api_statistiche():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "negozio non trovato"}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*),
+                       COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '7 days'),
+                       COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '30 days')
+                FROM menu_visite WHERE id_negozio=%s
+            """, (shop_id,))
+            total, last7, last30 = cur.fetchone()
+            cur.execute("""
+                SELECT lingua, COUNT(*) FROM menu_visite
+                WHERE id_negozio=%s AND visited_at >= NOW() - INTERVAL '30 days'
+                GROUP BY lingua ORDER BY COUNT(*) DESC
+            """, (shop_id,))
+            languages = [{"lingua": row[0], "visite": row[1]} for row in cur.fetchall()]
+            cur.execute("""
+                SELECT TO_CHAR(DATE(visited_at), 'YYYY-MM-DD'), COUNT(*) FROM menu_visite
+                WHERE id_negozio=%s AND visited_at >= CURRENT_DATE - INTERVAL '13 days'
+                GROUP BY DATE(visited_at) ORDER BY DATE(visited_at)
+            """, (shop_id,))
+            days = [{"data": row[0], "visite": row[1]} for row in cur.fetchall()]
+        return jsonify({"totale": total, "ultimi_7_giorni": last7, "ultimi_30_giorni": last30, "lingue": languages, "giorni": days})
+    finally:
+        conn.close()
+
+
 @app.get("/menu/<slug>")
 def public_menu(slug: str):
     requested_language = (request.args.get("lang") or "it").lower()
@@ -1080,7 +1130,8 @@ def public_menu(slug: str):
             cur.execute(
                 """
                 SELECT id, nome, indirizzo, citta, cap, provincia, email, telefono, nazione,
-                       descrizione_breve, descrizione_estesa, slug, logo_url, copertina_url
+                       descrizione_breve, descrizione_estesa, slug, logo_url, copertina_url,
+                       colore_accento, colore_sfondo
                 FROM negozi WHERE slug = %s
                 """,
                 (slug,),
@@ -1094,7 +1145,13 @@ def public_menu(slug: str):
                 "email": row[6] or "", "telefono": row[7] or "", "nazione": row[8] or "",
                 "descrizione_breve": row[9] or "", "descrizione_estesa": row[10] or "",
                 "slug": row[11], "logo_url": row[12] or "", "copertina_url": row[13] or "",
+                "colore_accento": row[14] or "#9d3e27", "colore_sfondo": row[15] or "#f7f3ed",
             }
+            cur.execute(
+                "INSERT INTO menu_visite (id_negozio, lingua) VALUES (%s, %s)",
+                (shop["id"], requested_language if requested_language in SUPPORTED_MENU_LANGUAGES else "it"),
+            )
+            conn.commit()
 
             cur.execute(
                 """
@@ -1431,6 +1488,103 @@ def api_prodotti_create():
             "detail": error.diag.message_primary or "Errore database non specificato."
         }), 500
 
+    finally:
+        conn.close()
+
+
+@app.post("/api/prodotti/<int:prodotto_id>/duplica")
+def api_prodotto_duplica(prodotto_id: int):
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "negozio non trovato"}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, ordine, etichette, allergeni_auto)
+                    SELECT id_negozio, id_categoria, id_sottocategoria, LEFT(nome || ' COPIA', 100), descrizione, note,
+                           prezzo_euro, disponibile, COALESCE((SELECT MAX(ordine) + 10 FROM prodotti WHERE id_negozio=%s), 10), etichette, allergeni_auto
+                    FROM prodotti WHERE id=%s AND id_negozio=%s RETURNING id
+                """, (shop_id, prodotto_id, shop_id))
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "prodotto non trovato"}), 404
+                new_id = row[0]
+                cur.execute("""
+                    INSERT INTO immagini_prodotti (id_prodotto, url, principale, ordine)
+                    SELECT %s, url, principale, ordine FROM immagini_prodotti WHERE id_prodotto=%s
+                """, (new_id, prodotto_id))
+        return jsonify({"ok": True, "id": new_id})
+    finally:
+        conn.close()
+
+
+@app.patch("/api/prodotti/<int:prodotto_id>/disponibilita")
+def api_prodotto_disponibilita(prodotto_id: int):
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    data = request.get_json(silent=True) or {}
+    disponibile = bool(data.get("disponibile"))
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE prodotti SET disponibile=%s WHERE id=%s AND id_negozio=%s", (disponibile, prodotto_id, shop_id))
+                if not cur.rowcount:
+                    return jsonify({"error": "prodotto non trovato"}), 404
+        return jsonify({"ok": True, "disponibile": disponibile})
+    finally:
+        conn.close()
+
+
+@app.post("/api/prodotti/importa-csv")
+def api_prodotti_importa_csv():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    uploaded = request.files.get("file")
+    if not shop_id or not uploaded:
+        return jsonify({"error": "File CSV mancante"}), 400
+    try:
+        content = uploaded.read().decode("utf-8-sig")
+        dialect = csv.Sniffer().sniff(content[:2048], delimiters=",;")
+        rows = csv.DictReader(io.StringIO(content), dialect=dialect)
+    except Exception:
+        return jsonify({"error": "CSV non valido"}), 400
+    imported = 0
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                for raw in rows:
+                    data = {(key or "").strip().lower(): (value or "").strip() for key, value in raw.items()}
+                    name = data.get("nome", "").upper()
+                    category_name = data.get("categoria", "").upper()
+                    if not name or not category_name:
+                        continue
+                    try:
+                        price = float(data.get("prezzo", data.get("prezzo_euro", "0")).replace(",", "."))
+                    except ValueError:
+                        continue
+                    cur.execute("SELECT id FROM categorie WHERE id_negozio=%s AND UPPER(nome)=%s", (shop_id, category_name))
+                    category = cur.fetchone()
+                    if category:
+                        category_id = category[0]
+                    else:
+                        cur.execute("INSERT INTO categorie (id_negozio, nome, visibile, ordine) VALUES (%s,%s,TRUE,(SELECT COALESCE(MAX(ordine),0)+10 FROM categorie WHERE id_negozio=%s)) RETURNING id", (shop_id, category_name, shop_id))
+                        category_id = cur.fetchone()[0]
+                    description = data.get("descrizione", data.get("ingredienti", ""))
+                    available = data.get("disponibile", "si").lower() not in {"no", "false", "0"}
+                    cur.execute("""
+                        INSERT INTO prodotti (id_negozio,id_categoria,nome,descrizione,note,prezzo_euro,disponibile,ordine,allergeni_auto)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT COALESCE(MAX(ordine),0)+10 FROM prodotti WHERE id_negozio=%s),%s)
+                    """, (shop_id, category_id, name, description, data.get("note", ""), price, available, shop_id, detect_allergens(description)))
+                    imported += 1
+        return jsonify({"ok": True, "importati": imported})
     finally:
         conn.close()
 
