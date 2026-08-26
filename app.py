@@ -797,7 +797,8 @@ def dashboard_user():
     return render_template(
         "dashboard_user.html",
         username=session.get("username", "utente"),
-        active_section="home"
+        active_section="home",
+        shop_configured=get_user_shop_id(session["user_id"]) is not None,
     )
 
 @app.route("/dashboard_user/section/<section>")
@@ -823,6 +824,17 @@ def dashboard_user_section(section: str):
     }
     if section not in allowed:
         abort(404)
+
+    shop_required_sections = {
+        "prodotti", "categorie", "sottocategorie", "allergeni",
+        "menu_online", "qrcode", "anteprima", "lingue",
+    }
+    if section in shop_required_sections and not get_user_shop_id(session["user_id"]):
+        return (
+            '<div class="error"><b>Completa prima l’anagrafica del negozio.</b>'
+            '<br>Salva i dati nella sezione “Negozio e orari” per abilitare questa funzione.</div>',
+            409,
+        )
 
     # Qui in futuro carichi dati da DB per ogni sezione
     # Esempio: if section == "prodotti": products = ...
