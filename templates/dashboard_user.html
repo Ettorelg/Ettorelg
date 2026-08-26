@@ -29,6 +29,10 @@
       text-decoration:none;border:1px solid transparent;background:transparent;cursor:pointer}
     .nav-item:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.06)}
     .nav-item.active{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.12)}
+    .nav-item.shop-locked{opacity:.38;cursor:not-allowed;filter:saturate(.35)}
+    .nav-item.shop-locked:hover{background:transparent;border-color:transparent}
+    .nav-item.shop-locked::after{content:"🔒";margin-left:auto;font-size:12px}
+    .sidebar.collapsed .nav-item.shop-locked::after{display:none}
     .icon{width:26px;height:26px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.06);
       border:1px solid rgba(255,255,255,.08);flex:0 0 auto}
     .label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
@@ -65,12 +69,12 @@
       <nav class="sb-nav" id="nav">
         <button class="nav-item active" data-section="home"><div class="icon">🏠</div><div class="label">Home</div></button>
 
-        <button class="nav-item" data-section="prodotti"><div class="icon">🧾</div><div class="label">Prodotti</div></button>
-        <button class="nav-item" data-section="categorie"><div class="icon">📁</div><div class="label">Categorie</div></button>
+        <button class="nav-item" data-section="prodotti" data-requires-shop="1"><div class="icon">🧾</div><div class="label">Prodotti</div></button>
+        <button class="nav-item" data-section="categorie" data-requires-shop="1"><div class="icon">📁</div><div class="label">Categorie</div></button>
         <button class="nav-item" data-section="attivita"><div class="icon">🏪</div><div class="label">Negozio e orari</div></button>
-        <button class="nav-item" data-section="menu_online"><div class="icon">📱</div><div class="label">Menu pubblico</div></button>
+        <button class="nav-item" data-section="menu_online" data-requires-shop="1"><div class="icon">📱</div><div class="label">Menu pubblico</div></button>
 
-        <button class="nav-item" data-section="lingue"><div class="icon">🌐</div><div class="label">Lingue</div></button>
+        <button class="nav-item" data-section="lingue" data-requires-shop="1"><div class="icon">🌐</div><div class="label">Lingue</div></button>
         <button class="nav-item" data-section="licenze"><div class="icon">🔐</div><div class="label">Licenze</div></button>
         <button class="nav-item" data-section="account"><div class="icon">👤</div><div class="label">Account</div></button>
       </nav>
@@ -98,6 +102,18 @@
     const shopName = document.getElementById('shopName');
     const shopLogoImage = document.getElementById('shopLogoImage');
     const shopLogoFallback = document.getElementById('shopLogoFallback');
+    let shopConfigured = {{ 'true' if shop_configured else 'false' }};
+    const shopRequiredSections = new Set(['prodotti', 'categorie', 'sottocategorie', 'allergeni', 'menu_online', 'qrcode', 'anteprima', 'lingue']);
+
+    function syncShopLocks(){
+      for (const btn of nav.querySelectorAll('[data-requires-shop="1"]')) {
+        const locked = !shopConfigured;
+        btn.classList.toggle('shop-locked', locked);
+        btn.disabled = locked;
+        btn.title = locked ? 'Completa prima l’anagrafica del negozio' : '';
+        btn.setAttribute('aria-disabled', locked ? 'true' : 'false');
+      }
+    }
 
     window.loadShopBranding = async function loadShopBranding(){
       try {
@@ -105,6 +121,8 @@
         if (!response.ok) return;
         const data = await response.json();
         const shop = data.item || {};
+        shopConfigured = Boolean(shop.id);
+        syncShopLocks();
         const name = (shop.nome || 'Alpha Menu').trim();
         shopName.textContent = name;
         shopLogoFallback.textContent = name.split(/\s+/).slice(0, 2).map(word => word[0]).join('').toUpperCase() || 'AM';
@@ -150,6 +168,9 @@
 
     async function loadSection(section){
       if (section === "sottocategorie") section = "categorie";
+      if (shopRequiredSections.has(section) && !shopConfigured) {
+        section = "attivita";
+      }
       // UI
       pageTitle.textContent = titles[section] || "Dashboard";
       content.classList.add('loading');
@@ -202,8 +223,8 @@
 
     // boot: da hash o home
     const initial = (window.location.hash || "").replace("#","") || "home";
-    window.loadShopBranding();
-    loadSection(initial);
+    syncShopLocks();
+    window.loadShopBranding().then(() => loadSection(initial));
   </script>
 </body>
 </html>
