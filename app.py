@@ -222,6 +222,16 @@ def index():
     return redirect("/login")
 
 
+@app.get("/privacy")
+def privacy_policy():
+    return render_template("privacy.html")
+
+
+@app.get("/terms")
+def terms_of_service():
+    return render_template("terms.html")
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
