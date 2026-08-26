@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Registrati · Alpha Menu</title>
+<style>
+:root{--brand:#5b67f1;--bg:#f4f6fb;--text:#182033;--muted:#687087;--line:#dce1ed}*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:22px;font-family:Inter,Arial,sans-serif;background:linear-gradient(135deg,#edf0ff,#f8f9fc);color:var(--text)}
+.card{width:min(440px,100%);background:white;border:1px solid var(--line);border-radius:22px;padding:28px;box-shadow:0 18px 55px #27306c1a}
+h1{margin:0 0 8px}.lead{color:var(--muted);margin:0 0 24px}.field{display:grid;gap:7px;margin:14px 0}label{font-weight:700;font-size:.9rem}
+input{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:11px;font:inherit}.btn{width:100%;border:0;border-radius:11px;padding:13px;font-weight:800;font-size:1rem;cursor:pointer;text-decoration:none;text-align:center;display:block}
+.primary{background:var(--brand);color:white}.google{background:white;color:var(--text);border:1px solid var(--line);margin-top:10px}.disabled{opacity:.55;pointer-events:none}.error{background:#fff0f1;color:#a51d2d;padding:11px;border-radius:10px;margin-bottom:14px}.or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.85rem;margin:18px 0}.or:before,.or:after{content:"";height:1px;background:var(--line);flex:1}.foot{text-align:center;color:var(--muted);margin:18px 0 0}.foot a{color:var(--brand);font-weight:800}
+</style></head><body><main class="card"><h1>Crea il tuo account</h1><p class="lead">La licenza annuale si attiva automaticamente.</p>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="post"><div class="field"><label for="username">Username</label><input id="username" name="username" value="{{ request.form.get('username','') }}" required></div>
+<div class="field"><label for="email">Email</label><input id="email" name="email" type="email" value="{{ request.form.get('email','') }}" required></div>
+<div class="field"><label for="password">Password</label><input id="password" name="password" type="password" minlength="8" required></div>
+<div class="field"><label for="password_confirm">Conferma password</label><input id="password_confirm" name="password_confirm" type="password" minlength="8" required></div>
+<button class="btn primary" type="submit">Registrati e attiva la licenza</button></form><div class="or">oppure</div>
+<a class="btn google{% if not google_enabled %} disabled{% endif %}" href="{{ url_for('auth_google') }}">Registrati con Google</a>
+<p class="foot">Hai già un account? <a href="{{ url_for('login') }}">Accedi</a></p></main></body></html>
