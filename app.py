@@ -528,6 +528,62 @@ def api_prodotti_update(prodotto_id: int):
         conn.close()
 
 
+@app.post("/api/prodotti/posizioni")
+def api_prodotti_posizioni():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    try:
+        id_categoria = int(data.get("id_categoria"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "seleziona una categoria"}), 400
+    positions = data.get("posizioni")
+    if not isinstance(positions, list) or not positions:
+        return jsonify({"error": "posizioni non valide"}), 400
+
+    parsed = []
+    try:
+        for item in positions:
+            product_id = int(item["id"])
+            posizione = int(item["posizione"])
+            if posizione < 0:
+                raise ValueError
+            parsed.append((product_id, posizione))
+    except (TypeError, ValueError, KeyError):
+        return jsonify({"error": "posizioni non valide"}), 400
+
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "negozio non trovato"}), 400
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id FROM prodotti WHERE id_negozio = %s AND id_categoria = %s",
+                    (shop_id, id_categoria),
+                )
+                valid_ids = {row[0] for row in cur.fetchall()}
+                if {item[0] for item in parsed} != valid_ids:
+                    return jsonify({"error": "prodotti non validi per la categoria"}), 400
+
+                for product_id, posizione in parsed:
+                    cur.execute(
+                        "UPDATE prodotti SET ordine = %s WHERE id = %s AND id_negozio = %s",
+                        (posizione, product_id, shop_id),
+                    )
+        return jsonify({"ok": True, "updated": len(parsed)})
+    except psycopg2.Error as error:
+        return jsonify({
+            "error": "Errore database durante l'ordinamento personalizzato.",
+            "detail": error.diag.message_primary or "Errore database non specificato."
+        }), 500
+    finally:
+        conn.close()
+
+
 @app.post("/api/prodotti/ordina")
 def api_prodotti_ordina():
     if "user_id" not in session:
