@@ -448,7 +448,7 @@
       const selected = products.filter(product => String(product.id_categoria) === categoryId)
         .sort((a, b) => Number(a.ordine) - Number(b.ordine) || a.nome.localeCompare(b.nome));
       list.innerHTML = selected.map((product, index) =>
-        `<label class="custom-sort-item"><span>${escapeHtml(product.nome)}</span><input type="number" min="0" step="1" value="${escapeAttr(product.ordine ?? (index + 1) * 10)}" data-product-id="${product.id}" aria-label="Posizione di ${escapeAttr(product.nome)}"></label>`
+        `<label class="custom-sort-item"><span>${escapeHtml(product.nome)}</span><input type="number" min="0" step="1" value="${index + 1}" data-product-id="${product.id}" aria-label="Posizione di ${escapeAttr(product.nome)}"></label>`
       ).join("");
     }
 
