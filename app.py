@@ -37,7 +37,7 @@ def detect_allergens(ingredients: str) -> list[str]:
     text = (ingredients or "").lower()
     return [
         allergen for allergen, keywords in ALLERGEN_KEYWORDS.items()
-        if any(re.search(r"(?<!\\w)" + re.escape(keyword) + r"\\w*", text) for keyword in keywords)
+        if any(re.search(r"(?<!\w)" + re.escape(keyword) + r"\w*", text) for keyword in keywords)
     ]
 
 
