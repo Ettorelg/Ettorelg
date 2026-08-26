@@ -581,7 +581,7 @@ def public_menu_qrcode(slug: str):
     finally:
         conn.close()
 
-    menu_url = url_for("public_menu", slug=slug, _external=True)
+    menu_url = url_for("public_menu", slug=slug, _external=True, _scheme="https")
     image = qrcode.make(menu_url)
     output = io.BytesIO()
     image.save(output, format="PNG")
@@ -605,8 +605,8 @@ def api_menu_pubblico():
         conn.close()
     return jsonify({
         "slug": slug,
-        "menu_url": url_for("public_menu", slug=slug, _external=True),
-        "qr_url": url_for("public_menu_qrcode", slug=slug, _external=True),
+        "menu_url": url_for("public_menu", slug=slug, _external=True, _scheme="https"),
+        "qr_url": url_for("public_menu_qrcode", slug=slug, _external=True, _scheme="https"),
     })
 
 
