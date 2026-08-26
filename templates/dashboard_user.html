@@ -14,7 +14,7 @@
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
     .app{display:flex;min-height:100vh}
     .sidebar{position:sticky;top:0;height:100vh;width:var(--sidebar-w);background:var(--panel);
-      border-right:1px solid var(--border);box-shadow:var(--shadow);transition:width .2s ease;overflow:hidden}
+      border-right:1px solid var(--border);box-shadow:var(--shadow);transition:width .2s ease;overflow-x:hidden;overflow-y:auto;scrollbar-color:rgba(255,255,255,.28) transparent;scrollbar-width:thin}
     .sidebar.collapsed{width:var(--sidebar-collapsed)}
     .sb-top{display:flex;align-items:center;gap:10px;padding:16px;border-bottom:1px solid var(--border)}
     .logo{width:38px;height:38px;border-radius:10px;background:#335;flex:0 0 auto}
