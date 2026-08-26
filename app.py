@@ -233,7 +233,7 @@ def api_categorie_list():
             cur.execute("""
                 SELECT id, nome
                 FROM categorie
-                WHERE id_negozio = %s AND visibile = TRUE
+                WHERE id_negozio = %s
                 ORDER BY ordine ASC, nome ASC
             """, (shop_id,))
             cats = [{"id": r[0], "nome": r[1]} for r in cur.fetchall()]
