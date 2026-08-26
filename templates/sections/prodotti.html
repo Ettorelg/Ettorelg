@@ -117,9 +117,16 @@
   </div>
 
   <div class="field">
-    <label>Etichette</label>
-    <input id="etichette" placeholder="Es. Novità, Consigliato, Piccante" />
-    <div class="muted">Separale con una virgola.</div>
+    <label for="etichette">Etichette</label>
+    <select id="etichette" multiple size="4" aria-describedby="etichetteHint">
+      <option value="Novità">Novità</option>
+      <option value="Consigliato">Consigliato</option>
+      <option value="Piccante">Piccante</option>
+      <option value="Vegetariano">Vegetariano</option>
+      <option value="Vegano">Vegano</option>
+      <option value="Senza glutine">Senza glutine</option>
+    </select>
+    <div class="muted" id="etichetteHint">Puoi selezionarne più di una.</div>
   </div>
 
   <div class="actions" style="margin-top:10px">
@@ -280,21 +287,23 @@
     }).join("");
   }
 
-  function resetForm(){
+  function resetForm(keepCategory = false){
+      const categoryId = keepCategory ? f("id_categoria").value : "";
       f("id").value = "";
       f("nome").value = "";
       f("prezzo_euro").value = "";
       f("descrizione").value = "";
       f("ordine").value = "";
-      f("etichette").value = "";
+      [...f("etichette").options].forEach(option => option.selected = false);
       f("categoryError").textContent = "";
       f("id_categoria").classList.remove("invalid");
       f("imagePreview").style.display = "none";
       f("imagePreview").removeAttribute("src");
       f("disponibile").value = "true";
-      f("id_categoria").value = "";
+      f("id_categoria").value = categoryId;
       f("id_sottocategoria").innerHTML = `<option value="">—</option>`;
-      f("id_sottocategoria").disabled = true;
+      f("id_sottocategoria").disabled = !categoryId;
+      if (categoryId) loadSubcategories(categoryId, null);
       modeHint.textContent = "Modalità: creazione";
       f("saveBtn").textContent = "Salva prodotto";
     const fileInput = document.getElementById("immagine");
@@ -313,7 +322,8 @@
       f("prezzo_euro").value = p.prezzo_euro;
       f("descrizione").value = p.descrizione || "";
       f("ordine").value = p.ordine ?? "";
-      f("etichette").value = (p.etichette || []).join(", ");
+      const productLabels = new Set(p.etichette || []);
+      [...f("etichette").options].forEach(option => option.selected = productLabels.has(option.value));
       f("categoryError").textContent = "";
       f("id_categoria").classList.remove("invalid");
       if (p.immagine_url) { f("imagePreview").src = p.immagine_url; f("imagePreview").style.display = "block"; }
@@ -351,6 +361,10 @@
       f("id_categoria").classList.remove("invalid");
       await loadSubcategories(catId, null);
     });
+
+    function selectedLabels(){
+      return [...f("etichette").selectedOptions].map(option => option.value);
+    }
 
     f("immagine").addEventListener("change", () => {
       const file = f("immagine").files?.[0];
@@ -479,7 +493,7 @@
     fd.append("id_categoria", f("id_categoria").value || "");
     fd.append("id_sottocategoria", f("id_sottocategoria").value || "");
     fd.append("ordine", f("ordine").value || "");
-    fd.append("etichette", f("etichette").value.trim());
+    fd.append("etichette", selectedLabels().join(","));
   
     const fileInput = document.getElementById("immagine");
     if (fileInput && fileInput.files && fileInput.files[0]) {
@@ -502,11 +516,17 @@
       return;
     }
   
+    const saved = await res.json();
     await loadProducts();
     showToast(id ? "Prodotto aggiornato." : "Prodotto creato.");
-  
-    // reset file input e checkbox
-    if (!id || saveAndNew) resetForm();
+
+    if (saveAndNew) {
+      resetForm(true);
+    } else if (!id) {
+      f("id").value = saved.id;
+      modeHint.textContent = "Modalità: modifica";
+      f("saveBtn").textContent = "Aggiorna prodotto";
+    }
     if (fileInput) fileInput.value = "";
     if (removeCb) removeCb.checked = false;
   });
