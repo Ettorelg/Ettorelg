@@ -54,6 +54,15 @@ def init_db() -> None:
         with conn:
             with conn.cursor() as cur:
                 cur.execute(schema_sql)
+                # Tabella di collegamento tra l'account legacy e il suo negozio.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS negozi (
+                        id SERIAL PRIMARY KEY,
+                        id_utente INTEGER NOT NULL UNIQUE,
+                        nome TEXT NOT NULL,
+                        created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
     finally:
         conn.close()
 
@@ -163,6 +172,43 @@ def get_user_shop_id(user_id: int) -> int | None:
             cur.execute("SELECT id FROM negozi WHERE id_utente = %s", (user_id,))
             row = cur.fetchone()
             return row[0] if row else None
+    finally:
+        conn.close()
+
+
+@app.route("/api/negozio", methods=["GET", "POST"])
+def api_negozio():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+
+    user_id = session["user_id"]
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if request.method == "GET":
+                    cur.execute("SELECT id, nome FROM negozi WHERE id_utente = %s", (user_id,))
+                    row = cur.fetchone()
+                    return jsonify({"item": {"id": row[0], "nome": row[1]} if row else None})
+
+                data = request.get_json(silent=True) or {}
+                nome = (data.get("nome") or "").strip()
+                if not nome:
+                    return jsonify({"error": "nome obbligatorio"}), 400
+
+                cur.execute("SELECT id FROM negozi WHERE id_utente = %s", (user_id,))
+                row = cur.fetchone()
+                if row:
+                    cur.execute("UPDATE negozi SET nome = %s WHERE id = %s", (nome, row[0]))
+                    shop_id = row[0]
+                else:
+                    cur.execute(
+                        "INSERT INTO negozi (id_utente, nome) VALUES (%s, %s) RETURNING id",
+                        (user_id, nome),
+                    )
+                    shop_id = cur.fetchone()[0]
+
+        return jsonify({"ok": True, "id": shop_id, "nome": nome})
     finally:
         conn.close()
 
