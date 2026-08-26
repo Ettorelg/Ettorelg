@@ -12,6 +12,7 @@ from db_config import build_db_config
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
+app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024
 VOLUME_ROOT = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
 UPLOAD_ROOT = os.environ.get("UPLOAD_DIR") or (os.path.join(VOLUME_ROOT, "uploads") if VOLUME_ROOT else os.path.join(app.root_path, "static", "uploads"))
 UPLOAD_URL_PREFIX = os.environ.get("UPLOAD_URL_PREFIX", "/uploads").rstrip("/")
@@ -71,6 +72,26 @@ def save_product_image(file_storage, shop_id: int) -> str:
     return f"{UPLOAD_URL_PREFIX}/negozio_{shop_id}/prodotti/{new_name}"
 
 
+def save_shop_image(file_storage, shop_id: int, image_type: str) -> str:
+    """Salva logo o copertina del negozio e restituisce il relativo URL pubblico."""
+    if not file_storage or not file_storage.filename:
+        raise ValueError("Seleziona un'immagine da caricare.")
+
+    filename = secure_filename(file_storage.filename)
+    ext = os.path.splitext(filename.lower())[1]
+    if ext not in ALLOWED_IMAGE_EXT or not (file_storage.mimetype or "").startswith("image/"):
+        raise ValueError("Formato immagine non valido. Usa PNG, JPG o WEBP.")
+
+    if image_type not in {"logo", "copertina"}:
+        raise ValueError("Tipo di immagine non valido.")
+
+    folder = os.path.join(UPLOAD_ROOT, f"negozio_{shop_id}", "branding")
+    ensure_dir(folder)
+    new_name = f"{image_type}_{uuid.uuid4().hex}{ext}"
+    file_storage.save(os.path.join(folder, new_name))
+    return f"{UPLOAD_URL_PREFIX}/negozio_{shop_id}/branding/{new_name}"
+
+
 def init_db() -> None:
     schema_path = Path(__file__).resolve().parent / "db" / "schema.sql"
     schema_sql = schema_path.read_text(encoding="utf-8")
@@ -101,6 +122,8 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS nazione TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS descrizione_breve TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS descrizione_estesa TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS logo_url TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS copertina_url TEXT NOT NULL DEFAULT ''")
     finally:
         conn.close()
 
@@ -236,11 +259,19 @@ def api_negozio():
             with conn.cursor() as cur:
                 if request.method == "GET":
                     cur.execute(
-                        "SELECT id, " + ", ".join(fields) + " FROM negozi WHERE id_utente = %s",
+                        "SELECT id, " + ", ".join(fields) + ", logo_url, copertina_url FROM negozi WHERE id_utente = %s",
                         (user_id,),
                     )
                     row = cur.fetchone()
-                    item = {"id": row[0], **dict(zip(fields, row[1:]))} if row else None
+                    item = (
+                        {
+                            "id": row[0],
+                            **dict(zip(fields, row[1:1 + len(fields)])),
+                            "logo_url": row[1 + len(fields)] or "",
+                            "copertina_url": row[2 + len(fields)] or "",
+                        }
+                        if row else None
+                    )
                     return jsonify({"item": item})
 
                 data = request.get_json(silent=True) or {}
@@ -286,6 +317,41 @@ def api_negozio():
         }), 500
     finally:
         conn.close()
+
+
+@app.post("/api/negozio/immagini")
+def api_negozio_immagini():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Salva prima le informazioni del punto vendita."}), 400
+
+    uploads = {
+        "logo": request.files.get("logo"),
+        "copertina": request.files.get("copertina"),
+    }
+    selected = {kind: file for kind, file in uploads.items() if file and file.filename}
+    if not selected:
+        return jsonify({"error": "Seleziona almeno un'immagine da caricare."}), 400
+
+    try:
+        urls = {kind: save_shop_image(file, shop_id, kind) for kind, file in selected.items()}
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                for kind, url in urls.items():
+                    column = "logo_url" if kind == "logo" else "copertina_url"
+                    cur.execute(f"UPDATE negozi SET {column} = %s WHERE id = %s", (url, shop_id))
+    finally:
+        conn.close()
+
+    return jsonify({"ok": True, **urls})
 
 
 @app.get("/api/prodotti")
