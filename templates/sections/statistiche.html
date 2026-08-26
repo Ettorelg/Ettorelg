@@ -1,0 +1,32 @@
+<style>
+  .stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  .stat-card,.stats-panel{padding:18px;border:1px solid rgba(255,255,255,.13);border-radius:15px;background:rgba(255,255,255,.04)}
+  .stat-card strong{display:block;margin-top:8px;font-size:2rem;color:#dbe8ff}
+  .stats-panel{margin-top:16px}.stats-row{display:flex;align-items:center;gap:12px;margin:10px 0}
+  .stats-row span:first-child{width:95px}.bar{height:10px;flex:1;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:inherit;background:#6ea8fe}
+  .muted{opacity:.72}@media(max-width:720px){.stats-grid{grid-template-columns:1fr}}
+</style>
+<h2>Statistiche del menu</h2>
+<p class="muted">Visualizzazioni aggregate del menu pubblico, senza identificare i clienti.</p>
+<div class="stats-grid">
+  <div class="stat-card">Totali<strong id="statsTotal">—</strong></div>
+  <div class="stat-card">Ultimi 30 giorni<strong id="stats30">—</strong></div>
+  <div class="stat-card">Ultimi 7 giorni<strong id="stats7">—</strong></div>
+</div>
+<div class="stats-panel"><h3>Lingue utilizzate negli ultimi 30 giorni</h3><div id="statsLanguages" class="muted">Caricamento…</div></div>
+<div class="stats-panel"><h3>Andamento ultimi 14 giorni</h3><div id="statsDays" class="muted">Caricamento…</div></div>
+<script>
+(async () => {
+  const response = await fetch('/api/statistiche');
+  if(!response.ok){ document.getElementById('statsLanguages').textContent='Statistiche non disponibili.'; return; }
+  const data = await response.json();
+  document.getElementById('statsTotal').textContent=data.totale;
+  document.getElementById('stats30').textContent=data.ultimi_30_giorni;
+  document.getElementById('stats7').textContent=data.ultimi_7_giorni;
+  const maxLang=Math.max(1,...data.lingue.map(item=>item.visite));
+  document.getElementById('statsLanguages').innerHTML=data.lingue.length?data.lingue.map(item=>`<div class="stats-row"><span>${item.lingua.toUpperCase()}</span><div class="bar"><i style="width:${item.visite/maxLang*100}%"></i></div><b>${item.visite}</b></div>`).join(''):'Nessuna visita registrata.';
+  const maxDay=Math.max(1,...data.giorni.map(item=>item.visite));
+  document.getElementById('statsDays').innerHTML=data.giorni.length?data.giorni.map(item=>`<div class="stats-row"><span>${item.data.slice(5)}</span><div class="bar"><i style="width:${item.visite/maxDay*100}%"></i></div><b>${item.visite}</b></div>`).join(''):'Nessuna visita registrata.';
+})();
+</script>
