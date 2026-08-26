@@ -54,6 +54,9 @@
   .products-list-heading h3{margin:0;white-space:nowrap;color:#dbe8ff}
   .bulk-tools{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:18px 0;padding:14px;border-radius:12px;background:rgba(255,255,255,.04)}
   .bulk-tools .field{min-width:180px}
+  .bulk-operations{margin-top:32px;padding:14px 18px;border:1px solid rgba(255,255,255,.15);border-radius:14px;background:rgba(255,255,255,.025)}
+  .bulk-operations summary{cursor:pointer;font-weight:650;color:#cfe0ff}
+  .bulk-operations .bulk-tools{margin-bottom:0}
   .tool-group-title{margin:18px 0 0;font-size:14px;font-weight:650;color:#dbe8ff}
   .search-tools{margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,255,255,.16)}
 </style>
@@ -147,17 +150,20 @@
   </div>
 </form>
 
-<section class="products-list-panel" aria-labelledby="productsListTitle">
-  <div class="products-list-heading"><h3 id="productsListTitle">Prodotti inseriti</h3></div>
-  <p class="muted">Cerca, filtra e modifica i prodotti del tuo menù.</p>
-
-  <h4 class="tool-group-title">Disponibilità rapida</h4>
+<details class="bulk-operations">
+  <summary>Operazioni avanzate: disponibilità per categoria</summary>
+  <p class="muted">Attiva o disattiva tutti i prodotti di una categoria o sottocategoria.</p>
   <div class="bulk-tools">
     <div class="field"><label for="bulkCategory">Categoria</label><select id="bulkCategory"><option value="">Seleziona categoria</option></select></div>
     <div class="field"><label for="bulkSubcategory">Sottocategoria</label><select id="bulkSubcategory" disabled><option value="">Tutte le sottocategorie</option></select></div>
     <div class="field"><label for="bulkAvailability">Azione</label><select id="bulkAvailability"><option value="true">Attiva prodotti</option><option value="false">Disattiva prodotti</option></select></div>
     <button class="btn" type="button" id="applyBulkAvailability">Applica</button>
   </div>
+</details>
+
+<section class="products-list-panel" aria-labelledby="productsListTitle">
+  <div class="products-list-heading"><h3 id="productsListTitle">Prodotti inseriti</h3></div>
+  <p class="muted">Cerca, filtra e modifica i prodotti del tuo menù.</p>
 
   <div class="search-tools">
     <h4 class="tool-group-title">Ricerca e filtri</h4>
