@@ -7,6 +7,7 @@
     background: rgba(255,255,255,.05); color: #e7ecff; outline:none;
   }
   textarea{min-height:90px;resize:vertical}
+  select option{background:#13203a;color:#e7ecff}
   .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .btn{
     border:1px solid rgba(255,255,255,.14);
@@ -81,9 +82,12 @@
 
     <div class="field">
       <label>Sottocategoria</label>
-      <select id="id_sottocategoria" disabled>
-        <option value="">—</option>
-      </select>
+      <div class="category-select">
+        <select id="id_sottocategoria" disabled>
+          <option value="">—</option>
+        </select>
+        <button class="btn icon-btn" type="button" id="addSubcategoryBtn" aria-label="Crea una nuova sottocategoria" title="Crea una nuova sottocategoria">+</button>
+      </div>
     </div>
 
     <div class="field">
@@ -116,6 +120,21 @@
     <div class="actions" style="margin-top:16px">
       <button class="btn primary" type="submit">Crea categoria</button>
       <button class="btn" type="button" id="cancelCategoryBtn">Annulla</button>
+    </div>
+  </form>
+</div>
+
+<div class="modal hidden" id="subcategoryModal" role="dialog" aria-modal="true" aria-labelledby="subcategoryModalTitle">
+  <form class="modal-card" id="subcategoryModalForm">
+    <h3 id="subcategoryModalTitle">Nuova sottocategoria</h3>
+    <p class="muted">La sottocategoria verrà inserita nella categoria selezionata.</p>
+    <div class="field">
+      <label for="newSubcategoryName">Nome sottocategoria *</label>
+      <input id="newSubcategoryName" required placeholder="Es. Pizze classiche" maxlength="100" />
+    </div>
+    <div class="actions" style="margin-top:16px">
+      <button class="btn primary" type="submit">Crea sottocategoria</button>
+      <button class="btn" type="button" id="cancelSubcategoryBtn">Annulla</button>
     </div>
   </form>
 </div>
@@ -283,6 +302,8 @@
 
     const categoryModal = f("categoryModal");
     const categoryModalForm = f("categoryModalForm");
+    const subcategoryModal = f("subcategoryModal");
+    const subcategoryModalForm = f("subcategoryModalForm");
 
     f("addCategoryBtn").addEventListener("click", () => {
       categoryModal.classList.remove("hidden");
@@ -299,6 +320,52 @@
         categoryModal.classList.add("hidden");
         categoryModalForm.reset();
       }
+    });
+
+    f("addSubcategoryBtn").addEventListener("click", () => {
+      if (!f("id_categoria").value) {
+        showToast("Seleziona prima una categoria.");
+        return;
+      }
+      subcategoryModal.classList.remove("hidden");
+      f("newSubcategoryName").focus();
+    });
+
+    f("cancelSubcategoryBtn").addEventListener("click", () => {
+      subcategoryModal.classList.add("hidden");
+      subcategoryModalForm.reset();
+    });
+
+    subcategoryModal.addEventListener("click", (event) => {
+      if (event.target === subcategoryModal) {
+        subcategoryModal.classList.add("hidden");
+        subcategoryModalForm.reset();
+      }
+    });
+
+    subcategoryModalForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const nome = f("newSubcategoryName").value.trim();
+      const id_categoria = Number(f("id_categoria").value);
+      if (!nome || !id_categoria) return;
+
+      const res = await fetch("/api/sottocategorie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, id_categoria, visibile: true })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || err.error || "Errore creazione sottocategoria");
+        return;
+      }
+
+      const data = await res.json();
+      await loadSubcategories(id_categoria, data.id);
+      subcategoryModal.classList.add("hidden");
+      subcategoryModalForm.reset();
+      showToast("Sottocategoria creata e selezionata.");
     });
 
     categoryModalForm.addEventListener("submit", async (event) => {
