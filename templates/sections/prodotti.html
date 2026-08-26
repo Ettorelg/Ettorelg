@@ -45,6 +45,9 @@
   .filters{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:28px}
   .filters .field{max-width:280px}
   .tag{display:inline-block;margin:4px 4px 0 0;padding:2px 7px;border-radius:999px;background:rgba(110,168,254,.18);font-size:11px}
+  .tag-options{display:flex;flex-wrap:wrap;gap:8px}
+  .tag-option{display:flex;align-items:center;gap:6px;padding:7px 9px;border:1px solid rgba(255,255,255,.14);border-radius:10px;cursor:pointer;font-size:13px}
+  .tag-option input{width:auto;padding:0;accent-color:#6ea8fe}
 </style>
 
 <h2>Prodotti</h2>
@@ -117,16 +120,15 @@
   </div>
 
   <div class="field">
-    <label for="etichette">Etichette</label>
-    <select id="etichette" multiple size="4" aria-describedby="etichetteHint">
-      <option value="Novità">Novità</option>
-      <option value="Consigliato">Consigliato</option>
-      <option value="Piccante">Piccante</option>
-      <option value="Vegetariano">Vegetariano</option>
-      <option value="Vegano">Vegano</option>
-      <option value="Senza glutine">Senza glutine</option>
-    </select>
-    <div class="muted" id="etichetteHint">Puoi selezionarne più di una.</div>
+    <label>Etichette</label>
+    <div class="tag-options" id="etichette">
+      <label class="tag-option"><input type="checkbox" value="Novità"> Novità</label>
+      <label class="tag-option"><input type="checkbox" value="Consigliato"> Consigliato</label>
+      <label class="tag-option"><input type="checkbox" value="Piccante"> Piccante</label>
+      <label class="tag-option"><input type="checkbox" value="Vegetariano"> Vegetariano</label>
+      <label class="tag-option"><input type="checkbox" value="Vegano"> Vegano</label>
+      <label class="tag-option"><input type="checkbox" value="Senza glutine"> Senza glutine</label>
+    </div>
   </div>
 
   <div class="actions" style="margin-top:10px">
@@ -294,7 +296,7 @@
       f("prezzo_euro").value = "";
       f("descrizione").value = "";
       f("ordine").value = "";
-      [...f("etichette").options].forEach(option => option.selected = false);
+      f("etichette").querySelectorAll("input[type=checkbox]").forEach(input => input.checked = false);
       f("categoryError").textContent = "";
       f("id_categoria").classList.remove("invalid");
       f("imagePreview").style.display = "none";
@@ -323,7 +325,7 @@
       f("descrizione").value = p.descrizione || "";
       f("ordine").value = p.ordine ?? "";
       const productLabels = new Set(p.etichette || []);
-      [...f("etichette").options].forEach(option => option.selected = productLabels.has(option.value));
+      f("etichette").querySelectorAll("input[type=checkbox]").forEach(input => input.checked = productLabels.has(input.value));
       f("categoryError").textContent = "";
       f("id_categoria").classList.remove("invalid");
       if (p.immagine_url) { f("imagePreview").src = p.immagine_url; f("imagePreview").style.display = "block"; }
@@ -363,7 +365,7 @@
     });
 
     function selectedLabels(){
-      return [...f("etichette").selectedOptions].map(option => option.value);
+      return [...f("etichette").querySelectorAll("input[type=checkbox]:checked")].map(input => input.value);
     }
 
     f("immagine").addEventListener("change", () => {
