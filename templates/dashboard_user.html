@@ -63,7 +63,6 @@
 
         <button class="nav-item" data-section="prodotti"><div class="icon">🧾</div><div class="label">Prodotti</div></button>
         <button class="nav-item" data-section="categorie"><div class="icon">📁</div><div class="label">Categorie</div></button>
-        <button class="nav-item" data-section="sottocategorie"><div class="icon">🗂️</div><div class="label">Sottocategorie</div></button>
         <button class="nav-item" data-section="allergeni"><div class="icon">⚠️</div><div class="label">Allergeni</div></button>
 
         <button class="nav-item" data-section="negozio"><div class="icon">🏪</div><div class="label">Negozio</div></button>
@@ -101,7 +100,6 @@
       home: "Home",
       prodotti: "Prodotti",
       categorie: "Categorie",
-      sottocategorie: "Sottocategorie",
       allergeni: "Allergeni",
       negozio: "Negozio",
       orari: "Orari",
@@ -121,6 +119,7 @@
     })();
 
     async function loadSection(section){
+      if (section === "sottocategorie") section = "categorie";
       // UI
       pageTitle.textContent = titles[section] || "Dashboard";
       content.classList.add('loading');
