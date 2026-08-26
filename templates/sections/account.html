@@ -23,6 +23,12 @@
       <div class="account-actions"><button class="account-btn" type="submit">Salva modifiche</button><a class="account-logout" href="/logout">Esci dall’account</a></div>
     </form>
   </section>
+  <section class="account-card" id="subscriptionCard" style="display:none">
+    <h3>Abbonamento</h3>
+    <p class="account-sub" id="subscriptionSummary"></p>
+    <div class="account-actions"><button class="account-btn" id="cancelSubscription" type="button" style="display:none;border-color:rgba(255,173,173,.45);background:rgba(255,80,80,.13)">Disattiva il rinnovo automatico</button></div>
+    <div id="subscriptionMessage" class="account-message"></div>
+  </section>
 </div>
 <script>
 (()=>{
@@ -37,6 +43,24 @@
      if(!x.password_impostata){currentPasswordField.style.display='none';passwordHelp.textContent='Account creato con Google: puoi impostare una password per accedere anche manualmente.'}
    }catch(e){show(e.message,true)}
  }
+ async function loadSubscription(){
+   try{
+     const r=await fetch('/api/paypal/subscription'),d=await r.json();if(!r.ok||!d.item)return;
+     const x=d.item;subscriptionCard.style.display='block';
+     const next=x.prossimo_addebito?new Date(x.prossimo_addebito+'T12:00:00').toLocaleDateString('it-IT'):'';
+     subscriptionSummary.textContent=x.stato==='prova'?`Prova gratuita attiva. Primo addebito di 99 € il ${next}.`:
+       x.stato==='cancellato'?`Rinnovo automatico disattivato. Accesso disponibile fino al ${next}.`:
+       `Stato: ${x.stato.toUpperCase()}${next?`. Prossimo rinnovo: ${next}.`:''}`;
+     cancelSubscription.style.display=x.puo_disdire?'inline-block':'none';
+   }catch(e){}
+ }
+ cancelSubscription.addEventListener('click',async()=>{
+   if(!confirm('Confermi la disdetta? Non ci saranno altri rinnovi automatici.'))return;
+   cancelSubscription.disabled=true;
+   try{const r=await fetch('/api/paypal/subscription/cancel',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Disdetta non riuscita.');
+     subscriptionMessage.textContent=d.message;subscriptionMessage.className='account-message ok';await loadSubscription();
+   }catch(e){subscriptionMessage.textContent=e.message;subscriptionMessage.className='account-message error'}finally{cancelSubscription.disabled=false}
+ });
  form.addEventListener('submit',async e=>{
    e.preventDefault();
    if(newPassword.value!==confirmPassword.value){show('Le nuove password non coincidono.',true);return}
@@ -51,6 +75,7 @@
    }catch(err){show(err.message,true)}
    finally{button.disabled=false;button.textContent='Salva modifiche'}
  });
- loadAccount();
+ loadAccount();loadSubscription();
 })();
 </script>
+
