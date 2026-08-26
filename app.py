@@ -397,6 +397,20 @@ def api_prodotti_create():
                 """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, prezzo_val, disponibile, ordine, shop_id, etichette))
                 new_id = cur.fetchone()[0]
 
+                # Senza un ordine manuale, mantieni l'ordine alfabetico nella categoria.
+                if ordine is None:
+                    cur.execute("""
+                        SELECT id
+                        FROM prodotti
+                        WHERE id_negozio = %s AND id_categoria = %s
+                        ORDER BY LOWER(nome) ASC, id ASC
+                    """, (shop_id, id_categoria))
+                    for index, row in enumerate(cur.fetchall(), start=1):
+                        cur.execute(
+                            "UPDATE prodotti SET ordine = %s WHERE id = %s",
+                            (index * 10, row[0]),
+                        )
+
                 if image_path:
                     cur.execute("""
                         INSERT INTO immagini_prodotti (id_prodotto, url, principale, ordine)
