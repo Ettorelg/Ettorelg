@@ -1,4 +1,4 @@
-SELECT sc.id, sc.nome FROM sottocategorie sc JOIN categorie c ON c.id = sc.id_categoria WHERE c.id_negozio=%simport io
+import io
 import os
 import re
 import hmac
