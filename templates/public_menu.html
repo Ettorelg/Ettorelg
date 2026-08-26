@@ -44,7 +44,7 @@
 
   <main>
     {% if shop.descrizione_estesa or shop.indirizzo or shop.telefono or shop.email %}
-    <section class="intro">
+    <section class="intro" id="companyInfo">
       <div class="intro-card"><h2>Il nostro locale</h2><p>{{ shop.descrizione_estesa or shop.descrizione_breve }}</p></div>
       <div class="intro-card contacts"><h2>Contatti</h2>
         {% if shop.indirizzo %}<span>📍 {{ shop.indirizzo }}, {{ shop.cap }} {{ shop.citta }}{% if shop.provincia %} ({{ shop.provincia }}){% endif %}</span>{% endif %}
@@ -84,7 +84,7 @@
       <div class="view-actions"><button class="menu-button secondary" id="hideMenu" type="button">Torna alle informazioni</button></div>
     </div>
 
-    {% if hours %}<section class="hours"><h2>Orari di apertura</h2><div class="hours-grid">
+    {% if hours %}<section class="hours" id="businessHours"><h2>Orari di apertura</h2><div class="hours-grid">
       {% for day in hours %}<div class="hours-row"><strong>{{ day.nome }}</strong><span>{% if day.aperto %}{{ day.apertura }}–{{ day.chiusura }}{% if day.apertura_2 and day.chiusura_2 %}<br>{{ day.apertura_2 }}–{{ day.chiusura_2 }}{% endif %}{% else %}Chiuso{% endif %}</span></div>{% endfor %}
     </div></section>{% endif %}
   </main>
@@ -93,6 +93,8 @@
     const categoryNav = document.getElementById('categoryNav');
     const showMenu = document.getElementById('showMenu');
     const hideMenu = document.getElementById('hideMenu');
+    const companyInfo = document.getElementById('companyInfo');
+    const businessHours = document.getElementById('businessHours');
     const categoryLinks = [...document.querySelectorAll('[data-category-target]')];
     const categorySections = [...document.querySelectorAll('[data-category-section]')];
 
@@ -111,6 +113,8 @@
       menuContent.hidden = false;
       if (categoryNav) categoryNav.hidden = false;
       showMenu.parentElement.hidden = true;
+      if (companyInfo) companyInfo.hidden = true;
+      if (businessHours) businessHours.hidden = true;
       if (categoryLinks[0]) activateCategory(categoryLinks[0].dataset.categoryTarget);
       else menuContent.scrollIntoView({behavior: 'smooth', block: 'start'});
     });
@@ -120,6 +124,8 @@
       categorySections.forEach(section => section.hidden = true);
       categoryLinks.forEach(link => link.classList.remove('active'));
       showMenu.parentElement.hidden = false;
+      if (companyInfo) companyInfo.hidden = false;
+      if (businessHours) businessHours.hidden = false;
       document.querySelector('.intro')?.scrollIntoView({behavior: 'smooth', block: 'start'});
     });
   </script>
