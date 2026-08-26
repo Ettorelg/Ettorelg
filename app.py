@@ -389,6 +389,12 @@ def api_prodotti_create():
                     """, (new_id, image_path))
 
         return jsonify({"ok": True, "id": new_id})
+    except psycopg2.Error as error:
+        return jsonify({
+            "error": "Errore database durante il salvataggio del prodotto.",
+            "detail": error.diag.message_primary or "Errore database non specificato."
+        }), 500
+
     finally:
         conn.close()
 
@@ -472,6 +478,12 @@ def api_prodotti_update(prodotto_id: int):
                         """, (prodotto_id, new_image_path))
 
         return jsonify({"ok": True})
+    except psycopg2.Error as error:
+        return jsonify({
+            "error": "Errore database durante il salvataggio del prodotto.",
+            "detail": error.diag.message_primary or "Errore database non specificato."
+        }), 500
+
     finally:
         conn.close()
 
