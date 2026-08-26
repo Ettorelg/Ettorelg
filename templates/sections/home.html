@@ -25,19 +25,19 @@
 
   <h3 class="home-section-title">Azioni rapide</h3>
   <div class="quick-actions">
-    <button class="quick-action" type="button" onclick="loadSection('prodotti')">
+    <button class="quick-action" type="button" onclick="document.querySelector('[data-section=prodotti]').click()">
       <span class="action-icon">🧾</span>
       <span><strong>Gestisci prodotti</strong><span>Aggiungi o modifica i piatti del menu.</span></span>
     </button>
-    <button class="quick-action" type="button" onclick="loadSection('categorie')">
+    <button class="quick-action" type="button" onclick="document.querySelector('[data-section=categorie]').click()">
       <span class="action-icon">📁</span>
       <span><strong>Organizza categorie</strong><span>Ordina il menu in modo chiaro.</span></span>
     </button>
-    <button class="quick-action" type="button" onclick="loadSection('negozio')">
+    <button class="quick-action" type="button" onclick="document.querySelector('[data-section=negozio]').click()">
       <span class="action-icon">🏪</span>
       <span><strong>Completa il negozio</strong><span>Aggiorna logo, contatti e descrizione.</span></span>
     </button>
-    <button class="quick-action" type="button" onclick="loadSection('qrcode')">
+    <button class="quick-action" type="button" onclick="document.querySelector('[data-section=qrcode]').click()">
       <span class="action-icon">🔳</span>
       <span><strong>Apri il QR Code</strong><span>Condividi il menu con i tuoi clienti.</span></span>
     </button>
