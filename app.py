@@ -64,6 +64,7 @@ def init_db() -> None:
                         created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
                     )
                 """)
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS etichette TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]")
     finally:
         conn.close()
 
@@ -238,7 +239,8 @@ def api_prodotti_list():
                     p.id, p.nome, p.descrizione, p.prezzo_euro, p.disponibile,
                     p.id_categoria, c.nome as categoria_nome,
                     p.id_sottocategoria, sc.nome as sottocategoria_nome,
-                    COALESCE(img.url, '') as immagine_url
+                    COALESCE(img.url, '') as immagine_url,
+                    p.ordine, COALESCE(p.etichette, ARRAY[]::TEXT[]) as etichette
                 FROM prodotti p
                 LEFT JOIN categorie c ON c.id = p.id_categoria
                 LEFT JOIN sottocategorie sc ON sc.id = p.id_sottocategoria
@@ -267,6 +269,8 @@ def api_prodotti_list():
                 "id_sottocategoria": r[7],
                 "sottocategoria_nome": r[8] or "",
                 "immagine_url": r[9] or "",
+                "ordine": r[10],
+                "etichette": r[11] or [],
             })
         return jsonify({"items": items})
     finally:
@@ -338,6 +342,8 @@ def api_prodotti_create():
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
     id_categoria = request.form.get("id_categoria") or None
     id_sottocategoria = request.form.get("id_sottocategoria") or None
+    ordine = request.form.get("ordine") or None
+    etichette = [tag.strip() for tag in (request.form.get("etichette") or "").split(",") if tag.strip()]
 
     if not nome:
         return jsonify({"error": "nome obbligatorio"}), 400
@@ -357,6 +363,14 @@ def api_prodotti_create():
         id_sottocategoria = int(id_sottocategoria) if id_sottocategoria not in (None, "", "null") else None
     except Exception:
         return jsonify({"error": "sottocategoria non valida"}), 400
+    try:
+        ordine = int(ordine) if ordine not in (None, "", "null") else None
+        if ordine is not None and ordine < 0:
+            raise ValueError
+    except Exception:
+        return jsonify({"error": "ordine non valido"}), 400
+    if not id_categoria:
+        return jsonify({"error": "categoria obbligatoria"}), 400
 
     # file
     image_file = request.files.get("immagine")
@@ -374,12 +388,13 @@ def api_prodotti_create():
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, prezzo_euro, disponibile, ordine)
+                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, prezzo_euro, disponibile, ordine, etichette)
                     VALUES (%s, %s, %s, %s, %s, %s, %s,
-                        (SELECT COALESCE(MAX(ordine), 0) + 10 FROM prodotti WHERE id_negozio = %s)
+                        COALESCE(%s, (SELECT COALESCE(MAX(ordine), 0) + 10 FROM prodotti WHERE id_negozio = %s)),
+                        %s
                     )
                     RETURNING id
-                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, prezzo_val, disponibile, shop_id))
+                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, prezzo_val, disponibile, ordine, shop_id, etichette))
                 new_id = cur.fetchone()[0]
 
                 if image_path:
@@ -415,6 +430,8 @@ def api_prodotti_update(prodotto_id: int):
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
     id_categoria = request.form.get("id_categoria") or None
     id_sottocategoria = request.form.get("id_sottocategoria") or None
+    ordine = request.form.get("ordine") or None
+    etichette = [tag.strip() for tag in (request.form.get("etichette") or "").split(",") if tag.strip()]
     remove_image = (request.form.get("remove_image", "false").lower() == "true")
 
     if not nome:
@@ -434,6 +451,14 @@ def api_prodotti_update(prodotto_id: int):
         id_sottocategoria = int(id_sottocategoria) if id_sottocategoria not in (None, "", "null") else None
     except Exception:
         return jsonify({"error": "sottocategoria non valida"}), 400
+    try:
+        ordine = int(ordine) if ordine not in (None, "", "null") else None
+        if ordine is not None and ordine < 0:
+            raise ValueError
+    except Exception:
+        return jsonify({"error": "ordine non valido"}), 400
+    if not id_categoria:
+        return jsonify({"error": "categoria obbligatoria"}), 400
 
     image_file = request.files.get("immagine")
     new_image_path = ""
@@ -456,9 +481,10 @@ def api_prodotti_update(prodotto_id: int):
 
                 cur.execute("""
                     UPDATE prodotti
-                    SET id_categoria=%s, id_sottocategoria=%s, nome=%s, descrizione=%s, prezzo_euro=%s, disponibile=%s
+                    SET id_categoria=%s, id_sottocategoria=%s, nome=%s, descrizione=%s, prezzo_euro=%s, disponibile=%s,
+                        ordine=COALESCE(%s, ordine), etichette=%s
                     WHERE id=%s
-                """, (id_categoria, id_sottocategoria, nome, descrizione, prezzo_val, disponibile, prodotto_id))
+                """, (id_categoria, id_sottocategoria, nome, descrizione, prezzo_val, disponibile, ordine, etichette, prodotto_id))
 
                 # immagine principale: gestisci remove / sostituzione
                 cur.execute("SELECT id, url FROM immagini_prodotti WHERE id_prodotto=%s AND principale=TRUE LIMIT 1", (prodotto_id,))
