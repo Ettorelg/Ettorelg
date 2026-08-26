@@ -117,12 +117,6 @@
     </div>
 
     <div class="field">
-      <label>Ordine nel menu</label>
-      <input id="ordine" type="number" min="0" step="1" inputmode="numeric" placeholder="Automatico" />
-      <div class="muted">Più basso = prima posizione.</div>
-    </div>
-
-    <div class="field">
       <label>Immagine (PNG/JPG/WEBP)</label>
       <input id="immagine" type="file" accept="image/png,image/jpeg,image/webp" />
       <img id="imagePreview" class="image-preview" alt="Anteprima immagine selezionata" />
@@ -131,8 +125,13 @@
 
 
   <div class="field">
-    <label>Descrizione</label>
-    <textarea id="descrizione" placeholder="Ingredienti, note, ecc."></textarea>
+    <label>Ingredienti</label>
+    <textarea id="descrizione" placeholder="Es. pomodoro, mozzarella, basilico"></textarea>
+  </div>
+
+  <div class="field">
+    <label>Note</label>
+    <textarea id="note" placeholder="Es. disponibile anche senza glutine"></textarea>
   </div>
 
   <div class="field">
@@ -325,6 +324,7 @@
               <div>
                 <div style="font-weight:650">${escapeHtml(p.nome)}</div>
                 <div class="muted">${escapeHtml(p.descrizione || "")}</div>
+                ${p.note ? `<div class="muted">Nota: ${escapeHtml(p.note)}</div>` : ""}
                 <div>${(p.etichette || []).map(tag => '<span class="tag">' + escapeHtml(tag) + '</span>').join("")}</div>
               </div>
             </div>
@@ -347,7 +347,7 @@
       f("nome").value = "";
       f("prezzo_euro").value = "";
       f("descrizione").value = "";
-      f("ordine").value = "";
+      f("note").value = "";
       f("etichette").querySelectorAll("input[type=checkbox]").forEach(input => input.checked = false);
       f("categoryError").textContent = "";
       f("id_categoria").classList.remove("invalid");
@@ -375,7 +375,7 @@
       f("nome").value = p.nome;
       f("prezzo_euro").value = p.prezzo_euro;
       f("descrizione").value = p.descrizione || "";
-      f("ordine").value = p.ordine ?? "";
+      f("note").value = p.note || "";
       const productLabels = new Set(p.etichette || []);
       f("etichette").querySelectorAll("input[type=checkbox]").forEach(input => input.checked = productLabels.has(input.value));
       f("categoryError").textContent = "";
@@ -627,10 +627,10 @@
     fd.append("nome", f("nome").value.trim());
     fd.append("prezzo_euro", f("prezzo_euro").value.trim());
     fd.append("descrizione", f("descrizione").value.trim());
+    fd.append("note", f("note").value.trim());
     fd.append("disponibile", f("disponibile").value === "true" ? "true" : "false");
     fd.append("id_categoria", f("id_categoria").value || "");
     fd.append("id_sottocategoria", f("id_sottocategoria").value || "");
-    fd.append("ordine", f("ordine").value || "");
     fd.append("etichette", selectedLabels().join(","));
   
     const fileInput = document.getElementById("immagine");
