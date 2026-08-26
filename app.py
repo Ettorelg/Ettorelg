@@ -6,13 +6,14 @@ from werkzeug.utils import secure_filename
 import uuid
 
 import psycopg2
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, send_from_directory
 
 from db_config import build_db_config
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
-UPLOAD_ROOT = os.path.join(app.root_path, "static", "uploads")
+UPLOAD_ROOT = os.environ.get("UPLOAD_DIR", os.path.join(app.root_path, "static", "uploads"))
+UPLOAD_URL_PREFIX = os.environ.get("UPLOAD_URL_PREFIX", "/uploads").rstrip("/")
 ALLOWED_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 
 def ensure_dir(path: str) -> None:
@@ -24,8 +25,7 @@ def is_allowed_image(filename: str) -> bool:
 
 def save_product_image(file_storage, shop_id: int) -> str:
     """
-    Salva immagine su static/uploads/negozio_<id>/prodotti/<uuid>.<ext>
-    Ritorna il path web: /static/uploads/...
+    Salva immagine nella cartella configurata (anche persistente) e restituisce il relativo URL pubblico.
     """
     if not file_storage or not file_storage.filename:
         return ""
@@ -43,7 +43,7 @@ def save_product_image(file_storage, shop_id: int) -> str:
     file_storage.save(abs_path)
 
     # path pubblico
-    return f"/static/uploads/negozio_{shop_id}/prodotti/{new_name}"
+    return f"{UPLOAD_URL_PREFIX}/negozio_{shop_id}/prodotti/{new_name}"
 
 
 def init_db() -> None:
@@ -73,6 +73,11 @@ def init_db() -> None:
 # Esegui init schema solo se sei in ambiente con DB configurato
 if os.getenv("DATABASE_URL") and os.getenv("AUTO_INIT_DB", "true").lower() == "true":
     init_db()
+
+
+@app.route("/uploads/<path:filename>")
+def uploaded_file(filename: str):
+    return send_from_directory(UPLOAD_ROOT, filename)
 
 
 @app.route("/")
