@@ -65,6 +65,7 @@ def init_db() -> None:
                     )
                 """)
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS etichette TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT '')")
     finally:
         conn.close()
 
@@ -240,7 +241,8 @@ def api_prodotti_list():
                     p.id_categoria, c.nome as categoria_nome,
                     p.id_sottocategoria, sc.nome as sottocategoria_nome,
                     COALESCE(img.url, '') as immagine_url,
-                    p.ordine, COALESCE(p.etichette, ARRAY[]::TEXT[]) as etichette
+                    p.ordine, COALESCE(p.etichette, ARRAY[]::TEXT[]) as etichette,
+                    COALESCE(p.note, '') as note
                 FROM prodotti p
                 LEFT JOIN categorie c ON c.id = p.id_categoria
                 LEFT JOIN sottocategorie sc ON sc.id = p.id_sottocategoria
@@ -271,6 +273,7 @@ def api_prodotti_list():
                 "immagine_url": r[9] or "",
                 "ordine": r[10],
                 "etichette": r[11] or [],
+                "note": r[12] or "",
             })
         return jsonify({"items": items})
     finally:
@@ -338,6 +341,7 @@ def api_prodotti_create():
     # multipart form fields
     nome = (request.form.get("nome") or "").strip()
     descrizione = (request.form.get("descrizione") or "").strip()
+    note = (request.form.get("note") or "").strip()
     prezzo_euro = request.form.get("prezzo_euro")
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
     id_categoria = request.form.get("id_categoria") or None
@@ -388,13 +392,13 @@ def api_prodotti_create():
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, prezzo_euro, disponibile, ordine, etichette)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s,
+                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, ordine, etichette)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
                         COALESCE(%s, (SELECT COALESCE(MAX(ordine), 0) + 10 FROM prodotti WHERE id_negozio = %s)),
                         %s
                     )
                     RETURNING id
-                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, prezzo_val, disponibile, ordine, shop_id, etichette))
+                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, ordine, shop_id, etichette))
                 new_id = cur.fetchone()[0]
 
                 # Senza un ordine manuale, mantieni l'ordine alfabetico nella categoria.
@@ -440,6 +444,7 @@ def api_prodotti_update(prodotto_id: int):
     # multipart fields
     nome = (request.form.get("nome") or "").strip()
     descrizione = (request.form.get("descrizione") or "").strip()
+    note = (request.form.get("note") or "").strip()
     prezzo_euro = request.form.get("prezzo_euro")
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
     id_categoria = request.form.get("id_categoria") or None
@@ -495,10 +500,10 @@ def api_prodotti_update(prodotto_id: int):
 
                 cur.execute("""
                     UPDATE prodotti
-                    SET id_categoria=%s, id_sottocategoria=%s, nome=%s, descrizione=%s, prezzo_euro=%s, disponibile=%s,
+                    SET id_categoria=%s, id_sottocategoria=%s, nome=%s, descrizione=%s, note=%s, prezzo_euro=%s, disponibile=%s,
                         ordine=COALESCE(%s, ordine), etichette=%s
                     WHERE id=%s
-                """, (id_categoria, id_sottocategoria, nome, descrizione, prezzo_val, disponibile, ordine, etichette, prodotto_id))
+                """, (id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, ordine, etichette, prodotto_id))
 
                 # immagine principale: gestisci remove / sostituzione
                 cur.execute("SELECT id, url FROM immagini_prodotti WHERE id_prodotto=%s AND principale=TRUE LIMIT 1", (prodotto_id,))
