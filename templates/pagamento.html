@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attiva il tuo account - Menu Online</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Inter, Arial, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 20px; color: #15304b; background: url('/static/background.png') center/cover fixed; }
+        body::before { content: ''; position: fixed; inset: 0; background: rgba(0,0,0,.48); backdrop-filter: blur(2px); z-index: -1; }
+        .card { width: 100%; max-width: 520px; background: #fff; border-radius: 20px; padding: 32px; box-shadow: 0 18px 55px rgba(0,0,0,.25); }
+        .logo { display: block; width: 205px; max-width: 70%; margin: 0 auto 16px; }
+        h1 { margin: 0; text-align: center; font-size: 25px; color: #003366; }
+        .lead { text-align: center; color: #5b6d7f; line-height: 1.5; margin: 9px 0 23px; }
+        .offer { padding: 20px; border: 1px solid #d8e4ef; border-radius: 15px; background: #f7fbff; margin-bottom: 20px; }
+        .offer strong { display: block; font-size: 24px; color: #004aad; margin-bottom: 6px; }
+        .offer ul { margin: 12px 0 0; padding-left: 20px; line-height: 1.65; }
+        .notice { padding: 12px; border-radius: 10px; background: #fff8df; color: #704f00; font-size: 14px; margin-bottom: 16px; }
+        .success { background: #eaf8ef; color: #176b38; }
+        .error { display: none; background: #fdebec; color: #a3212c; padding: 12px; border-radius: 10px; margin-top: 12px; font-size: 14px; }
+        .small { color: #68798a; font-size: 12px; line-height: 1.5; text-align: center; margin: 15px 0 0; }
+        .btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 9px; background: #004aad; color: #fff; font-weight: 700; text-align: center; text-decoration: none; cursor: pointer; }
+        @media (max-width: 520px) { body { padding: 12px; align-items: start; } .card { margin-top: 10px; padding: 24px 19px; } h1 { font-size: 22px; } }
+    </style>
+</head>
+<body>
+<main class="card">
+    <img src="/static/logo1.png" alt="AlphaSystem" class="logo">
+    <h1>Attiva il tuo menu digitale</h1>
+    <p class="lead">Ciao {{ username }}, completa l'attivazione del tuo account.</p>
+    <section class="offer">
+        <strong>14 giorni gratis</strong>
+        <div>Poi {{ price }} € IVA inclusa ogni anno.</div>
+        <ul>
+            <li>Nessun addebito durante la prova</li>
+            <li>Rinnovo automatico annuale tramite PayPal</li>
+            <li>Puoi disdire prima del rinnovo</li>
+        </ul>
+    </section>
+
+    {% if license_active %}
+        <div class="notice success">Il tuo account è attivo{% if trial_until %} fino al {{ trial_until.strftime('%d/%m/%Y') }}{% endif %}.</div>
+        <a class="btn" href="{{ url_for('dashboard_user') }}">Vai alla dashboard</a>
+    {% elif not paypal_configured %}
+        <div class="notice">Il pagamento PayPal è in configurazione. Il tuo account è stato creato, ma non è ancora attivo.</div>
+        <a class="btn" href="{{ url_for('login') }}">Torna all'accesso</a>
+    {% else %}
+        <div id="paypal-button-container"></div>
+        <div id="payment-error" class="error"></div>
+        <p class="small">Autorizzando PayPal accetti l'addebito annuale di {{ price }} € dopo la prova gratuita. Puoi annullare il rinnovo dalla gestione del tuo account.</p>
+    {% endif %}
+</main>
+
+{% if paypal_configured and not license_active %}
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id|urlencode }}&vault=true&intent=subscription&currency={{ currency }}"></script>
+<script>
+const errorBox = document.getElementById('payment-error');
+function showError(message) {
+    errorBox.textContent = message;
+    errorBox.style.display = 'block';
+}
+paypal.Buttons({
+    style: { shape: 'rect', color: 'gold', layout: 'vertical', label: 'subscribe' },
+    createSubscription: function(data, actions) {
+        return actions.subscription.create({ plan_id: {{ paypal_plan_id|tojson }}, custom_id: {{ (session.get('pending_user_id') or session.get('user_id'))|string|tojson }} });
+    },
+    onApprove: async function(data) {
+        const response = await fetch('/api/paypal/subscription/activate', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({subscription_id: data.subscriptionID})
+        });
+        const result = await response.json();
+        if (!response.ok) return showError(result.error || 'Impossibile attivare l’abbonamento.');
+        window.location.href = result.redirect;
+    },
+    onCancel: function() { showError('Operazione annullata. Non è stato effettuato alcun addebito.'); },
+    onError: function() { showError('Si è verificato un errore PayPal. Riprova tra qualche minuto.'); }
+}).render('#paypal-button-container');
+</script>
+{% endif %}
+</body>
+</html>
+
