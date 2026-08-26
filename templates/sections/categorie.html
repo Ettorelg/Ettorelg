@@ -197,3 +197,232 @@
     await load();
   })();
 </script>
+
+<style>
+  .subcategories-separator{margin-top:34px;padding-top:24px;border-top:1px solid rgba(110,168,254,.34)}
+  .subcategories-separator h3{margin:0 0 8px;color:#dbe8ff}
+</style>
+<style>
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:6px;min-width:220px;flex:1}
+  label{font-size:12px;opacity:.85}
+  input, select{
+    padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.05); color: #e7ecff; outline:none;
+  }
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{
+    border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    color:#e7ecff;border-radius:12px;padding:10px 12px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn:hover{background: rgba(255,255,255,.09);}
+  .btn.primary{background: rgba(110,168,254,.18); border-color: rgba(110,168,254,.35);}
+  .btn.danger{background: rgba(255,80,80,.14); border-color: rgba(255,80,80,.35);}
+  .muted{opacity:.75;font-size:13px}
+  .table{
+    width:100%; border-collapse:separate; border-spacing:0; margin-top:14px;
+    border:1px solid rgba(255,255,255,.12); border-radius:14px; overflow:hidden;
+  }
+  .table th, .table td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.10); vertical-align:top}
+  .table th{font-size:12px; text-transform:uppercase; letter-spacing:.06em; opacity:.75; background: rgba(255,255,255,.03)}
+  .table tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.14);font-size:12px;opacity:.9}
+  .right{white-space:nowrap}
+  .toast{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
+  .hidden{display:none}
+</style>
+
+<div class="subcategories-separator"><h3>Sottocategorie</h3></div>
+<p class="muted">Crea e gestisci le sottocategorie, collegandole alla rispettiva categoria.</p>
+
+<div class="toast hidden" id="scToast"></div>
+
+<form id="scForm">
+  <input type="hidden" id="scId" />
+
+  <div class="row">
+    <div class="field">
+      <label>Categoria *</label>
+      <select id="scCategoryId" required>
+        <option value="">—</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Nome *</label>
+      <input id="scName" required placeholder="Es. Pizze rosse" />
+    </div>
+
+    <div class="field" style="max-width:200px">
+      <label>Ordine</label>
+      <input id="scOrder" inputmode="numeric" placeholder="Es. 10" />
+    </div>
+
+    <div class="field" style="max-width:240px">
+      <label>Visibile</label>
+      <select id="scVisible">
+        <option value="true">Sì</option>
+        <option value="false">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:10px">
+    <button class="btn primary" type="submit" id="scSaveBtn">Salva sottocategoria</button>
+    <button class="btn" type="button" id="scResetBtn">Nuova</button>
+    <span class="muted" id="scModeHint">Modalità: creazione</span>
+  </div>
+</form>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Categoria</th>
+      <th>Sottocategoria</th>
+      <th>Ordine</th>
+      <th>Visibile</th>
+      <th class="right">Azioni</th>
+    </tr>
+  </thead>
+  <tbody id="scTbody"></tbody>
+</table>
+
+<script>
+  const toast = document.getElementById("scToast");
+  const tbody = document.getElementById("scTbody");
+  const form = document.getElementById("scForm");
+  const modeHint = document.getElementById("scModeHint");
+  const f = (id) => document.getElementById(id);
+
+  let cats = [];
+  let items = [];
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.remove("hidden");
+    setTimeout(() => toast.classList.add("hidden"), 2500);
+  }
+
+  function resetForm(){
+    f("scId").value = "";
+    f("scCategoryId").value = "";
+    f("scName").value = "";
+    f("scOrder").value = "";
+    f("scVisible").value = "true";
+    modeHint.textContent = "Modalità: creazione";
+    f("scSaveBtn").textContent = "Salva sottocategoria";
+  }
+
+  async function loadCats(){
+    const res = await fetch("/api/categorie_full");
+    if(!res.ok) throw new Error("Errore categorie");
+    const data = await res.json();
+    cats = data.items || [];
+
+    const sel = f("scCategoryId");
+    sel.innerHTML = `<option value="">—</option>` + cats.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join("");
+  }
+
+  async function load(){
+    const res = await fetch("/api/sottocategorie_full");
+    if(!res.ok) throw new Error("Errore sottocategorie");
+    const data = await res.json();
+    items = data.items || [];
+    render();
+  }
+
+  function render(){
+    tbody.innerHTML = items.map(sc => {
+      const vis = sc.visibile ? `<span class="badge">Sì</span>` : `<span class="badge" style="opacity:.6">No</span>`;
+      return `
+        <tr>
+          <td>${esc(sc.categoria_nome)}</td>
+          <td style="font-weight:650">${esc(sc.nome)}</td>
+          <td>${esc(sc.ordine)}</td>
+          <td>${vis}</td>
+          <td class="right">
+            <button class="btn" type="button" onclick="editSC(${sc.id})">Modifica</button>
+            <button class="btn danger" type="button" onclick="delSC(${sc.id})">Elimina</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  window.editSC = function(id){
+    const sc = items.find(x => x.id === id);
+    if(!sc) return;
+    f("scId").value = sc.id;
+    f("scCategoryId").value = String(sc.id_categoria);
+    f("scName").value = sc.nome;
+    f("scOrder").value = sc.ordine ?? "";
+    f("scVisible").value = sc.visibile ? "true" : "false";
+    modeHint.textContent = "Modalità: modifica";
+    f("scSaveBtn").textContent = "Aggiorna sottocategoria";
+    showToast("Modifica sottocategoria: aggiorna e salva.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  window.delSC = async function(id){
+    const sc = items.find(x => x.id === id);
+    if(!sc) return;
+    if(!confirm(`Eliminare sottocategoria "${sc.nome}"?`)) return;
+    const res = await fetch(`/api/sottocategorie/${id}`, { method: "DELETE" });
+    if(!res.ok){ showToast("Errore eliminazione"); return; }
+    await load();
+    if(String(f("scId").value) === String(id)) resetForm();
+    showToast("Sottocategoria eliminata.");
+  }
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+
+    const payload = {
+      id_categoria: f("scCategoryId").value,
+      nome: f("scName").value.trim(),
+      ordine: f("scOrder").value.trim(),
+      visibile: f("scVisible").value === "true"
+    };
+
+    const id = f("scId").value ? Number(f("scId").value) : null;
+
+    let res;
+    if(!id){
+      res = await fetch("/api/sottocategorie", {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ id_categoria: payload.id_categoria, nome: payload.nome, visibile: payload.visibile })
+      });
+    } else {
+      res = await fetch(`/api/sottocategorie/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      showToast(err.error || "Errore salvataggio");
+      return;
+    }
+
+    await load();
+    showToast(id ? "Sottocategoria aggiornata." : "Sottocategoria creata.");
+    if(!id) resetForm();
+  });
+
+  document.getElementById("scResetBtn").addEventListener("click", resetForm);
+
+  function esc(s){
+    return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+  }
+
+  (async function init(){
+    resetForm();
+    await loadCats();
+    await load();
+  })();
+</script>
