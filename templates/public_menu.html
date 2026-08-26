@@ -6,7 +6,7 @@
   <meta name="description" content="{{ shop.descrizione_breve or ('Menu di ' ~ shop.nome) }}">
   <title>{{ shop.nome }} · Menu</title>
   <style>
-    :root{--bg:#f7f3ed;--card:#fff;--text:#211d19;--muted:#70675f;--accent:#9d3e27;--line:#e8ded4;--shadow:0 14px 40px rgba(70,48,33,.12)}
+    :root{--bg:{{ shop.colore_sfondo or '#f7f3ed' }};--card:#fff;--text:#211d19;--muted:#70675f;--accent:{{ shop.colore_accento or '#9d3e27' }};--line:#e8ded4;--shadow:0 14px 40px rgba(70,48,33,.12)}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
     .language-picker{position:absolute;top:10px;right:10px;z-index:4;margin:0;padding:2px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(20,13,9,.62);box-shadow:0 3px 12px rgba(0,0,0,.16);backdrop-filter:blur(7px)}.language-picker select{max-width:104px;border:0;border-radius:999px;padding:6px 22px 6px 8px;background:transparent;color:#fff;font-size:.72rem;font-weight:750;cursor:pointer;outline:none}.language-picker option{color:#211d19;background:#fff}
     .hero{position:relative;min-height:310px;display:flex;align-items:flex-end;background:#382c25 center/cover no-repeat;overflow:hidden}
