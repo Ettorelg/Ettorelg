@@ -52,6 +52,8 @@
   .products-list-heading{display:flex;align-items:center;gap:12px;margin-bottom:4px}
   .products-list-heading::before,.products-list-heading::after{content:"";height:1px;flex:1;background:rgba(110,168,254,.38)}
   .products-list-heading h3{margin:0;white-space:nowrap;color:#dbe8ff}
+  .bulk-tools{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:18px 0;padding:14px;border-radius:12px;background:rgba(255,255,255,.04)}
+  .bulk-tools .field{min-width:180px}
 </style>
 
 <h2>Prodotti</h2>
@@ -147,6 +149,13 @@
   <div class="products-list-heading"><h3 id="productsListTitle">Prodotti inseriti</h3></div>
   <p class="muted">Cerca, filtra e modifica i prodotti del tuo menù.</p>
 
+  <div class="bulk-tools">
+    <div class="field"><label for="bulkCategory">Categoria</label><select id="bulkCategory"><option value="">Seleziona categoria</option></select></div>
+    <div class="field"><label for="bulkSubcategory">Sottocategoria</label><select id="bulkSubcategory" disabled><option value="">Tutte le sottocategorie</option></select></div>
+    <div class="field"><label for="bulkAvailability">Azione</label><select id="bulkAvailability"><option value="true">Attiva prodotti</option><option value="false">Disattiva prodotti</option></select></div>
+    <button class="btn" type="button" id="applyBulkAvailability">Applica</button>
+  </div>
+
 <div class="filters">
   <div class="field"><label for="searchProducts">Cerca prodotto</label><input id="searchProducts" placeholder="Nome o descrizione" /></div>
   <div class="field"><label for="filterCategory">Filtra per categoria</label><select id="filterCategory"><option value="">Tutte le categorie</option></select></div>
@@ -233,6 +242,8 @@
     sel.innerHTML = `<option value="">Seleziona una categoria</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
     const filter = f("filterCategory");
     if (filter) filter.innerHTML = `<option value="">Tutte le categorie</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
+    const bulkCategory = f("bulkCategory");
+    if (bulkCategory) bulkCategory.innerHTML = `<option value="">Seleziona categoria</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
   }
 
   async function loadSubcategories(categoriaId, preselect=null){
@@ -373,6 +384,17 @@
       await loadSubcategories(catId, null);
     });
 
+    async function loadBulkSubcategories(categoriaId){
+      const select = f("bulkSubcategory");
+      select.innerHTML = `<option value="">Tutte le sottocategorie</option>`;
+      select.disabled = !categoriaId;
+      if (!categoriaId) return;
+      const res = await fetch(`/api/sottocategorie?categoria_id=${encodeURIComponent(categoriaId)}`);
+      if (!res.ok) { showToast("Errore caricamento sottocategorie"); return; }
+      const data = await res.json();
+      select.innerHTML += (data.items || []).map(item => `<option value="${item.id}">${escapeHtml(item.nome)}</option>`).join("");
+    }
+
     function selectedLabels(){
       return [...f("etichette").querySelectorAll("input[type=checkbox]:checked")].map(input => input.value);
     }
@@ -387,6 +409,25 @@
     ["searchProducts", "filterCategory", "filterAvailability"].forEach(id => f(id).addEventListener("input", renderTable));
     f("filterCategory").addEventListener("change", renderTable);
     f("filterAvailability").addEventListener("change", renderTable);
+    f("bulkCategory").addEventListener("change", () => loadBulkSubcategories(f("bulkCategory").value));
+    f("applyBulkAvailability").addEventListener("click", async () => {
+      const id_categoria = f("bulkCategory").value;
+      const id_sottocategoria = f("bulkSubcategory").value;
+      if (!id_categoria) { showToast("Seleziona una categoria."); return; }
+      const disponibile = f("bulkAvailability").value === "true";
+      const res = await fetch("/api/prodotti/disponibilita", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_categoria, id_sottocategoria, disponibile })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || err.error || "Errore aggiornamento prodotti");
+        return;
+      }
+      const data = await res.json();
+      await loadProducts();
+      showToast(`${data.updated} prodotti ${disponibile ? "attivati" : "disattivati"}.`);
+    });
 
     const categoryModal = f("categoryModal");
     const categoryModalForm = f("categoryModalForm");
