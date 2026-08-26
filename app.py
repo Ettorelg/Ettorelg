@@ -15,7 +15,7 @@ import qrcode
 import bcrypt
 import requests
 from authlib.integrations.flask_client import OAuth
-from flask import Flask, render_template, request, redirect, session, send_from_directory, send_file, url_for, abort
+from flask import Flask, render_template, request, redirect, session, send_from_directory, send_file, url_for, abort, jsonify
 
 from db_config import build_db_config
 
@@ -133,6 +133,75 @@ def license_is_active(status, expiry) -> bool:
     if isinstance(expiry, datetime):
         expiry = expiry.date()
     return status == "attiva" and bool(expiry) and expiry >= date.today()
+
+
+PAYPAL_PRICE = "99.00"
+PAYPAL_CURRENCY = "EUR"
+PAYPAL_TRIAL_DAYS = 14
+
+
+def paypal_configured() -> bool:
+    return all(os.environ.get(key) for key in (
+        "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_PLAN_ID"
+    ))
+
+
+def paypal_base_url() -> str:
+    mode = os.environ.get("PAYPAL_MODE", "sandbox").strip().lower()
+    return "https://api-m.paypal.com" if mode == "live" else "https://api-m.sandbox.paypal.com"
+
+
+def paypal_access_token() -> str:
+    response = requests.post(
+        f"{paypal_base_url()}/v1/oauth2/token",
+        auth=(os.environ["PAYPAL_CLIENT_ID"], os.environ["PAYPAL_CLIENT_SECRET"]),
+        data={"grant_type": "client_credentials"},
+        headers={"Accept": "application/json"},
+        timeout=20,
+    )
+    response.raise_for_status()
+    return response.json()["access_token"]
+
+
+def paypal_get_subscription(subscription_id: str) -> dict:
+    response = requests.get(
+        f"{paypal_base_url()}/v1/billing/subscriptions/{subscription_id}",
+        headers={"Authorization": f"Bearer {paypal_access_token()}", "Accept": "application/json"},
+        timeout=20,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def paypal_verify_webhook(payload: dict) -> bool:
+    webhook_id = os.environ.get("PAYPAL_WEBHOOK_ID")
+    if not webhook_id:
+        return False
+    verification = {
+        "auth_algo": request.headers.get("PAYPAL-AUTH-ALGO"),
+        "cert_url": request.headers.get("PAYPAL-CERT-URL"),
+        "transmission_id": request.headers.get("PAYPAL-TRANSMISSION-ID"),
+        "transmission_sig": request.headers.get("PAYPAL-TRANSMISSION-SIG"),
+        "transmission_time": request.headers.get("PAYPAL-TRANSMISSION-TIME"),
+        "webhook_id": webhook_id,
+        "webhook_event": payload,
+    }
+    response = requests.post(
+        f"{paypal_base_url()}/v1/notifications/verify-webhook-signature",
+        headers={"Authorization": f"Bearer {paypal_access_token()}", "Content-Type": "application/json"},
+        json=verification,
+        timeout=20,
+    )
+    return response.ok and response.json().get("verification_status") == "SUCCESS"
+
+
+def parse_paypal_date(value, fallback=None):
+    if not value:
+        return fallback
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+    except (TypeError, ValueError):
+        return fallback
 
 
 SUPPORTED_MENU_LANGUAGES = {
@@ -272,6 +341,27 @@ def init_db() -> None:
                     FROM utenti
                     ON CONFLICT (id_utente) DO NOTHING
                 """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS abbonamenti_paypal (
+                        id SERIAL PRIMARY KEY,
+                        id_utente INTEGER NOT NULL UNIQUE REFERENCES utenti(id) ON DELETE CASCADE,
+                        subscription_id TEXT UNIQUE,
+                        plan_id TEXT,
+                        stato TEXT NOT NULL DEFAULT 'in_attesa',
+                        trial_fino DATE,
+                        prossimo_addebito DATE,
+                        ultimo_pagamento TIMESTAMP WITH TIME ZONE,
+                        cancellato_il TIMESTAMP WITH TIME ZONE,
+                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS eventi_paypal (
+                        event_id TEXT PRIMARY KEY,
+                        event_type TEXT NOT NULL,
+                        ricevuto_il TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
     finally:
         conn.close()
 
@@ -279,6 +369,37 @@ def init_db() -> None:
 # Esegui init schema solo se sei in ambiente con DB configurato
 if os.getenv("DATABASE_URL") and os.getenv("AUTO_INIT_DB", "true").lower() == "true":
     init_db()
+
+
+@app.before_request
+def enforce_current_license():
+    """Blocca anche le sessioni già aperte quando prova o licenza terminano."""
+    user_id = session.get("user_id")
+    if not user_id or session.get("is_admin"):
+        return None
+    public_endpoints = {
+        "index", "login", "register", "auth_google", "auth_google_callback", "logout",
+        "privacy_policy", "terms_of_service", "uploaded_file", "static", "public_menu",
+        "paypal_webhook", "pagamento", "paypal_subscription_activate",
+        "paypal_subscription_cancel", "paypal_subscription_current",
+    }
+    if request.endpoint in public_endpoints:
+        return None
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT stato, data_scadenza FROM licenze_utenti WHERE id_utente=%s", (user_id,))
+            row = cur.fetchone()
+    finally:
+        conn.close()
+    if row and license_is_active(*row):
+        return None
+    username = session.get("username", "")
+    session.clear()
+    session.update(pending_user_id=user_id, pending_username=username)
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Licenza non attiva.", "payment_url": url_for("pagamento")}), 402
+    return redirect(url_for("pagamento"))
 
 
 @app.route("/uploads/<path:filename>")
@@ -329,7 +450,9 @@ def login():
 
     user_id, username_db, _, is_admin, status, expiry = row
     if not is_admin and not license_is_active(status, expiry):
-        return render_template("login.html", error="La licenza è scaduta o sospesa. Contatta l'amministratore.", google_enabled=google_enabled())
+        session.clear()
+        session.update(pending_user_id=user_id, pending_username=username_db)
+        return redirect(url_for("pagamento"))
 
     session.update(user_id=user_id, username=username_db, is_admin=bool(is_admin))
     return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
@@ -361,11 +484,13 @@ def register():
                 )
                 user_id = cur.fetchone()[0]
                 cur.execute(
-                    "INSERT INTO licenze_utenti (id_utente, data_scadenza) VALUES (%s, %s)",
-                    (user_id, annual_expiry()),
+                    "INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza) VALUES (%s, 'sospesa', CURRENT_DATE, CURRENT_DATE)",
+                    (user_id,),
                 )
-        session.update(user_id=user_id, username=username, is_admin=False)
-        return redirect("/dashboard_user")
+                cur.execute("INSERT INTO abbonamenti_paypal (id_utente, plan_id) VALUES (%s, %s)", (user_id, os.environ.get("PAYPAL_PLAN_ID")))
+        session.clear()
+        session.update(pending_user_id=user_id, pending_username=username)
+        return redirect(url_for("pagamento"))
     except psycopg2.IntegrityError:
         return render_template("register.html", error="Username o email già utilizzati.", google_enabled=google_enabled())
     finally:
@@ -397,6 +522,7 @@ def auth_google_callback():
             with conn.cursor() as cur:
                 cur.execute("SELECT id, username, admin FROM utenti WHERE google_sub = %s OR LOWER(email) = LOWER(%s) ORDER BY google_sub = %s DESC LIMIT 1", (google_sub, email, google_sub))
                 row = cur.fetchone()
+                is_new_user = not bool(row)
                 if row:
                     user_id, username, is_admin = row
                     cur.execute("UPDATE utenti SET google_sub = %s, email = %s WHERE id = %s", (google_sub, email, user_id))
@@ -413,13 +539,190 @@ def auth_google_callback():
                     cur.execute("INSERT INTO utenti (username, email, google_sub, password, admin, password_impostata) VALUES (%s, %s, %s, %s, FALSE, FALSE) RETURNING id", (username, email, google_sub, hash_password(os.urandom(32).hex())))
                     user_id = cur.fetchone()[0]
                     is_admin = False
-                cur.execute("INSERT INTO licenze_utenti (id_utente, data_scadenza) VALUES (%s, %s) ON CONFLICT (id_utente) DO NOTHING", (user_id, annual_expiry()))
+                if is_new_user:
+                    cur.execute("INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza) VALUES (%s, 'sospesa', CURRENT_DATE, CURRENT_DATE)", (user_id,))
+                    cur.execute("INSERT INTO abbonamenti_paypal (id_utente, plan_id) VALUES (%s, %s)", (user_id, os.environ.get("PAYPAL_PLAN_ID")))
+                else:
+                    cur.execute("INSERT INTO licenze_utenti (id_utente, data_scadenza) VALUES (%s, %s) ON CONFLICT (id_utente) DO NOTHING", (user_id, annual_expiry()))
                 cur.execute("SELECT stato, data_scadenza FROM licenze_utenti WHERE id_utente = %s", (user_id,))
                 license_row = cur.fetchone()
         if not is_admin and (not license_row or not license_is_active(*license_row)):
-            return render_template("login.html", error="La licenza è scaduta o sospesa. Contatta l'amministratore.", google_enabled=True)
+            session.clear()
+            session.update(pending_user_id=user_id, pending_username=username)
+            return redirect(url_for("pagamento"))
         session.update(user_id=user_id, username=username, is_admin=bool(is_admin))
         return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
+    finally:
+        conn.close()
+
+
+@app.get("/pagamento")
+def pagamento():
+    user_id = session.get("pending_user_id") or session.get("user_id")
+    if not user_id or session.get("is_admin"):
+        return redirect(url_for("login"))
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT u.username, u.email, a.subscription_id, a.stato, a.trial_fino,
+                       a.prossimo_addebito, l.stato, l.data_scadenza
+                FROM utenti u
+                LEFT JOIN abbonamenti_paypal a ON a.id_utente = u.id
+                LEFT JOIN licenze_utenti l ON l.id_utente = u.id
+                WHERE u.id = %s
+            """, (user_id,))
+            row = cur.fetchone()
+    finally:
+        conn.close()
+    if not row:
+        session.clear()
+        return redirect(url_for("login"))
+    return render_template(
+        "pagamento.html", username=row[0], email=row[1], subscription_id=row[2],
+        subscription_status=row[3], trial_until=row[4], next_billing=row[5],
+        license_active=license_is_active(row[6], row[7]),
+        paypal_configured=paypal_configured(), paypal_client_id=os.environ.get("PAYPAL_CLIENT_ID", ""),
+        paypal_plan_id=os.environ.get("PAYPAL_PLAN_ID", ""), price=PAYPAL_PRICE,
+        currency=PAYPAL_CURRENCY, trial_days=PAYPAL_TRIAL_DAYS,
+    )
+
+
+@app.post("/api/paypal/subscription/activate")
+def paypal_subscription_activate():
+    user_id = session.get("pending_user_id") or session.get("user_id")
+    if not user_id or session.get("is_admin"):
+        return jsonify({"error": "Sessione di registrazione non valida."}), 401
+    if not paypal_configured():
+        return jsonify({"error": "PayPal non è ancora configurato."}), 503
+    subscription_id = (request.get_json(silent=True) or {}).get("subscription_id", "").strip()
+    if not subscription_id:
+        return jsonify({"error": "Identificativo abbonamento mancante."}), 400
+    try:
+        details = paypal_get_subscription(subscription_id)
+    except requests.RequestException:
+        return jsonify({"error": "Non è stato possibile verificare l'abbonamento con PayPal."}), 502
+    if details.get("status") != "ACTIVE":
+        return jsonify({"error": "L'abbonamento PayPal non risulta attivo."}), 409
+    if details.get("plan_id") != os.environ.get("PAYPAL_PLAN_ID"):
+        return jsonify({"error": "Il piano PayPal non corrisponde all'offerta selezionata."}), 400
+    if str(details.get("custom_id", "")) != str(user_id):
+        return jsonify({"error": "L'abbonamento non appartiene a questo account."}), 403
+
+    trial_until = parse_paypal_date(details.get("billing_info", {}).get("next_billing_time"), date.today() + timedelta(days=PAYPAL_TRIAL_DAYS))
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO abbonamenti_paypal (id_utente, subscription_id, plan_id, stato, trial_fino, prossimo_addebito, updated_at)
+                    VALUES (%s, %s, %s, 'prova', %s, %s, NOW())
+                    ON CONFLICT (id_utente) DO UPDATE SET subscription_id=EXCLUDED.subscription_id,
+                        plan_id=EXCLUDED.plan_id, stato='prova', trial_fino=EXCLUDED.trial_fino,
+                        prossimo_addebito=EXCLUDED.prossimo_addebito, updated_at=NOW()
+                """, (user_id, subscription_id, details.get("plan_id"), trial_until, trial_until))
+                cur.execute("UPDATE licenze_utenti SET stato='attiva', data_inizio=CURRENT_DATE, data_scadenza=%s, updated_at=NOW() WHERE id_utente=%s", (trial_until, user_id))
+                cur.execute("SELECT username FROM utenti WHERE id=%s", (user_id,))
+                username = cur.fetchone()[0]
+        session.clear()
+        session.update(user_id=user_id, username=username, is_admin=False)
+        return jsonify({"ok": True, "redirect": url_for("dashboard_user")})
+    finally:
+        conn.close()
+
+
+@app.post("/api/paypal/webhook")
+def paypal_webhook():
+    payload = request.get_json(silent=True)
+    if not payload or not paypal_verify_webhook(payload):
+        return jsonify({"error": "Firma webhook non valida."}), 400
+    event_id = payload.get("id")
+    event_type = payload.get("event_type", "")
+    resource = payload.get("resource") or {}
+    subscription_id = resource.get("billing_agreement_id") or resource.get("id")
+    if not event_id:
+        return jsonify({"error": "Evento PayPal senza identificativo."}), 400
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO eventi_paypal (event_id, event_type) VALUES (%s, %s) ON CONFLICT DO NOTHING RETURNING event_id", (event_id, event_type))
+                if not cur.fetchone():
+                    return jsonify({"ok": True, "duplicate": True})
+                if not subscription_id:
+                    return jsonify({"ok": True, "ignored": True})
+                cur.execute("SELECT id_utente FROM abbonamenti_paypal WHERE subscription_id=%s", (subscription_id,))
+                owner = cur.fetchone()
+                if not owner:
+                    return jsonify({"ok": True, "ignored": True})
+                user_id = owner[0]
+                if event_type == "PAYMENT.SALE.COMPLETED":
+                    try:
+                        details = paypal_get_subscription(subscription_id)
+                        next_date = parse_paypal_date(details.get("billing_info", {}).get("next_billing_time"), annual_expiry())
+                    except requests.RequestException:
+                        next_date = annual_expiry()
+                    cur.execute("UPDATE abbonamenti_paypal SET stato='attivo', prossimo_addebito=%s, ultimo_pagamento=NOW(), updated_at=NOW() WHERE id_utente=%s", (next_date, user_id))
+                    cur.execute("UPDATE licenze_utenti SET stato='attiva', data_scadenza=%s, updated_at=NOW() WHERE id_utente=%s", (next_date, user_id))
+                elif event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
+                    next_date = parse_paypal_date(resource.get("billing_info", {}).get("next_billing_time"), date.today() + timedelta(days=PAYPAL_TRIAL_DAYS))
+                    cur.execute("UPDATE abbonamenti_paypal SET stato='prova', trial_fino=COALESCE(trial_fino,%s), prossimo_addebito=%s, updated_at=NOW() WHERE id_utente=%s", (next_date, next_date, user_id))
+                    cur.execute("UPDATE licenze_utenti SET stato='attiva', data_scadenza=%s, updated_at=NOW() WHERE id_utente=%s", (next_date, user_id))
+                elif event_type in ("BILLING.SUBSCRIPTION.CANCELLED", "BILLING.SUBSCRIPTION.EXPIRED"):
+                    cur.execute("UPDATE abbonamenti_paypal SET stato='cancellato', cancellato_il=NOW(), updated_at=NOW() WHERE id_utente=%s", (user_id,))
+                elif event_type in ("BILLING.SUBSCRIPTION.SUSPENDED", "BILLING.SUBSCRIPTION.PAYMENT.FAILED"):
+                    cur.execute("UPDATE abbonamenti_paypal SET stato='sospeso', updated_at=NOW() WHERE id_utente=%s", (user_id,))
+                    cur.execute("UPDATE licenze_utenti SET stato='sospesa', updated_at=NOW() WHERE id_utente=%s", (user_id,))
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+@app.post("/api/paypal/subscription/cancel")
+def paypal_subscription_cancel():
+    user_id = session.get("user_id")
+    if not user_id or session.get("is_admin"):
+        return jsonify({"error": "Accesso richiesto."}), 401
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT subscription_id FROM abbonamenti_paypal WHERE id_utente=%s", (user_id,))
+            row = cur.fetchone()
+        if not row or not row[0]:
+            return jsonify({"error": "Nessun abbonamento PayPal trovato."}), 404
+        response = requests.post(
+            f"{paypal_base_url()}/v1/billing/subscriptions/{row[0]}/cancel",
+            headers={"Authorization": f"Bearer {paypal_access_token()}", "Content-Type": "application/json"},
+            json={"reason": "Disdetta richiesta dal cliente"}, timeout=20,
+        )
+        if response.status_code not in (200, 204):
+            return jsonify({"error": "PayPal non ha accettato la disdetta."}), 502
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE abbonamenti_paypal SET stato='cancellato', cancellato_il=NOW(), updated_at=NOW() WHERE id_utente=%s", (user_id,))
+        return jsonify({"ok": True, "message": "Rinnovo automatico disattivato. La licenza resta valida fino alla scadenza."})
+    finally:
+        conn.close()
+
+
+@app.get("/api/paypal/subscription")
+def paypal_subscription_current():
+    if not session.get("user_id") or session.get("is_admin"):
+        return jsonify({"error": "Accesso richiesto."}), 401
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT stato, trial_fino, prossimo_addebito, cancellato_il, subscription_id FROM abbonamenti_paypal WHERE id_utente=%s", (session["user_id"],))
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"item": None})
+        return jsonify({"item": {
+            "stato": row[0], "trial_fino": row[1].isoformat() if row[1] else None,
+            "prossimo_addebito": row[2].isoformat() if row[2] else None,
+            "cancellato_il": row[3].isoformat() if row[3] else None,
+            "puo_disdire": bool(row[4]) and row[0] not in ("cancellato", "scaduto"),
+        }})
     finally:
         conn.close()
 
@@ -2257,3 +2560,4 @@ def api_sottocategorie_delete(sottocategoria_id: int):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
