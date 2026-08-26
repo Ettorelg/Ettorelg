@@ -124,6 +124,17 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS descrizione_estesa TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS logo_url TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS copertina_url TEXT NOT NULL DEFAULT ''")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS orari_negozio (
+                        id SERIAL PRIMARY KEY,
+                        id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                        giorno SMALLINT NOT NULL CHECK (giorno BETWEEN 0 AND 6),
+                        aperto BOOLEAN NOT NULL DEFAULT FALSE,
+                        apertura TIME,
+                        chiusura TIME,
+                        UNIQUE (id_negozio, giorno)
+                    )
+                """)
     finally:
         conn.close()
 
@@ -352,6 +363,89 @@ def api_negozio_immagini():
         conn.close()
 
     return jsonify({"ok": True, **urls})
+
+
+@app.route("/api/orari", methods=["GET", "POST"])
+def api_orari():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+
+    shop_id = get_user_shop_id(session["user_id"])
+    defaults = [
+        {"giorno": day, "aperto": False, "apertura": "09:00", "chiusura": "18:00"}
+        for day in range(7)
+    ]
+    if not shop_id:
+        if request.method == "GET":
+            return jsonify({"items": defaults})
+        return jsonify({"error": "Salva prima le informazioni del punto vendita."}), 400
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        if request.method == "GET":
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT giorno, aperto, apertura, chiusura FROM orari_negozio WHERE id_negozio = %s ORDER BY giorno",
+                    (shop_id,),
+                )
+                saved = {
+                    row[0]: {
+                        "giorno": row[0],
+                        "aperto": bool(row[1]),
+                        "apertura": row[2].strftime("%H:%M") if row[2] else "09:00",
+                        "chiusura": row[3].strftime("%H:%M") if row[3] else "18:00",
+                    }
+                    for row in cur.fetchall()
+                }
+            return jsonify({"items": [saved.get(day, defaults[day]) for day in range(7)]})
+
+        data = request.get_json(silent=True) or {}
+        items = data.get("items")
+        if not isinstance(items, list) or len(items) != 7:
+            return jsonify({"error": "Invia gli orari per tutti i sette giorni."}), 400
+
+        normalized = []
+        seen_days = set()
+        time_pattern = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+        for item in items:
+            try:
+                day = int(item.get("giorno"))
+            except (TypeError, ValueError, AttributeError):
+                return jsonify({"error": "Giorno non valido."}), 400
+            if day not in range(7) or day in seen_days:
+                return jsonify({"error": "Giorni mancanti o duplicati."}), 400
+            seen_days.add(day)
+            is_open = bool(item.get("aperto"))
+            opening = (item.get("apertura") or "").strip()
+            closing = (item.get("chiusura") or "").strip()
+            if is_open and (not time_pattern.match(opening) or not time_pattern.match(closing)):
+                return jsonify({"error": "Inserisci orari validi per i giorni aperti."}), 400
+            if is_open and opening == closing:
+                return jsonify({"error": "Apertura e chiusura devono essere diverse."}), 400
+            normalized.append((day, is_open, opening if is_open else None, closing if is_open else None))
+
+        with conn:
+            with conn.cursor() as cur:
+                for day, is_open, opening, closing in normalized:
+                    cur.execute(
+                        """
+                        INSERT INTO orari_negozio (id_negozio, giorno, aperto, apertura, chiusura)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (id_negozio, giorno) DO UPDATE SET
+                            aperto = EXCLUDED.aperto,
+                            apertura = EXCLUDED.apertura,
+                            chiusura = EXCLUDED.chiusura
+                        """,
+                        (shop_id, day, is_open, opening, closing),
+                    )
+        return jsonify({"ok": True})
+    except psycopg2.Error as error:
+        return jsonify({
+            "error": "Errore database durante il salvataggio degli orari.",
+            "detail": error.diag.message_primary or "Errore database non specificato.",
+        }), 500
+    finally:
+        conn.close()
 
 
 @app.get("/api/prodotti")
