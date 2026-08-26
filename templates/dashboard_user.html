@@ -134,6 +134,21 @@
         }
         const html = await res.text();
         content.innerHTML = html;
+
+        // Le sezioni sono caricate come HTML parziale: esegui i loro script
+        // in un proprio scope, così form e pulsanti restano operativi anche
+        // quando l'utente cambia sezione più volte.
+        for (const script of content.querySelectorAll('script')) {
+          if (script.src) {
+            const loadedScript = document.createElement('script');
+            loadedScript.src = script.src;
+            document.head.appendChild(loadedScript);
+          } else if (script.textContent.trim()) {
+            new Function(script.textContent)();
+          }
+          script.remove();
+        }
+
         content.classList.remove('loading');
 
         // highlight menu
