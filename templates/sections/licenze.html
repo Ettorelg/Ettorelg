@@ -1,2 +1,7 @@
-<h2>Licenze</h2>
-<p>Lista moduli attivi e scadenze.</p>
+<style>
+.license-card{max-width:720px;background:#fff;border:1px solid #e3e7f0;border-radius:18px;padding:24px;box-shadow:0 10px 30px #18203312}.license-head{display:flex;justify-content:space-between;gap:15px;align-items:center}.license-badge{font-weight:800;padding:7px 12px;border-radius:999px;background:#e8f8ee;color:#17733b}.license-badge.off{background:#fff0f1;color:#a51d2d}.license-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}.license-stat{background:#f6f7fb;border-radius:13px;padding:15px}.license-stat small{display:block;color:#6c7487;margin-bottom:5px}.license-stat strong{font-size:1.1rem}@media(max-width:600px){.license-grid{grid-template-columns:1fr}.license-head{align-items:flex-start;flex-direction:column}}
+</style><h2>Licenza annuale</h2><div class="license-card" id="licenseCard"><p>Caricamento licenza…</p></div>
+<script>
+(async()=>{const box=document.getElementById('licenseCard');try{const r=await fetch('/api/licenza');const d=await r.json();const x=d.item;if(!x){box.innerHTML='<p>Nessuna licenza associata.</p>';return}
+const active=x.stato==='attiva'&&x.giorni_rimanenti>=0;box.innerHTML='<div class="license-head"><div><h3 style="margin:0 0 6px">Licenza Alpha Menu</h3><span style="color:#6c7487">Validità annuale</span></div><span class="license-badge '+(active?'':'off')+'">'+(active?'ATTIVA':x.stato.toUpperCase())+'</span></div><div class="license-grid"><div class="license-stat"><small>Attivata il</small><strong>'+x.data_inizio+'</strong></div><div class="license-stat"><small>Scade il</small><strong>'+x.data_scadenza+'</strong></div><div class="license-stat"><small>Giorni rimanenti</small><strong>'+Math.max(0,x.giorni_rimanenti)+'</strong></div></div>'}catch(e){box.innerHTML='<p>Impossibile caricare la licenza.</p>'}})();
+</script>
