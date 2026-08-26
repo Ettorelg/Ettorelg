@@ -2,6 +2,7 @@ import io
 import os
 import re
 import hmac
+import html
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -11,6 +12,7 @@ import uuid
 import psycopg2
 import qrcode
 import bcrypt
+import requests
 from authlib.integrations.flask_client import OAuth
 from flask import Flask, render_template, request, redirect, session, send_from_directory, send_file, url_for, abort
 
@@ -132,6 +134,38 @@ def license_is_active(status, expiry) -> bool:
     return status == "attiva" and bool(expiry) and expiry >= date.today()
 
 
+SUPPORTED_MENU_LANGUAGES = {
+    "en": "English", "fr": "Français", "de": "Deutsch", "es": "Español"
+}
+
+MENU_UI = {
+    "it": {"venue": "Il nostro locale", "contacts": "Contatti", "show": "VISUALIZZA IL MENU'", "back": "Torna alle informazioni", "hours": "Orari di apertura", "closed": "Chiuso", "empty": "Il menu sarà disponibile presto.", "categories": "Categorie del menu", "days": ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]},
+    "en": {"venue": "Our venue", "contacts": "Contacts", "show": "VIEW MENU", "back": "Back to information", "hours": "Opening hours", "closed": "Closed", "empty": "The menu will be available soon.", "categories": "Menu categories", "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]},
+    "fr": {"venue": "Notre établissement", "contacts": "Contacts", "show": "VOIR LE MENU", "back": "Retour aux informations", "hours": "Horaires d'ouverture", "closed": "Fermé", "empty": "Le menu sera bientôt disponible.", "categories": "Catégories du menu", "days": ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]},
+    "de": {"venue": "Unser Lokal", "contacts": "Kontakte", "show": "MENÜ ANZEIGEN", "back": "Zurück zu den Informationen", "hours": "Öffnungszeiten", "closed": "Geschlossen", "empty": "Das Menü ist bald verfügbar.", "categories": "Menükategorien", "days": ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]},
+    "es": {"venue": "Nuestro local", "contacts": "Contactos", "show": "VER EL MENÚ", "back": "Volver a la información", "hours": "Horario de apertura", "closed": "Cerrado", "empty": "El menú estará disponible pronto.", "categories": "Categorías del menú", "days": ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]},
+}
+
+
+def google_translate_texts(texts: list[str], target: str) -> list[str]:
+    api_key = os.environ.get("GOOGLE_TRANSLATE_API_KEY")
+    if not api_key:
+        raise RuntimeError("Configura GOOGLE_TRANSLATE_API_KEY su Railway.")
+    if not texts:
+        return []
+    response = requests.post(
+        "https://translation.googleapis.com/language/translate/v2",
+        params={"key": api_key},
+        json={"q": texts, "source": "it", "target": target, "format": "text"},
+        timeout=30,
+    )
+    if not response.ok:
+        detail = response.json().get("error", {}).get("message", "Errore Google Translate.")
+        raise RuntimeError(detail)
+    rows = response.json().get("data", {}).get("translations", [])
+    return [html.unescape(row.get("translatedText", "")) for row in rows]
+
+
 def google_enabled() -> bool:
     return bool(os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"))
 
@@ -186,6 +220,27 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS email TEXT")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS google_sub TEXT")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS password_impostata BOOLEAN NOT NULL DEFAULT TRUE")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS lingue_negozio (
+                        id SERIAL PRIMARY KEY,
+                        id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                        codice TEXT NOT NULL,
+                        UNIQUE (id_negozio, codice)
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS traduzioni_menu (
+                        id SERIAL PRIMARY KEY,
+                        id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                        tipo TEXT NOT NULL,
+                        id_entita INTEGER NOT NULL,
+                        campo TEXT NOT NULL,
+                        lingua TEXT NOT NULL,
+                        testo TEXT NOT NULL,
+                        updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+                        UNIQUE (id_negozio, tipo, id_entita, campo, lingua)
+                    )
+                """)
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_email_unique ON utenti (LOWER(email)) WHERE email IS NOT NULL")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_google_sub_unique ON utenti (google_sub) WHERE google_sub IS NOT NULL")
                 cur.execute("""
@@ -464,6 +519,110 @@ def api_account_update():
         conn.close()
 
 
+@app.get("/api/lingue")
+def api_languages_get():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"items": [], "disponibili": SUPPORTED_MENU_LANGUAGES, "api_configurata": bool(os.environ.get("GOOGLE_TRANSLATE_API_KEY"))})
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT codice FROM lingue_negozio WHERE id_negozio=%s ORDER BY codice", (shop_id,))
+            enabled = [row[0] for row in cur.fetchall()]
+        return jsonify({"items": enabled, "disponibili": SUPPORTED_MENU_LANGUAGES, "api_configurata": bool(os.environ.get("GOOGLE_TRANSLATE_API_KEY"))})
+    finally:
+        conn.close()
+
+
+@app.put("/api/lingue")
+def api_languages_save():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Salva prima le informazioni del negozio."}), 400
+    data = request.get_json(silent=True) or {}
+    languages = list(dict.fromkeys(data.get("lingue") or []))
+    if any(code not in SUPPORTED_MENU_LANGUAGES for code in languages):
+        return jsonify({"error": "Una o più lingue non sono supportate."}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM lingue_negozio WHERE id_negozio=%s", (shop_id,))
+                for code in languages:
+                    cur.execute("INSERT INTO lingue_negozio (id_negozio, codice) VALUES (%s, %s)", (shop_id, code))
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+@app.post("/api/traduzioni/genera")
+def api_translations_generate():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Salva prima le informazioni del negozio."}), 400
+    requested = (request.get_json(silent=True) or {}).get("lingue") or []
+    languages = [code for code in dict.fromkeys(requested) if code in SUPPORTED_MENU_LANGUAGES]
+    if not languages:
+        return jsonify({"error": "Seleziona almeno una lingua."}), 400
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                entries = []
+                cur.execute("SELECT id, descrizione_breve, descrizione_estesa FROM negozi WHERE id=%s", (shop_id,))
+                shop = cur.fetchone()
+                if shop:
+                    for field, value in (("descrizione_breve", shop[1]), ("descrizione_estesa", shop[2])):
+                        if value:
+                            entries.append(("negozio", shop[0], field, value))
+
+                cur.execute("SELECT id, nome FROM categorie WHERE id_negozio=%s", (shop_id,))
+                entries += [("categoria", row[0], "nome", row[1]) for row in cur.fetchall() if row[1]]
+                cur.execute("SELECT id, nome FROM sottocategorie WHERE id_negozio=%s", (shop_id,))
+                entries += [("sottocategoria", row[0], "nome", row[1]) for row in cur.fetchall() if row[1]]
+                cur.execute("SELECT id, nome, descrizione, note, etichette, allergeni_auto FROM prodotti WHERE id_negozio=%s", (shop_id,))
+                for row in cur.fetchall():
+                    for field, value in (("nome", row[1]), ("descrizione", row[2]), ("note", row[3])):
+                        if value:
+                            entries.append(("prodotto", row[0], field, value))
+                    for index, value in enumerate(row[4] or []):
+                        if value:
+                            entries.append(("prodotto", row[0], f"etichetta_{index}", value))
+                    for index, value in enumerate(row[5] or []):
+                        if value:
+                            entries.append(("prodotto", row[0], f"allergene_{index}", value))
+
+                source_texts = [entry[3] for entry in entries]
+                total = 0
+                for language in languages:
+                    translated = []
+                    for offset in range(0, len(source_texts), 100):
+                        translated.extend(google_translate_texts(source_texts[offset:offset + 100], language))
+                    for entry, translated_text in zip(entries, translated):
+                        if entry[3].isupper():
+                            translated_text = translated_text.upper()
+                        cur.execute("""
+                            INSERT INTO traduzioni_menu (id_negozio, tipo, id_entita, campo, lingua, testo)
+                            VALUES (%s,%s,%s,%s,%s,%s)
+                            ON CONFLICT (id_negozio, tipo, id_entita, campo, lingua)
+                            DO UPDATE SET testo=EXCLUDED.testo, updated_at=NOW()
+                        """, (shop_id, entry[0], entry[1], entry[2], language, translated_text))
+                        total += 1
+                    cur.execute("INSERT INTO lingue_negozio (id_negozio, codice) VALUES (%s,%s) ON CONFLICT DO NOTHING", (shop_id, language))
+        return jsonify({"ok": True, "traduzioni": total})
+    except RuntimeError as error:
+        return jsonify({"error": str(error)}), 502
+    finally:
+        conn.close()
+
+
 @app.get("/api/admin/utenti")
 def api_admin_users_list():
     denied = require_admin()
@@ -640,6 +799,7 @@ def dashboard_user_section(section: str):
         "qrcode",
         "anteprima",
         "licenze",
+        "lingue",
         "account",
     }
     if section not in allowed:
@@ -882,6 +1042,7 @@ def api_orari():
 
 @app.get("/menu/<slug>")
 def public_menu(slug: str):
+    requested_language = (request.args.get("lang") or "it").lower()
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
@@ -964,10 +1125,29 @@ def public_menu(slug: str):
                 }
                 for item in cur.fetchall()
             }
-            day_names = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
-            hours = [{"nome": day_names[day], **saved_hours.get(day, {"aperto": False})} for day in range(7)]
+            cur.execute("SELECT codice FROM lingue_negozio WHERE id_negozio=%s ORDER BY codice", (shop["id"],))
+            enabled_codes = [item[0] for item in cur.fetchall() if item[0] in SUPPORTED_MENU_LANGUAGES]
+            language = requested_language if requested_language in enabled_codes else "it"
+            translations = {}
+            if language != "it":
+                cur.execute("SELECT tipo, id_entita, campo, testo FROM traduzioni_menu WHERE id_negozio=%s AND lingua=%s", (shop["id"], language))
+                translations = {(item[0], item[1], item[2]): item[3] for item in cur.fetchall()}
+                shop["descrizione_breve"] = translations.get(("negozio", shop["id"], "descrizione_breve"), shop["descrizione_breve"])
+                shop["descrizione_estesa"] = translations.get(("negozio", shop["id"], "descrizione_estesa"), shop["descrizione_estesa"])
+                for category in categories:
+                    category["nome"] = translations.get(("categoria", category["id"], "nome"), category["nome"])
+                    for product in category["prodotti"]:
+                        for field in ("nome", "descrizione", "note"):
+                            product[field] = translations.get(("prodotto", product["id"], field), product[field])
+                        product["sottocategoria"] = translations.get(("sottocategoria", next((p[0] for p in []), 0), "nome"), product["sottocategoria"])
+                        product["etichette"] = [translations.get(("prodotto", product["id"], f"etichetta_{i}"), value) for i, value in enumerate(product["etichette"])]
+                        product["allergeni"] = [translations.get(("prodotto", product["id"], f"allergene_{i}"), value) for i, value in enumerate(product["allergeni"])]
 
-        return render_template("public_menu.html", shop=shop, categories=categories, hours=hours)
+            ui = MENU_UI.get(language, MENU_UI["it"])
+            hours = [{"nome": ui["days"][day], **saved_hours.get(day, {"aperto": False})} for day in range(7)]
+            languages = [{"codice": "it", "nome": "Italiano"}] + [{"codice": code, "nome": SUPPORTED_MENU_LANGUAGES[code]} for code in enabled_codes]
+
+        return render_template("public_menu.html", shop=shop, categories=categories, hours=hours, ui=ui, language=language, languages=languages)
     finally:
         conn.close()
 
