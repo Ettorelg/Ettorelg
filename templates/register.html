@@ -90,7 +90,7 @@
 <body>
     <div class="register-card">
         <img src="/static/logo1.png" alt="AlphaSystem Logo" class="logo">
-        <p class="subtitle">Crea il tuo account con licenza annuale.</p>
+        <p class="subtitle">Crea il tuo account: 14 giorni gratis, poi 99 € IVA inclusa all'anno.</p>
         {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
         <form method="POST">
             <div class="form-group">
@@ -109,7 +109,7 @@
                 <label for="password_confirm">Conferma password</label>
                 <input id="password_confirm" name="password_confirm" type="password" minlength="8" autocomplete="new-password" required>
             </div>
-            <button class="btn" type="submit">Registrati e attiva la licenza</button>
+            <button class="btn" type="submit">Registrati e continua con PayPal</button>
         </form>
         <a class="btn google-btn{% if not google_enabled %} disabled{% endif %}" href="{{ url_for('auth_google') }}">Registrati con Google</a>
         {% if not google_enabled %}<p class="google-note">Accesso Google in configurazione.</p>{% endif %}
@@ -117,3 +117,4 @@
     </div>
 </body>
 </html>
+
