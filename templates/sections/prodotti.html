@@ -39,6 +39,12 @@
   .modal-card{width:min(100%,420px);padding:20px;border:1px solid rgba(255,255,255,.16);border-radius:16px;background:#13203a;box-shadow:0 18px 40px rgba(0,0,0,.42)}
   .modal-card h3{margin:0 0 8px}
   .modal-card p{margin:0 0 16px}
+  .field-error{min-height:18px;color:#ff9b9b;font-size:12px}
+  .invalid{border-color:#ff8585!important}
+  .image-preview{width:96px;height:96px;display:none;object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,.18)}
+  .filters{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:28px}
+  .filters .field{max-width:280px}
+  .tag{display:inline-block;margin:4px 4px 0 0;padding:2px 7px;border-radius:999px;background:rgba(110,168,254,.18);font-size:11px}
 </style>
 
 <h2>Prodotti</h2>
@@ -73,7 +79,7 @@
     <div class="field">
       <label>Categoria</label>
       <div class="category-select">
-        <select id="id_categoria">
+        <select id="id_categoria" required>
           <option value="">—</option>
         </select>
         <button class="btn icon-btn" type="button" id="addCategoryBtn" aria-label="Crea una nuova categoria" title="Crea una nuova categoria">+</button>
@@ -88,11 +94,19 @@
         </select>
         <button class="btn icon-btn" type="button" id="addSubcategoryBtn" aria-label="Crea una nuova sottocategoria" title="Crea una nuova sottocategoria">+</button>
       </div>
+      <div class="field-error" id="categoryError"></div>
+    </div>
+
+    <div class="field">
+      <label>Ordine nel menu</label>
+      <input id="ordine" type="number" min="0" step="1" inputmode="numeric" placeholder="Automatico" />
+      <div class="muted">Più basso = prima posizione.</div>
     </div>
 
     <div class="field">
       <label>Immagine (PNG/JPG/WEBP)</label>
       <input id="immagine" type="file" accept="image/png,image/jpeg,image/webp" />
+      <img id="imagePreview" class="image-preview" alt="Anteprima immagine selezionata" />
       <div class="muted">Facoltativa. In modifica puoi caricare una nuova immagine per sostituire.</div>
   </div>
 
@@ -102,12 +116,25 @@
     <textarea id="descrizione" placeholder="Ingredienti, note, ecc."></textarea>
   </div>
 
+  <div class="field">
+    <label>Etichette</label>
+    <input id="etichette" placeholder="Es. Novità, Consigliato, Piccante" />
+    <div class="muted">Separale con una virgola.</div>
+  </div>
+
   <div class="actions" style="margin-top:10px">
     <button class="btn primary" type="submit" id="saveBtn">Salva prodotto</button>
+    <button class="btn" type="submit" id="saveAndNewBtn">Salva e crea un altro</button>
     <button class="btn" type="button" id="resetBtn">Nuovo</button>
     <span class="muted" id="modeHint">Modalità: creazione</span>
   </div>
 </form>
+
+<div class="filters">
+  <div class="field"><label for="searchProducts">Cerca prodotto</label><input id="searchProducts" placeholder="Nome o descrizione" /></div>
+  <div class="field"><label for="filterCategory">Filtra per categoria</label><select id="filterCategory"><option value="">Tutte le categorie</option></select></div>
+  <div class="field"><label for="filterAvailability">Disponibilità</label><select id="filterAvailability"><option value="">Tutti</option><option value="true">Disponibili</option><option value="false">Non disponibili</option></select></div>
+</div>
 
 <div class="modal hidden" id="categoryModal" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle">
   <form class="modal-card" id="categoryModalForm">
@@ -185,7 +212,9 @@
     categories = data.items || [];
 
     const sel = f("id_categoria");
-    sel.innerHTML = `<option value="">—</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
+    sel.innerHTML = `<option value="">Seleziona una categoria</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
+    const filter = f("filterCategory");
+    if (filter) filter.innerHTML = `<option value="">Tutte le categorie</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
   }
 
   async function loadSubcategories(categoriaId, preselect=null){
@@ -213,7 +242,15 @@
   }
 
   function renderTable(){
-    tbody.innerHTML = products.map(p => {
+    const search = (f("searchProducts")?.value || "").trim().toLowerCase();
+    const categoryId = f("filterCategory")?.value || "";
+    const availability = f("filterAvailability")?.value || "";
+    const visibleProducts = products.filter(p =>
+      (!search || (p.nome + " " + (p.descrizione || "")).toLowerCase().includes(search)) &&
+      (!categoryId || String(p.id_categoria) === categoryId) &&
+      (!availability || String(p.disponibile) === availability)
+    );
+    tbody.innerHTML = visibleProducts.map(p => {
       const cat = p.categoria_nome || "—";
       const sub = p.sottocategoria_nome ? ` / ${p.sottocategoria_nome}` : "";
       const badge = p.disponibile ? `<span class="badge">Disponibile</span>` : `<span class="badge" style="opacity:.6">Non disponibile</span>`;
@@ -227,6 +264,7 @@
               <div>
                 <div style="font-weight:650">${escapeHtml(p.nome)}</div>
                 <div class="muted">${escapeHtml(p.descrizione || "")}</div>
+                <div>${(p.etichette || []).map(tag => '<span class="tag">' + escapeHtml(tag) + '</span>').join("")}</div>
               </div>
             </div>
           </td>
@@ -247,6 +285,12 @@
       f("nome").value = "";
       f("prezzo_euro").value = "";
       f("descrizione").value = "";
+      f("ordine").value = "";
+      f("etichette").value = "";
+      f("categoryError").textContent = "";
+      f("id_categoria").classList.remove("invalid");
+      f("imagePreview").style.display = "none";
+      f("imagePreview").removeAttribute("src");
       f("disponibile").value = "true";
       f("id_categoria").value = "";
       f("id_sottocategoria").innerHTML = `<option value="">—</option>`;
@@ -268,6 +312,12 @@
       f("nome").value = p.nome;
       f("prezzo_euro").value = p.prezzo_euro;
       f("descrizione").value = p.descrizione || "";
+      f("ordine").value = p.ordine ?? "";
+      f("etichette").value = (p.etichette || []).join(", ");
+      f("categoryError").textContent = "";
+      f("id_categoria").classList.remove("invalid");
+      if (p.immagine_url) { f("imagePreview").src = p.immagine_url; f("imagePreview").style.display = "block"; }
+      else { f("imagePreview").style.display = "none"; f("imagePreview").removeAttribute("src"); }
       f("disponibile").value = p.disponibile ? "true" : "false";
       f("id_categoria").value = p.id_categoria ? String(p.id_categoria) : "";
       await loadSubcategories(p.id_categoria, p.id_sottocategoria);
@@ -297,8 +347,21 @@
   
     f("id_categoria").addEventListener("change", async () => {
       const catId = toNumberOrNull(f("id_categoria").value);
+      f("categoryError").textContent = "";
+      f("id_categoria").classList.remove("invalid");
       await loadSubcategories(catId, null);
     });
+
+    f("immagine").addEventListener("change", () => {
+      const file = f("immagine").files?.[0];
+      if (!file) return;
+      const preview = f("imagePreview");
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = "block";
+    });
+    ["searchProducts", "filterCategory", "filterAvailability"].forEach(id => f(id).addEventListener("input", renderTable));
+    f("filterCategory").addEventListener("change", renderTable);
+    f("filterAvailability").addEventListener("change", renderTable);
 
     const categoryModal = f("categoryModal");
     const categoryModalForm = f("categoryModalForm");
@@ -400,6 +463,13 @@
     ev.preventDefault();
   
     const id = f("id").value ? Number(f("id").value) : null;
+    const saveAndNew = ev.submitter?.id === "saveAndNewBtn";
+    if (!f("id_categoria").value) {
+      f("categoryError").textContent = "Seleziona una categoria per il prodotto.";
+      f("id_categoria").classList.add("invalid");
+      f("id_categoria").focus();
+      return;
+    }
   
     const fd = new FormData();
     fd.append("nome", f("nome").value.trim());
@@ -408,6 +478,8 @@
     fd.append("disponibile", f("disponibile").value === "true" ? "true" : "false");
     fd.append("id_categoria", f("id_categoria").value || "");
     fd.append("id_sottocategoria", f("id_sottocategoria").value || "");
+    fd.append("ordine", f("ordine").value || "");
+    fd.append("etichette", f("etichette").value.trim());
   
     const fileInput = document.getElementById("immagine");
     if (fileInput && fileInput.files && fileInput.files[0]) {
@@ -434,7 +506,7 @@
     showToast(id ? "Prodotto aggiornato." : "Prodotto creato.");
   
     // reset file input e checkbox
-    if (!id) resetForm();
+    if (!id || saveAndNew) resetForm();
     if (fileInput) fileInput.value = "";
     if (removeCb) removeCb.checked = false;
   });
