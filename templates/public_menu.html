@@ -33,7 +33,7 @@
 </head>
 <body>
   <header class="hero{% if shop.copertina_url %} has-cover{% endif %}">
-    >{{ flags.get(item.codice, '🌐') }} {{ item.nome }}</option>{% endfor %}</select></form>{% endif %}
+    
     <div class="hero-inner">
       <div class="brand-logo">
         {% if shop.logo_url %}<img src="{{ shop.logo_url }}" alt="Logo {{ shop.nome }}">{% else %}{{ shop.nome[:2]|upper }}{% endif %}
