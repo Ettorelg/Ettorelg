@@ -790,6 +790,8 @@ def dashboard_user_section(section: str):
 
     allowed = {
         "home",
+        "attivita",
+        "menu_online",
         "prodotti",
         "categorie",
         "sottocategorie",
