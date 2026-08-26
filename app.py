@@ -241,6 +241,7 @@ def init_db() -> None:
                         UNIQUE (id_negozio, tipo, id_entita, campo, lingua)
                     )
                 """)
+                cur.execute("ALTER TABLE traduzioni_menu ADD COLUMN IF NOT EXISTS testo_originale TEXT NOT NULL DEFAULT ''")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_email_unique ON utenti (LOWER(email)) WHERE email IS NOT NULL")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_google_sub_unique ON utenti (google_sub) WHERE google_sub IS NOT NULL")
                 cur.execute("""
@@ -599,24 +600,40 @@ def api_translations_generate():
                         if value:
                             entries.append(("prodotto", row[0], f"allergene_{index}", value))
 
-                source_texts = [entry[3] for entry in entries]
                 total = 0
+                unchanged = 0
                 for language in languages:
+                    cur.execute("""
+                        SELECT tipo, id_entita, campo, testo_originale
+                        FROM traduzioni_menu
+                        WHERE id_negozio=%s AND lingua=%s
+                    """, (shop_id, language))
+                    originals = {(row[0], row[1], row[2]): row[3] for row in cur.fetchall()}
+                    pending = [
+                        entry for entry in entries
+                        if originals.get((entry[0], entry[1], entry[2])) != entry[3]
+                    ]
+                    unchanged += len(entries) - len(pending)
+                    source_texts = [entry[3] for entry in pending]
                     translated = []
                     for offset in range(0, len(source_texts), 100):
                         translated.extend(google_translate_texts(source_texts[offset:offset + 100], language))
-                    for entry, translated_text in zip(entries, translated):
+                    for entry, translated_text in zip(pending, translated):
                         if entry[3].isupper():
                             translated_text = translated_text.upper()
                         cur.execute("""
-                            INSERT INTO traduzioni_menu (id_negozio, tipo, id_entita, campo, lingua, testo)
-                            VALUES (%s,%s,%s,%s,%s,%s)
+                            INSERT INTO traduzioni_menu
+                                (id_negozio, tipo, id_entita, campo, lingua, testo, testo_originale)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s)
                             ON CONFLICT (id_negozio, tipo, id_entita, campo, lingua)
-                            DO UPDATE SET testo=EXCLUDED.testo, updated_at=NOW()
-                        """, (shop_id, entry[0], entry[1], entry[2], language, translated_text))
+                            DO UPDATE SET
+                                testo=EXCLUDED.testo,
+                                testo_originale=EXCLUDED.testo_originale,
+                                updated_at=NOW()
+                        """, (shop_id, entry[0], entry[1], entry[2], language, translated_text, entry[3]))
                         total += 1
                     cur.execute("INSERT INTO lingue_negozio (id_negozio, codice) VALUES (%s,%s) ON CONFLICT DO NOTHING", (shop_id, language))
-        return jsonify({"ok": True, "traduzioni": total})
+        return jsonify({"ok": True, "traduzioni": total, "inalterate": unchanged})
     except RuntimeError as error:
         return jsonify({"error": str(error)}), 502
     finally:
@@ -1312,7 +1329,7 @@ def api_prodotti_create():
         return jsonify({"error": "negozio non trovato"}), 400
 
     # multipart form fields
-    nome = (request.form.get("nome") or "").strip()
+    nome = (request.form.get("nome") or "").strip().upper()
     descrizione = (request.form.get("descrizione") or "").strip()
     note = (request.form.get("note") or "").strip()
     allergeni_auto = detect_allergens(descrizione)
@@ -1416,7 +1433,7 @@ def api_prodotti_update(prodotto_id: int):
         return jsonify({"error": "negozio non trovato"}), 400
 
     # multipart fields
-    nome = (request.form.get("nome") or "").strip()
+    nome = (request.form.get("nome") or "").strip().upper()
     descrizione = (request.form.get("descrizione") or "").strip()
     note = (request.form.get("note") or "").strip()
     allergeni_auto = detect_allergens(descrizione)
@@ -1692,7 +1709,7 @@ def api_categorie_create():
     if not data:
         return jsonify({"error": "bad_request", "detail": "JSON mancante o non valido"}), 400
 
-    nome = (data.get("nome") or "").strip()
+    nome = (data.get("nome") or "").strip().upper()
     visibile = bool(data.get("visibile", True))
     ordine = data.get("ordine")
 
@@ -1752,7 +1769,7 @@ def api_categorie_update(categoria_id: int):
         return jsonify({"error": "unauthorized"}), 401
 
     data = request.get_json(silent=True) or {}
-    nome = (data.get("nome") or "").strip()
+    nome = (data.get("nome") or "").strip().upper()
     visibile = bool(data.get("visibile", True))
     ordine = data.get("ordine")
 
@@ -1894,7 +1911,7 @@ def api_sottocategorie_create():
         return jsonify({"error": "unauthorized"}), 401
 
     data = request.get_json(silent=True) or {}
-    nome = (data.get("nome") or "").strip()
+    nome = (data.get("nome") or "").strip().upper()
     visibile = bool(data.get("visibile", True))
     id_categoria = data.get("id_categoria")
 
@@ -1936,7 +1953,7 @@ def api_sottocategorie_update(sottocategoria_id: int):
         return jsonify({"error": "unauthorized"}), 401
 
     data = request.get_json(silent=True) or {}
-    nome = (data.get("nome") or "").strip()
+    nome = (data.get("nome") or "").strip().upper()
     visibile = bool(data.get("visibile", True))
     ordine = data.get("ordine")
     id_categoria = data.get("id_categoria")
