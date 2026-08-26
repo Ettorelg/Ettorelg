@@ -57,7 +57,7 @@
     const data = await res.json().catch(() => ({}));
     storeMessage.textContent = res.ok
       ? "Negozio salvato. Ora puoi creare categorie e prodotti."
-      : (data.error || "Errore nel salvataggio.");
+      : (data.detail || data.error || "Errore nel salvataggio.");
   });
 
   loadStore();
