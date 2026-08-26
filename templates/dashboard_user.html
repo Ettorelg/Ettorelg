@@ -75,6 +75,7 @@
         <button class="nav-item" data-section="menu_online" data-requires-shop="1"><div class="icon">📱</div><div class="label">Menu pubblico</div></button>
 
         <button class="nav-item" data-section="lingue" data-requires-shop="1"><div class="icon">🌐</div><div class="label">Lingue</div></button>
+        <button class="nav-item" data-section="statistiche" data-requires-shop="1"><div class="icon">📊</div><div class="label">Statistiche</div></button>
         <button class="nav-item" data-section="licenze"><div class="icon">🔐</div><div class="label">Licenze</div></button>
         <button class="nav-item" data-section="account"><div class="icon">👤</div><div class="label">Account</div></button>
       </nav>
@@ -103,7 +104,7 @@
     const shopLogoImage = document.getElementById('shopLogoImage');
     const shopLogoFallback = document.getElementById('shopLogoFallback');
     let shopConfigured = {{ 'true' if shop_configured else 'false' }};
-    const shopRequiredSections = new Set(['prodotti', 'categorie', 'sottocategorie', 'allergeni', 'menu_online', 'qrcode', 'anteprima', 'lingue']);
+    const shopRequiredSections = new Set(['prodotti', 'categorie', 'sottocategorie', 'allergeni', 'menu_online', 'qrcode', 'anteprima', 'lingue', 'statistiche']);
 
     function syncShopLocks(){
       for (const btn of nav.querySelectorAll('[data-requires-shop="1"]')) {
@@ -153,6 +154,7 @@
       attivita: "Negozio e orari",
       menu_online: "QR Code e anteprima",
       lingue: "Lingue e traduzioni",
+      statistiche: "Statistiche",
       licenze: "Licenze",
       account: "Account"
     };
