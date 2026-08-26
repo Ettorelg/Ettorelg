@@ -204,6 +204,107 @@ def dashboard_admin():
     return render_template("dashboard_admin.html", username=session.get("username"))
 
 
+def require_admin():
+    if "user_id" not in session or not session.get("is_admin"):
+        return jsonify({"error": "Accesso amministratore richiesto."}), 403
+    return None
+
+
+@app.get("/api/admin/utenti")
+def api_admin_users_list():
+    denied = require_admin()
+    if denied:
+        return denied
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT u.id, u.username, u.admin, COALESCE(n.nome, '')
+                FROM utenti u
+                LEFT JOIN negozi n ON n.id_utente = u.id
+                ORDER BY u.id ASC
+                """
+            )
+            items = [
+                {"id": row[0], "username": row[1], "admin": bool(row[2]), "negozio": row[3]}
+                for row in cur.fetchall()
+            ]
+        return jsonify({"items": items, "current_user_id": session["user_id"]})
+    finally:
+        conn.close()
+
+
+@app.post("/api/admin/utenti")
+def api_admin_users_create():
+    denied = require_admin()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = (data.get("password") or "").strip()
+    is_admin = bool(data.get("admin"))
+    if not username or not password:
+        return jsonify({"error": "Username e password sono obbligatori."}), 400
+    if len(username) > 80 or len(password) > 160:
+        return jsonify({"error": "Username o password troppo lunghi."}), 400
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO utenti (username, password, admin) VALUES (%s, %s, %s) RETURNING id",
+                    (username, password, is_admin),
+                )
+                user_id = cur.fetchone()[0]
+        return jsonify({"ok": True, "id": user_id}), 201
+    except psycopg2.IntegrityError:
+        return jsonify({"error": "Username già utilizzato."}), 409
+    finally:
+        conn.close()
+
+
+@app.put("/api/admin/utenti/<int:user_id>")
+def api_admin_users_update(user_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = (data.get("password") or "").strip()
+    is_admin = bool(data.get("admin"))
+    if not username:
+        return jsonify({"error": "Lo username è obbligatorio."}), 400
+    if user_id == session["user_id"] and not is_admin:
+        return jsonify({"error": "Non puoi rimuovere il ruolo amministratore dal tuo account."}), 400
+    if len(username) > 80 or len(password) > 160:
+        return jsonify({"error": "Username o password troppo lunghi."}), 400
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if password:
+                    cur.execute(
+                        "UPDATE utenti SET username = %s, password = %s, admin = %s WHERE id = %s",
+                        (username, password, is_admin, user_id),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE utenti SET username = %s, admin = %s WHERE id = %s",
+                        (username, is_admin, user_id),
+                    )
+                if cur.rowcount == 0:
+                    return jsonify({"error": "Utente non trovato."}), 404
+        if user_id == session["user_id"]:
+            session["username"] = username
+        return jsonify({"ok": True})
+    except psycopg2.IntegrityError:
+        return jsonify({"error": "Username già utilizzato."}), 409
+    finally:
+        conn.close()
+
 
 @app.route("/logout")
 def logout():
