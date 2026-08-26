@@ -1,0 +1,20 @@
+<style>
+.lang-card{max-width:820px;background:#fff;border:1px solid #e2e7f0;border-radius:18px;padding:22px;box-shadow:0 10px 30px rgba(20,35,70,.07)}.lang-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin:20px 0}.lang-option{display:flex;align-items:center;gap:10px;padding:13px;border:1px solid #dce3ee;border-radius:11px;cursor:pointer}.lang-option input{width:18px;height:18px}.lang-actions{display:flex;gap:10px;flex-wrap:wrap}.lang-btn{border:0;border-radius:10px;padding:12px 17px;background:#006ee6;color:#fff;font-weight:800;cursor:pointer}.lang-btn.secondary{background:#193653}.lang-btn:disabled{opacity:.55}.lang-info{background:#edf6ff;color:#184d7c;padding:12px;border-radius:10px;margin:14px 0}.lang-message{margin-top:14px;padding:11px;border-radius:10px;display:none}.lang-message.ok{display:block;background:#e9f8ef;color:#17653a}.lang-message.error{display:block;background:#fff0f1;color:#a51d2d}@media(max-width:560px){.lang-options{grid-template-columns:1fr}}
+</style>
+<section class="lang-card"><h2 style="margin-top:0">Lingue del menu</h2><p>Seleziona le lingue disponibili nel menu pubblico. L’italiano resta sempre la lingua principale.</p><div id="apiInfo" class="lang-info">Verifica della connessione a Google Translate…</div><div class="lang-options" id="langOptions"></div><div class="lang-actions"><button class="lang-btn" id="saveLanguages">Salva lingue</button><button class="lang-btn secondary" id="translateAll">Traduci automaticamente tutto</button></div><div id="langMessage" class="lang-message"></div><p style="color:#6c7487;font-size:.85rem;margin-bottom:0">La traduzione comprende informazioni del locale, categorie, sottocategorie, nomi e descrizioni dei prodotti, note, etichette e allergeni. Le traduzioni vengono salvate e non modificano i testi italiani.</p></section>
+<script>
+(()=>{
+ const options=document.getElementById('langOptions'),msg=document.getElementById('langMessage'),apiInfo=document.getElementById('apiInfo');
+ const show=(text,error=false)=>{msg.textContent=text;msg.className='lang-message '+(error?'error':'ok')};
+ const selected=()=>[...options.querySelectorAll('input:checked')].map(x=>x.value);
+ async function load(){
+   try{const r=await fetch('/api/lingue'),d=await r.json();if(!r.ok)throw new Error(d.error||'Errore caricamento.');
+   options.innerHTML=Object.entries(d.disponibili).map(([code,name])=>'<label class="lang-option"><input type="checkbox" value="'+code+'" '+(d.items.includes(code)?'checked':'')+'><strong>'+name+'</strong></label>').join('');
+   apiInfo.textContent=d.api_configurata?'Google Cloud Translation è configurato.':'Google Cloud Translation deve ancora essere collegato.';
+   apiInfo.style.background=d.api_configurata?'#e9f8ef':'#fff5d9';}catch(e){show(e.message,true)}
+ }
+ saveLanguages.onclick=async()=>{try{const r=await fetch('/api/lingue',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({lingue:selected()})}),d=await r.json();if(!r.ok)throw new Error(d.error);show('Lingue salvate.')}catch(e){show(e.message,true)}};
+ translateAll.onclick=async()=>{const langs=selected();if(!langs.length){show('Seleziona almeno una lingua.',true);return}translateAll.disabled=true;translateAll.textContent='Traduzione in corso…';try{const r=await fetch('/api/traduzioni/genera',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lingue:langs})}),d=await r.json();if(!r.ok)throw new Error(d.error||'Traduzione non riuscita.');show('Traduzione completata: '+d.traduzioni+' testi aggiornati.')}catch(e){show(e.message,true)}finally{translateAll.disabled=false;translateAll.textContent='Traduci automaticamente tutto'}};
+ load();
+})();
+</script>
