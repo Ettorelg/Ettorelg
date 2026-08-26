@@ -1,2 +1,39 @@
-<h2>QR Code</h2>
-<p>Generazione e visualizzazione QR con link al tuo menù pubblico.</p>
+<style>
+  .qr-card{max-width:760px;padding:22px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:rgba(255,255,255,.035)}
+  .qr-card h2{margin:0 0 8px}.qr-card>p{color:#aab4d6;line-height:1.5}.qr-layout{display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:center;margin-top:20px}
+  .qr-image{width:260px;height:260px;padding:12px;border-radius:18px;background:#fff;object-fit:contain}.qr-url{padding:11px;border:1px solid rgba(255,255,255,.14);border-radius:11px;background:rgba(255,255,255,.04);color:#aab4d6;overflow-wrap:anywhere;font-size:.84rem}
+  .qr-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}.qr-button{padding:9px 12px;border:1px solid rgba(110,168,254,.4);border-radius:10px;background:rgba(110,168,254,.18);color:#e7ecff;text-decoration:none;font:700 .84rem system-ui;cursor:pointer}.qr-message{color:#aab4d6}
+  @media(max-width:620px){.qr-layout{grid-template-columns:1fr}.qr-image{width:min(100%,280px);height:auto;margin:auto}}
+</style>
+<section class="qr-card">
+  <h2>QR Code del menù</h2><p>Stampa o condividi questo codice: porterà direttamente alla pagina pubblica del locale.</p>
+  <p class="qr-message" id="qrMessage">Generazione QR code…</p>
+  <div class="qr-layout" id="qrLayout" hidden>
+    <img class="qr-image" id="qrImage" alt="QR code del menu pubblico">
+    <div><div class="qr-url" id="menuUrl"></div><div class="qr-actions">
+      <a class="qr-button" id="openMenu" target="_blank" rel="noopener">Apri menù ↗</a>
+      <a class="qr-button" id="downloadQr" download>Scarica QR</a>
+      <button class="qr-button" id="copyUrl" type="button">Copia link</button>
+    </div></div>
+  </div>
+</section>
+<script>
+  (async () => {
+    const message = document.getElementById("qrMessage");
+    const layout = document.getElementById("qrLayout");
+    const response = await fetch("/api/menu-pubblico");
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) { message.textContent = data.error || "Impossibile generare il QR code."; return; }
+    document.getElementById("qrImage").src = data.qr_url;
+    document.getElementById("menuUrl").textContent = data.menu_url;
+    document.getElementById("openMenu").href = data.menu_url;
+    document.getElementById("downloadQr").href = data.qr_url;
+    document.getElementById("copyUrl").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(data.menu_url);
+      message.hidden = false;
+      message.textContent = "Link copiato.";
+    });
+    layout.hidden = false;
+    message.hidden = true;
+  })();
+</script>
