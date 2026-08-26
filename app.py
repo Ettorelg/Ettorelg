@@ -514,6 +514,50 @@ def api_prodotti_update(prodotto_id: int):
         conn.close()
 
 
+@app.post("/api/prodotti/ordina")
+def api_prodotti_ordina():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    try:
+        id_categoria = int(data.get("id_categoria"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "seleziona una categoria"}), 400
+
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "negozio non trovato"}), 400
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id
+                    FROM prodotti
+                    WHERE id_negozio = %s AND id_categoria = %s
+                    ORDER BY LOWER(nome) ASC, id ASC
+                    """,
+                    (shop_id, id_categoria),
+                )
+                product_ids = [row[0] for row in cur.fetchall()]
+                for index, product_id in enumerate(product_ids, start=1):
+                    cur.execute(
+                        "UPDATE prodotti SET ordine = %s WHERE id = %s AND id_negozio = %s",
+                        (index * 10, product_id, shop_id),
+                    )
+        return jsonify({"ok": True, "updated": len(product_ids)})
+    except psycopg2.Error as error:
+        return jsonify({
+            "error": "Errore database durante l'ordinamento dei prodotti.",
+            "detail": error.diag.message_primary or "Errore database non specificato."
+        }), 500
+    finally:
+        conn.close()
+
+
 @app.post("/api/prodotti/disponibilita")
 def api_prodotti_bulk_disponibilita():
     if "user_id" not in session:
