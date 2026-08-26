@@ -1,6 +1,8 @@
 import io
 import os
 import re
+import hmac
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from werkzeug.utils import secure_filename
@@ -8,6 +10,8 @@ import uuid
 
 import psycopg2
 import qrcode
+import bcrypt
+from authlib.integrations.flask_client import OAuth
 from flask import Flask, render_template, request, redirect, session, send_from_directory, send_file, url_for, abort
 
 from db_config import build_db_config
@@ -15,6 +19,15 @@ from db_config import build_db_config
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
 app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024
+oauth = OAuth(app)
+google = oauth.register(
+    name="google",
+    client_id=os.environ.get("GOOGLE_CLIENT_ID"),
+    client_secret=os.environ.get("GOOGLE_CLIENT_SECRET"),
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={"scope": "openid email profile"},
+)
+
 VOLUME_ROOT = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
 UPLOAD_ROOT = os.environ.get("UPLOAD_DIR") or (os.path.join(VOLUME_ROOT, "uploads") if VOLUME_ROOT else os.path.join(app.root_path, "static", "uploads"))
 UPLOAD_URL_PREFIX = os.environ.get("UPLOAD_URL_PREFIX", "/uploads").rstrip("/")
@@ -94,6 +107,35 @@ def save_shop_image(file_storage, shop_id: int, image_type: str) -> str:
     return f"{UPLOAD_URL_PREFIX}/negozio_{shop_id}/branding/{new_name}"
 
 
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(password: str, stored: str) -> bool:
+    if not stored:
+        return False
+    if stored.startswith(("$2a$", "$2b$", "$2y$")):
+        try:
+            return bcrypt.checkpw(password.encode("utf-8"), stored.encode("utf-8"))
+        except ValueError:
+            return False
+    return hmac.compare_digest(password, stored)
+
+
+def annual_expiry() -> date:
+    return date.today() + timedelta(days=365)
+
+
+def license_is_active(status, expiry) -> bool:
+    if isinstance(expiry, datetime):
+        expiry = expiry.date()
+    return status == "attiva" and bool(expiry) and expiry >= date.today()
+
+
+def google_enabled() -> bool:
+    return bool(os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"))
+
+
 def init_db() -> None:
     schema_path = Path(__file__).resolve().parent / "db" / "schema.sql"
     schema_sql = schema_path.read_text(encoding="utf-8")
@@ -141,6 +183,26 @@ def init_db() -> None:
                 """)
                 cur.execute("ALTER TABLE orari_negozio ADD COLUMN IF NOT EXISTS apertura_2 TIME")
                 cur.execute("ALTER TABLE orari_negozio ADD COLUMN IF NOT EXISTS chiusura_2 TIME")
+                cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS email TEXT")
+                cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS google_sub TEXT")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_email_unique ON utenti (LOWER(email)) WHERE email IS NOT NULL")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_google_sub_unique ON utenti (google_sub) WHERE google_sub IS NOT NULL")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS licenze_utenti (
+                        id SERIAL PRIMARY KEY,
+                        id_utente INTEGER NOT NULL UNIQUE REFERENCES utenti(id) ON DELETE CASCADE,
+                        stato TEXT NOT NULL DEFAULT 'attiva' CHECK (stato IN ('attiva', 'sospesa')),
+                        data_inizio DATE NOT NULL DEFAULT CURRENT_DATE,
+                        data_scadenza DATE NOT NULL DEFAULT (CURRENT_DATE + 365),
+                        updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
+                    INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza)
+                    SELECT id, 'attiva', CURRENT_DATE, CURRENT_DATE + 365
+                    FROM utenti
+                    ON CONFLICT (id_utente) DO NOTHING
+                """)
     finally:
         conn.close()
 
@@ -163,44 +225,130 @@ def index():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
-        return render_template("login.html")
+        return render_template("login.html", google_enabled=google_enabled())
 
     username = request.form.get("username", "").strip()
-    password = request.form.get("password", "").strip()
-
+    password = request.form.get("password", "")
     if not username or not password:
-        return render_template("login.html", error="Inserisci username e password.")
+        return render_template("login.html", error="Inserisci username e password.", google_enabled=google_enabled())
 
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, username, admin FROM utenti WHERE username = %s AND password = %s",
-                (username, password),
-            )
+            cur.execute("""
+                SELECT u.id, u.username, u.password, u.admin, l.stato, l.data_scadenza
+                FROM utenti u
+                LEFT JOIN licenze_utenti l ON l.id_utente = u.id
+                WHERE LOWER(u.username) = LOWER(%s)
+            """, (username,))
             row = cur.fetchone()
     finally:
         conn.close()
 
-    if not row:
-        return render_template("login.html", error="Username o password errati.")
+    if not row or not verify_password(password, row[2]):
+        return render_template("login.html", error="Username o password errati.", google_enabled=google_enabled())
 
-    user_id, username_db, is_admin = row
+    user_id, username_db, _, is_admin, status, expiry = row
+    if not is_admin and not license_is_active(status, expiry):
+        return render_template("login.html", error="La licenza è scaduta o sospesa. Contatta l'amministratore.", google_enabled=google_enabled())
 
-    session["user_id"] = user_id
-    session["username"] = username_db
-    session["is_admin"] = bool(is_admin)
+    session.update(user_id=user_id, username=username_db, is_admin=bool(is_admin))
+    return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
 
-    if is_admin:
-        return redirect("/dashboard_admin")
-    else:
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "GET":
+        return render_template("register.html", google_enabled=google_enabled())
+
+    username = request.form.get("username", "").strip()
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+    confirm = request.form.get("password_confirm", "")
+    if not username or not email or not password:
+        return render_template("register.html", error="Compila tutti i campi.", google_enabled=google_enabled())
+    if password != confirm:
+        return render_template("register.html", error="Le password non coincidono.", google_enabled=google_enabled())
+    if len(password) < 8:
+        return render_template("register.html", error="La password deve avere almeno 8 caratteri.", google_enabled=google_enabled())
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO utenti (username, email, password, admin) VALUES (%s, %s, %s, FALSE) RETURNING id",
+                    (username, email, hash_password(password)),
+                )
+                user_id = cur.fetchone()[0]
+                cur.execute(
+                    "INSERT INTO licenze_utenti (id_utente, data_scadenza) VALUES (%s, %s)",
+                    (user_id, annual_expiry()),
+                )
+        session.update(user_id=user_id, username=username, is_admin=False)
         return redirect("/dashboard_user")
-        
+    except psycopg2.IntegrityError:
+        return render_template("register.html", error="Username o email già utilizzati.", google_enabled=google_enabled())
+    finally:
+        conn.close()
+
+
+@app.get("/auth/google")
+def auth_google():
+    if not google_enabled():
+        return redirect(url_for("login"))
+    callback = url_for("auth_google_callback", _external=True, _scheme="https")
+    return google.authorize_redirect(callback)
+
+
+@app.get("/auth/google/callback")
+def auth_google_callback():
+    if not google_enabled():
+        return redirect(url_for("login"))
+    token = google.authorize_access_token()
+    profile = token.get("userinfo") or google.userinfo()
+    email = (profile.get("email") or "").strip().lower()
+    google_sub = profile.get("sub")
+    if not email or not google_sub:
+        return render_template("login.html", error="Google non ha restituito un indirizzo email valido.", google_enabled=True)
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, username, admin FROM utenti WHERE google_sub = %s OR LOWER(email) = LOWER(%s) ORDER BY google_sub = %s DESC LIMIT 1", (google_sub, email, google_sub))
+                row = cur.fetchone()
+                if row:
+                    user_id, username, is_admin = row
+                    cur.execute("UPDATE utenti SET google_sub = %s, email = %s WHERE id = %s", (google_sub, email, user_id))
+                else:
+                    base = (profile.get("name") or email.split("@")[0])[:70]
+                    username = base
+                    suffix = 1
+                    while True:
+                        cur.execute("SELECT 1 FROM utenti WHERE LOWER(username) = LOWER(%s)", (username,))
+                        if not cur.fetchone():
+                            break
+                        suffix += 1
+                        username = f"{base[:65]}-{suffix}"
+                    cur.execute("INSERT INTO utenti (username, email, google_sub, password, admin) VALUES (%s, %s, %s, %s, FALSE) RETURNING id", (username, email, google_sub, hash_password(os.urandom(32).hex())))
+                    user_id = cur.fetchone()[0]
+                    is_admin = False
+                cur.execute("INSERT INTO licenze_utenti (id_utente, data_scadenza) VALUES (%s, %s) ON CONFLICT (id_utente) DO NOTHING", (user_id, annual_expiry()))
+                cur.execute("SELECT stato, data_scadenza FROM licenze_utenti WHERE id_utente = %s", (user_id,))
+                license_row = cur.fetchone()
+        if not is_admin and (not license_row or not license_is_active(*license_row)):
+            return render_template("login.html", error="La licenza è scaduta o sospesa. Contatta l'amministratore.", google_enabled=True)
+        session.update(user_id=user_id, username=username, is_admin=bool(is_admin))
+        return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
+    finally:
+        conn.close()
+
+
 @app.route("/dashboard_admin")
 def dashboard_admin():
     if not session.get("is_admin"):
         return redirect("/login")
-
     return render_template("dashboard_admin.html", username=session.get("username"))
 
 
@@ -208,6 +356,23 @@ def require_admin():
     if "user_id" not in session or not session.get("is_admin"):
         return jsonify({"error": "Accesso amministratore richiesto."}), 403
     return None
+
+
+@app.get("/api/licenza")
+def api_license_current():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT stato, data_inizio, data_scadenza FROM licenze_utenti WHERE id_utente = %s", (session["user_id"],))
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"item": None})
+        remaining = (row[2] - date.today()).days
+        return jsonify({"item": {"stato": row[0], "data_inizio": row[1].isoformat(), "data_scadenza": row[2].isoformat(), "giorni_rimanenti": remaining}})
+    finally:
+        conn.close()
 
 
 @app.get("/api/admin/utenti")
@@ -218,18 +383,24 @@ def api_admin_users_list():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT u.id, u.username, u.admin, COALESCE(n.nome, '')
+            cur.execute("""
+                SELECT u.id, u.username, COALESCE(u.email, ''), u.admin, COALESCE(n.nome, ''),
+                       COALESCE(l.stato, 'sospesa'), l.data_inizio, l.data_scadenza
                 FROM utenti u
                 LEFT JOIN negozi n ON n.id_utente = u.id
-                ORDER BY u.id ASC
-                """
-            )
-            items = [
-                {"id": row[0], "username": row[1], "admin": bool(row[2]), "negozio": row[3]}
-                for row in cur.fetchall()
-            ]
+                LEFT JOIN licenze_utenti l ON l.id_utente = u.id
+                ORDER BY u.id
+            """)
+            items = []
+            for row in cur.fetchall():
+                expiry = row[7]
+                days = (expiry - date.today()).days if expiry else None
+                items.append({"id": row[0], "username": row[1], "email": row[2], "admin": bool(row[3]),
+                              "negozio": row[4], "stato_licenza": row[5],
+                              "data_inizio": row[6].isoformat() if row[6] else None,
+                              "data_scadenza": expiry.isoformat() if expiry else None,
+                              "giorni_rimanenti": days,
+                              "in_scadenza": days is not None and 0 <= days <= 30})
         return jsonify({"items": items, "current_user_id": session["user_id"]})
     finally:
         conn.close()
@@ -242,25 +413,21 @@ def api_admin_users_create():
         return denied
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
-    password = (data.get("password") or "").strip()
+    email = (data.get("email") or "").strip().lower() or None
+    password = data.get("password") or ""
     is_admin = bool(data.get("admin"))
     if not username or not password:
         return jsonify({"error": "Username e password sono obbligatori."}), 400
-    if len(username) > 80 or len(password) > 160:
-        return jsonify({"error": "Username o password troppo lunghi."}), 400
-
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO utenti (username, password, admin) VALUES (%s, %s, %s) RETURNING id",
-                    (username, password, is_admin),
-                )
+                cur.execute("INSERT INTO utenti (username, email, password, admin) VALUES (%s, %s, %s, %s) RETURNING id", (username, email, hash_password(password), is_admin))
                 user_id = cur.fetchone()[0]
+                cur.execute("INSERT INTO licenze_utenti (id_utente, data_scadenza) VALUES (%s, %s)", (user_id, annual_expiry()))
         return jsonify({"ok": True, "id": user_id}), 201
     except psycopg2.IntegrityError:
-        return jsonify({"error": "Username già utilizzato."}), 409
+        return jsonify({"error": "Username o email già utilizzati."}), 409
     finally:
         conn.close()
 
@@ -272,36 +439,81 @@ def api_admin_users_update(user_id: int):
         return denied
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
-    password = (data.get("password") or "").strip()
+    email = (data.get("email") or "").strip().lower() or None
+    password = data.get("password") or ""
     is_admin = bool(data.get("admin"))
     if not username:
         return jsonify({"error": "Lo username è obbligatorio."}), 400
     if user_id == session["user_id"] and not is_admin:
         return jsonify({"error": "Non puoi rimuovere il ruolo amministratore dal tuo account."}), 400
-    if len(username) > 80 or len(password) > 160:
-        return jsonify({"error": "Username o password troppo lunghi."}), 400
-
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
             with conn.cursor() as cur:
                 if password:
-                    cur.execute(
-                        "UPDATE utenti SET username = %s, password = %s, admin = %s WHERE id = %s",
-                        (username, password, is_admin, user_id),
-                    )
+                    cur.execute("UPDATE utenti SET username=%s, email=%s, password=%s, admin=%s WHERE id=%s", (username, email, hash_password(password), is_admin, user_id))
                 else:
-                    cur.execute(
-                        "UPDATE utenti SET username = %s, admin = %s WHERE id = %s",
-                        (username, is_admin, user_id),
-                    )
-                if cur.rowcount == 0:
+                    cur.execute("UPDATE utenti SET username=%s, email=%s, admin=%s WHERE id=%s", (username, email, is_admin, user_id))
+                if not cur.rowcount:
                     return jsonify({"error": "Utente non trovato."}), 404
         if user_id == session["user_id"]:
             session["username"] = username
         return jsonify({"ok": True})
     except psycopg2.IntegrityError:
-        return jsonify({"error": "Username già utilizzato."}), 409
+        return jsonify({"error": "Username o email già utilizzati."}), 409
+    finally:
+        conn.close()
+
+
+@app.put("/api/admin/licenze/<int:user_id>")
+def api_admin_license_update(user_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    status = data.get("stato")
+    expiry_raw = data.get("data_scadenza")
+    if status not in {"attiva", "sospesa"}:
+        return jsonify({"error": "Stato licenza non valido."}), 400
+    try:
+        expiry = date.fromisoformat(expiry_raw)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Data di scadenza non valida."}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO licenze_utenti (id_utente, stato, data_scadenza)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (id_utente) DO UPDATE
+                    SET stato=EXCLUDED.stato, data_scadenza=EXCLUDED.data_scadenza, updated_at=NOW()
+                """, (user_id, status, expiry))
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+@app.post("/api/admin/licenze/<int:user_id>/rinnova")
+def api_admin_license_renew(user_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza)
+                    VALUES (%s, 'attiva', CURRENT_DATE, CURRENT_DATE + 365)
+                    ON CONFLICT (id_utente) DO UPDATE
+                    SET stato='attiva',
+                        data_scadenza=GREATEST(CURRENT_DATE, licenze_utenti.data_scadenza) + 365,
+                        updated_at=NOW()
+                    RETURNING data_scadenza
+                """, (user_id,))
+                expiry = cur.fetchone()[0]
+        return jsonify({"ok": True, "data_scadenza": expiry.isoformat()})
     finally:
         conn.close()
 
