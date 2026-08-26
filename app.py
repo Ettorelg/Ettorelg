@@ -1079,7 +1079,7 @@ def public_menu(slug: str):
             cur.execute(
                 """
                 SELECT p.id, p.nome, COALESCE(p.descrizione, ''), COALESCE(p.note, ''),
-                       p.prezzo_euro, p.id_categoria, COALESCE(sc.nome, ''),
+                       p.prezzo_euro, p.id_categoria, COALESCE(sc.id, 0), COALESCE(sc.nome, ''),
                        COALESCE(img.url, ''), COALESCE(p.etichette, ARRAY[]::TEXT[]),
                        COALESCE(p.allergeni_auto, ARRAY[]::TEXT[])
                 FROM prodotti p
@@ -1103,8 +1103,8 @@ def public_menu(slug: str):
                 category["prodotti"].append({
                     "id": product[0], "nome": product[1], "descrizione": product[2],
                     "note": product[3], "prezzo": f"{product[4]:.2f}".replace(".", ","),
-                    "sottocategoria": product[6], "immagine_url": product[7],
-                    "etichette": product[8] or [], "allergeni": product[9] or [],
+                    "sottocategoria_id": product[6], "sottocategoria": product[7], "immagine_url": product[8],
+                    "etichette": product[9] or [], "allergeni": product[10] or [],
                 })
             categories = [category for category in categories if category["prodotti"]]
 
@@ -1139,7 +1139,7 @@ def public_menu(slug: str):
                     for product in category["prodotti"]:
                         for field in ("nome", "descrizione", "note"):
                             product[field] = translations.get(("prodotto", product["id"], field), product[field])
-                        product["sottocategoria"] = translations.get(("sottocategoria", next((p[0] for p in []), 0), "nome"), product["sottocategoria"])
+                        product["sottocategoria"] = translations.get(("sottocategoria", product["sottocategoria_id"], "nome"), product["sottocategoria"])
                         product["etichette"] = [translations.get(("prodotto", product["id"], f"etichetta_{i}"), value) for i, value in enumerate(product["etichette"])]
                         product["allergeni"] = [translations.get(("prodotto", product["id"], f"allergene_{i}"), value) for i, value in enumerate(product["allergeni"])]
 
