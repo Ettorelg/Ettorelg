@@ -30,6 +30,14 @@
   .thumb{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.12);object-fit:cover;background:rgba(255,255,255,.04)}
   .toast{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
   .hidden{display:none}
+  .category-select{display:flex;gap:8px;align-items:stretch}
+  .category-select select{flex:1;min-width:0}
+  .btn.icon-btn{justify-content:center;min-width:44px;padding:10px;font-size:20px;line-height:1}
+  .modal{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:20px;background:rgba(5,10,19,.7)}
+  .modal.hidden{display:none}
+  .modal-card{width:min(100%,420px);padding:20px;border:1px solid rgba(255,255,255,.16);border-radius:16px;background:#13203a;box-shadow:0 18px 40px rgba(0,0,0,.42)}
+  .modal-card h3{margin:0 0 8px}
+  .modal-card p{margin:0 0 16px}
 </style>
 
 <h2>Prodotti</h2>
@@ -48,7 +56,7 @@
 
     <div class="field">
       <label>Prezzo (€) *</label>
-      <input id="prezzo_euro" required inputmode="decimal" placeholder="Es. 7.50" />
+      <input id="prezzo_euro" type="number" min="0" step="0.01" required inputmode="decimal" placeholder="Es. 7.50" />
     </div>
 
     <div class="field" style="max-width:240px">
@@ -63,9 +71,12 @@
   <div class="row">
     <div class="field">
       <label>Categoria</label>
-      <select id="id_categoria">
-        <option value="">—</option>
-      </select>
+      <div class="category-select">
+        <select id="id_categoria">
+          <option value="">—</option>
+        </select>
+        <button class="btn icon-btn" type="button" id="addCategoryBtn" aria-label="Crea una nuova categoria" title="Crea una nuova categoria">+</button>
+      </div>
     </div>
 
     <div class="field">
@@ -93,6 +104,21 @@
     <span class="muted" id="modeHint">Modalità: creazione</span>
   </div>
 </form>
+
+<div class="modal hidden" id="categoryModal" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle">
+  <form class="modal-card" id="categoryModalForm">
+    <h3 id="categoryModalTitle">Nuova categoria</h3>
+    <p class="muted">La categoria verrà aggiunta subito al menu di questo negozio.</p>
+    <div class="field">
+      <label for="newCategoryName">Nome categoria *</label>
+      <input id="newCategoryName" required placeholder="Es. Pizze" maxlength="100" />
+    </div>
+    <div class="actions" style="margin-top:16px">
+      <button class="btn primary" type="submit">Crea categoria</button>
+      <button class="btn" type="button" id="cancelCategoryBtn">Annulla</button>
+    </div>
+  </form>
+</div>
 
 <table class="table" id="table">
   <thead>
@@ -206,7 +232,6 @@
       f("id_categoria").value = "";
       f("id_sottocategoria").innerHTML = `<option value="">—</option>`;
       f("id_sottocategoria").disabled = true;
-      f("immagine_url").value = "";
       modeHint.textContent = "Modalità: creazione";
       f("saveBtn").textContent = "Salva prodotto";
     const fileInput = document.getElementById("immagine");
@@ -227,7 +252,6 @@
       f("disponibile").value = p.disponibile ? "true" : "false";
       f("id_categoria").value = p.id_categoria ? String(p.id_categoria) : "";
       await loadSubcategories(p.id_categoria, p.id_sottocategoria);
-      f("immagine_url").value = p.immagine_url || "";
   
       modeHint.textContent = "Modalità: modifica";
       f("saveBtn").textContent = "Aggiorna prodotto";
@@ -255,6 +279,52 @@
     f("id_categoria").addEventListener("change", async () => {
       const catId = toNumberOrNull(f("id_categoria").value);
       await loadSubcategories(catId, null);
+    });
+
+    const categoryModal = f("categoryModal");
+    const categoryModalForm = f("categoryModalForm");
+
+    f("addCategoryBtn").addEventListener("click", () => {
+      categoryModal.classList.remove("hidden");
+      f("newCategoryName").focus();
+    });
+
+    f("cancelCategoryBtn").addEventListener("click", () => {
+      categoryModal.classList.add("hidden");
+      categoryModalForm.reset();
+    });
+
+    categoryModal.addEventListener("click", (event) => {
+      if (event.target === categoryModal) {
+        categoryModal.classList.add("hidden");
+        categoryModalForm.reset();
+      }
+    });
+
+    categoryModalForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const nome = f("newCategoryName").value.trim();
+      if (!nome) return;
+
+      const res = await fetch("/api/categorie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, visibile: true })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || "Errore creazione categoria");
+        return;
+      }
+
+      const data = await res.json();
+      await loadCategories();
+      f("id_categoria").value = String(data.id);
+      await loadSubcategories(data.id, null);
+      categoryModal.classList.add("hidden");
+      categoryModalForm.reset();
+      showToast("Categoria creata e selezionata.");
     });
   
     f("resetBtn").addEventListener("click", () => resetForm());
