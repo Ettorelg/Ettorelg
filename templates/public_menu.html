@@ -15,7 +15,7 @@
     .brand-logo{width:92px;height:92px;flex:0 0 auto;border-radius:22px;display:grid;place-items:center;overflow:hidden;background:#fff;box-shadow:0 10px 35px rgba(0,0,0,.28);color:#7d3020;font-size:28px;font-weight:800}
     .brand-logo img{width:100%;height:100%;object-fit:contain}.hero h1{margin:0;font-size:clamp(2rem,6vw,3.8rem);line-height:1}.hero p{margin:10px 0 0;color:#f2e7df;max-width:700px}
     .category-nav{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:12px max(18px,calc((100% - 1120px)/2));background:rgba(247,243,237,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);scrollbar-width:none}
-    .category-nav a{flex:0 0 auto;padding:9px 14px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:.88rem;font-weight:700}
+    .category-nav a{flex:0 0 auto;padding:10px 15px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:.9rem;font-weight:750;transition:.18s ease}.category-nav a.active{background:var(--accent);border-color:var(--accent);color:#fff}.menu-section[hidden]{display:none}
     main{width:min(1120px,100%);margin:auto;padding:28px 20px 70px}.intro{display:grid;grid-template-columns:1.4fr .6fr;gap:24px;margin-bottom:32px}.intro-card{padding:20px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.72)}
     .intro-card h2{margin:0 0 8px}.intro-card p{margin:0;color:var(--muted);line-height:1.65;white-space:pre-line}.contacts{display:grid;gap:8px}.contacts a,.contacts span{color:var(--muted);text-decoration:none;overflow-wrap:anywhere}
     .menu-section{scroll-margin-top:76px;margin-top:34px}.menu-section h2{margin:0 0 15px;font-family:Georgia,serif;font-size:2rem}.products{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
@@ -27,7 +27,7 @@
     .hours{margin-top:48px;padding:22px;border-radius:20px;background:#211d19;color:#fff}.hours h2{margin:0 0 15px}.hours-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 22px}.hours-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.12)}.hours-row span:last-child{color:#eadbd0;text-align:right}
     footer{text-align:center;padding:22px;color:var(--muted);font-size:.8rem}
     @media(max-width:780px){.hero-inner{align-items:center}.brand-logo{width:76px;height:76px;border-radius:18px}.intro{grid-template-columns:1fr}.products{grid-template-columns:1fr}.hours-grid{grid-template-columns:1fr}}
-    @media(max-width:480px){.hero{min-height:270px}.hero-inner{padding-bottom:22px}.product.with-image{grid-template-columns:86px 1fr}.product.with-image .price{grid-column:2}.product img{width:86px;height:86px}.brand-logo{width:66px;height:66px}.hero h1{font-size:2rem}}
+    @media(max-width:480px){.hero{min-height:245px}.hero-inner{padding:38px 16px 20px;gap:12px}.brand-logo{width:62px;height:62px;border-radius:15px}.hero h1{font-size:1.85rem}.hero p{font-size:.88rem}.category-nav{padding:10px 12px}.category-nav a{min-height:42px;display:flex;align-items:center;padding:9px 14px}.menu-section h2{font-size:1.65rem}.product,.product.with-image{grid-template-columns:76px minmax(0,1fr);padding:12px;gap:10px}.product:not(.with-image){grid-template-columns:minmax(0,1fr) auto}.product img{width:76px;height:76px}.product.with-image .price{grid-column:2;justify-self:start}.product h3{font-size:1rem}.product p{font-size:.84rem}.price{font-size:.95rem}.menu-button{width:100%;min-height:48px}.intro-card{padding:16px}main{padding:20px 14px 55px}}
   </style>
 </head>
 <body>
@@ -40,7 +40,7 @@
     </div>
   </header>
 
-  {% if categories %}<nav class="category-nav" id="categoryNav" aria-label="Categorie del menu" hidden>{% for category in categories %}<a href="#categoria-{{ category.id }}">{{ category.nome }}</a>{% endfor %}</nav>{% endif %}
+  {% if categories %}<nav class="category-nav" id="categoryNav" aria-label="Categorie del menu" hidden>{% for category in categories %}<a href="#categoria-{{ category.id }}" data-category-target="categoria-{{ category.id }}">{{ category.nome }}</a>{% endfor %}</nav>{% endif %}
 
   <main>
     {% if shop.descrizione_estesa or shop.indirizzo or shop.telefono or shop.email %}
@@ -54,11 +54,11 @@
     </section>
     {% endif %}
 
-    <div class="view-actions"><button class="menu-button" id="showMenu" type="button">Visualizza il menù per categorie</button></div>
+    <div class="view-actions"><button class="menu-button" id="showMenu" type="button">VISUALIZZA IL MENU'</button></div>
     <div class="menu-content" id="menuContent" hidden>
     {% if categories %}
       {% for category in categories %}
-      <section class="menu-section" id="categoria-{{ category.id }}">
+      <section class="menu-section" id="categoria-{{ category.id }}" data-category-section hidden>
         <h2>{{ category.nome }}</h2>
         <div class="products">
           {% for product in category.prodotti %}
@@ -93,15 +93,32 @@
     const categoryNav = document.getElementById('categoryNav');
     const showMenu = document.getElementById('showMenu');
     const hideMenu = document.getElementById('hideMenu');
+    const categoryLinks = [...document.querySelectorAll('[data-category-target]')];
+    const categorySections = [...document.querySelectorAll('[data-category-section]')];
+
+    function activateCategory(targetId){
+      categorySections.forEach(section => section.hidden = section.id !== targetId);
+      categoryLinks.forEach(link => link.classList.toggle('active', link.dataset.categoryTarget === targetId));
+      document.getElementById(targetId)?.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+
+    categoryLinks.forEach(link => link.addEventListener('click', event => {
+      event.preventDefault();
+      activateCategory(link.dataset.categoryTarget);
+    }));
+
     showMenu.addEventListener('click', () => {
       menuContent.hidden = false;
       if (categoryNav) categoryNav.hidden = false;
       showMenu.parentElement.hidden = true;
-      menuContent.scrollIntoView({behavior: 'smooth', block: 'start'});
+      if (categoryLinks[0]) activateCategory(categoryLinks[0].dataset.categoryTarget);
+      else menuContent.scrollIntoView({behavior: 'smooth', block: 'start'});
     });
     hideMenu.addEventListener('click', () => {
       menuContent.hidden = true;
       if (categoryNav) categoryNav.hidden = true;
+      categorySections.forEach(section => section.hidden = true);
+      categoryLinks.forEach(link => link.classList.remove('active'));
       showMenu.parentElement.hidden = false;
       document.querySelector('.intro')?.scrollIntoView({behavior: 'smooth', block: 'start'});
     });
