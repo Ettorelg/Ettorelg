@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="{{ shop.descrizione_breve or ('Menu di ' ~ shop.nome) }}">
+  <title>{{ shop.nome }} · Menu</title>
+  <style>
+    :root{--bg:#f7f3ed;--card:#fff;--text:#211d19;--muted:#70675f;--accent:#9d3e27;--line:#e8ded4;--shadow:0 14px 40px rgba(70,48,33,.12)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+    .hero{position:relative;min-height:310px;display:flex;align-items:flex-end;background:#382c25 center/cover no-repeat;overflow:hidden}
+    .hero.has-cover{background-image:linear-gradient(180deg,rgba(20,13,9,.12),rgba(20,13,9,.82)),url('{{ shop.copertina_url }}')}
+    .hero:not(.has-cover){background-image:linear-gradient(135deg,#7d3020,#221813)}
+    .hero-inner{width:min(1120px,100%);margin:auto;padding:56px 22px 30px;display:flex;align-items:flex-end;gap:18px;color:#fff}
+    .brand-logo{width:92px;height:92px;flex:0 0 auto;border-radius:22px;display:grid;place-items:center;overflow:hidden;background:#fff;box-shadow:0 10px 35px rgba(0,0,0,.28);color:#7d3020;font-size:28px;font-weight:800}
+    .brand-logo img{width:100%;height:100%;object-fit:contain}.hero h1{margin:0;font-size:clamp(2rem,6vw,3.8rem);line-height:1}.hero p{margin:10px 0 0;color:#f2e7df;max-width:700px}
+    .category-nav{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:12px max(18px,calc((100% - 1120px)/2));background:rgba(247,243,237,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);scrollbar-width:none}
+    .category-nav a{flex:0 0 auto;padding:9px 14px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:.88rem;font-weight:700}
+    main{width:min(1120px,100%);margin:auto;padding:28px 20px 70px}.intro{display:grid;grid-template-columns:1.4fr .6fr;gap:24px;margin-bottom:32px}.intro-card{padding:20px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.72)}
+    .intro-card h2{margin:0 0 8px}.intro-card p{margin:0;color:var(--muted);line-height:1.65;white-space:pre-line}.contacts{display:grid;gap:8px}.contacts a,.contacts span{color:var(--muted);text-decoration:none;overflow-wrap:anywhere}
+    .menu-section{scroll-margin-top:76px;margin-top:34px}.menu-section h2{margin:0 0 15px;font-family:Georgia,serif;font-size:2rem}.products{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .product{display:grid;grid-template-columns:1fr auto;gap:12px;padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:0 5px 18px rgba(70,48,33,.05)}
+    .product.with-image{grid-template-columns:118px 1fr auto}.product img{width:118px;height:118px;border-radius:13px;object-fit:cover}.product h3{margin:0 0 5px;font-size:1.06rem}.subcat{display:block;margin-bottom:5px;color:var(--accent);font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+    .product p{margin:0;color:var(--muted);line-height:1.45;font-size:.9rem}.price{white-space:nowrap;font-weight:850;color:var(--accent)}.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}.chip{padding:4px 7px;border-radius:999px;background:#f4ece6;color:#6f3d2f;font-size:.7rem;font-weight:700}.allergen{background:#fff2c9;color:#725713}.note{display:block;margin-top:8px;color:#86786e;font-size:.78rem;font-style:italic}
+    .empty{padding:40px;text-align:center;border:1px dashed var(--line);border-radius:18px;color:var(--muted)}.hours{margin-top:48px;padding:22px;border-radius:20px;background:#211d19;color:#fff}.hours h2{margin:0 0 15px}.hours-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 22px}.hours-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.12)}.hours-row span:last-child{color:#eadbd0;text-align:right}
+    footer{text-align:center;padding:22px;color:var(--muted);font-size:.8rem}
+    @media(max-width:780px){.hero-inner{align-items:center}.brand-logo{width:76px;height:76px;border-radius:18px}.intro{grid-template-columns:1fr}.products{grid-template-columns:1fr}.hours-grid{grid-template-columns:1fr}}
+    @media(max-width:480px){.hero{min-height:270px}.hero-inner{padding-bottom:22px}.product.with-image{grid-template-columns:86px 1fr}.product.with-image .price{grid-column:2}.product img{width:86px;height:86px}.brand-logo{width:66px;height:66px}.hero h1{font-size:2rem}}
+  </style>
+</head>
+<body>
+  <header class="hero{% if shop.copertina_url %} has-cover{% endif %}">
+    <div class="hero-inner">
+      <div class="brand-logo">
+        {% if shop.logo_url %}<img src="{{ shop.logo_url }}" alt="Logo {{ shop.nome }}">{% else %}{{ shop.nome[:2]|upper }}{% endif %}
+      </div>
+      <div><h1>{{ shop.nome }}</h1>{% if shop.descrizione_breve %}<p>{{ shop.descrizione_breve }}</p>{% endif %}</div>
+    </div>
+  </header>
+
+  {% if categories %}<nav class="category-nav" aria-label="Categorie del menu">{% for category in categories %}<a href="#categoria-{{ category.id }}">{{ category.nome }}</a>{% endfor %}</nav>{% endif %}
+
+  <main>
+    {% if shop.descrizione_estesa or shop.indirizzo or shop.telefono or shop.email %}
+    <section class="intro">
+      <div class="intro-card"><h2>Il nostro locale</h2><p>{{ shop.descrizione_estesa or shop.descrizione_breve }}</p></div>
+      <div class="intro-card contacts"><h2>Contatti</h2>
+        {% if shop.indirizzo %}<span>📍 {{ shop.indirizzo }}, {{ shop.cap }} {{ shop.citta }}{% if shop.provincia %} ({{ shop.provincia }}){% endif %}</span>{% endif %}
+        {% if shop.telefono %}<a href="tel:{{ shop.telefono }}">☎ {{ shop.telefono }}</a>{% endif %}
+        {% if shop.email %}<a href="mailto:{{ shop.email }}">✉ {{ shop.email }}</a>{% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if categories %}
+      {% for category in categories %}
+      <section class="menu-section" id="categoria-{{ category.id }}">
+        <h2>{{ category.nome }}</h2>
+        <div class="products">
+          {% for product in category.prodotti %}
+          <article class="product{% if product.immagine_url %} with-image{% endif %}">
+            {% if product.immagine_url %}<img src="{{ product.immagine_url }}" alt="{{ product.nome }}" loading="lazy">{% endif %}
+            <div>
+              {% if product.sottocategoria %}<span class="subcat">{{ product.sottocategoria }}</span>{% endif %}
+              <h3>{{ product.nome }}</h3>
+              {% if product.descrizione %}<p>{{ product.descrizione }}</p>{% endif %}
+              {% if product.note %}<span class="note">{{ product.note }}</span>{% endif %}
+              {% if product.etichette or product.allergeni %}<div class="chips">
+                {% for label in product.etichette %}<span class="chip">{{ label }}</span>{% endfor %}
+                {% for allergen in product.allergeni %}<span class="chip allergen">{{ allergen }}</span>{% endfor %}
+              </div>{% endif %}
+            </div>
+            <div class="price">€ {{ product.prezzo }}</div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+    {% else %}<div class="empty">Il menu sarà disponibile presto.</div>{% endif %}
+
+    {% if hours %}<section class="hours"><h2>Orari di apertura</h2><div class="hours-grid">
+      {% for day in hours %}<div class="hours-row"><strong>{{ day.nome }}</strong><span>{% if day.aperto %}{{ day.apertura }}–{{ day.chiusura }}{% if day.apertura_2 and day.chiusura_2 %}<br>{{ day.apertura_2 }}–{{ day.chiusura_2 }}{% endif %}{% else %}Chiuso{% endif %}</span></div>{% endfor %}
+    </div></section>{% endif %}
+  </main>
+  <footer>Menu digitale di {{ shop.nome }}</footer>
+</body>
+</html>
