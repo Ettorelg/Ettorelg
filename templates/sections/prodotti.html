@@ -161,6 +161,12 @@
   </div>
 </form>
 
+<div class="bulk-tools" style="margin-top:24px">
+  <div class="field"><label for="csvImport">Importa prodotti da CSV</label><input id="csvImport" type="file" accept=".csv,text/csv"></div>
+  <button class="btn" type="button" id="importCsvBtn">⬆ Importa CSV</button>
+  <span class="muted">Colonne: nome, prezzo, categoria, descrizione/ingredienti, note, disponibile.</span>
+</div>
+
 <details class="bulk-operations">
   <summary>Opzioni avanzate</summary>
   <p class="muted">Attiva o disattiva tutti i prodotti di una categoria o sottocategoria.</p>
@@ -367,6 +373,8 @@
           <td class="right">€ ${escapeHtml(p.prezzo_euro)}</td>
           <td>${badge}</td>
           <td class="right">
+            <button class="btn" type="button" onclick="toggleAvailability(${p.id})">${p.disponibile ? "⏸ Esaurito" : "▶ Disponibile"}</button>
+            <button class="btn" type="button" onclick="duplicateProduct(${p.id})">Duplica</button>
             <button class="btn" type="button" onclick="editProduct(${p.id})">Modifica</button>
             <button class="btn danger" type="button" onclick="deleteProduct(${p.id})">Elimina</button>
           </td>
@@ -433,6 +441,25 @@
 
     }
   
+    window.toggleAvailability = async function(id){
+      const product = products.find(item => item.id === id);
+      if(!product) return;
+      const res = await fetch(`/api/prodotti/${id}/disponibilita`, {
+        method: "PATCH", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({disponibile: !product.disponibile})
+      });
+      if(!res.ok){ showToast("Errore aggiornamento disponibilità"); return; }
+      await loadProducts();
+      showToast(product.disponibile ? "Prodotto segnato come esaurito." : "Prodotto nuovamente disponibile.");
+    }
+
+    window.duplicateProduct = async function(id){
+      const res = await fetch(`/api/prodotti/${id}/duplica`, {method:"POST"});
+      if(!res.ok){ showToast("Errore duplicazione prodotto"); return; }
+      await loadProducts();
+      showToast("Prodotto duplicato.");
+    }
+
     window.deleteProduct = async function(id){
       const p = products.find(x => x.id === id);
       if(!p) return;
@@ -476,7 +503,18 @@
       preview.src = URL.createObjectURL(file);
       preview.style.display = "block";
     });
-    ["searchProducts", "filterCategory", "filterAvailability"].forEach(id => f(id).addEventListener("input", renderTable));
+    f("importCsvBtn").addEventListener("click", async () => {
+      const file = f("csvImport").files?.[0];
+      if(!file){ showToast("Seleziona un file CSV."); return; }
+      const body = new FormData(); body.append("file", file);
+      const res = await fetch("/api/prodotti/importa-csv", {method:"POST", body});
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok){ showToast(data.error || "Errore importazione CSV"); return; }
+      await Promise.all([loadCategories(), loadProducts()]);
+      f("csvImport").value = "";
+      showToast(`${data.importati} prodotti importati.`);
+    });
+        ["searchProducts", "filterCategory", "filterAvailability"].forEach(id => f(id).addEventListener("input", renderTable));
     f("filterCategory").addEventListener("change", renderTable);
     f("filterAvailability").addEventListener("change", renderTable);
     f("bulkCategory").addEventListener("change", () => loadBulkSubcategories(f("bulkCategory").value));
