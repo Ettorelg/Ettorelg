@@ -585,7 +585,7 @@ def api_translations_generate():
 
                 cur.execute("SELECT id, nome FROM categorie WHERE id_negozio=%s", (shop_id,))
                 entries += [("categoria", row[0], "nome", row[1]) for row in cur.fetchall() if row[1]]
-                cur.execute("SELECT id, nome FROM sottocategorie WHERE id_negozio=%s", (shop_id,))
+                cur.execute("SELECT sc.id, sc.nome FROM sottocategorie sc JOIN categorie c ON c.id = sc.id_categoria WHERE c.id_negozio=%s", (shop_id,))
                 entries += [("sottocategoria", row[0], "nome", row[1]) for row in cur.fetchall() if row[1]]
                 cur.execute("SELECT id, nome, descrizione, note, etichette, allergeni_auto FROM prodotti WHERE id_negozio=%s", (shop_id,))
                 for row in cur.fetchall():
@@ -2023,4 +2023,3 @@ def api_sottocategorie_delete(sottocategoria_id: int):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
