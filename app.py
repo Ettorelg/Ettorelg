@@ -1823,8 +1823,58 @@ def api_categorie_delete(categoria_id: int):
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM categorie WHERE id=%s AND id_negozio=%s", (categoria_id, shop_id))
-        return jsonify({"ok": True})
+                cur.execute(
+                    "SELECT id FROM categorie WHERE id=%s AND id_negozio=%s",
+                    (categoria_id, shop_id),
+                )
+                if not cur.fetchone():
+                    return jsonify({"error": "categoria non trovata"}), 404
+
+                cur.execute(
+                    "SELECT id FROM prodotti WHERE id_negozio=%s AND id_categoria=%s",
+                    (shop_id, categoria_id),
+                )
+                product_ids = [row[0] for row in cur.fetchall()]
+                cur.execute(
+                    "SELECT id FROM sottocategorie WHERE id_categoria=%s",
+                    (categoria_id,),
+                )
+                subcategory_ids = [row[0] for row in cur.fetchall()]
+
+                cur.execute(
+                    "DELETE FROM prodotti WHERE id_negozio=%s AND id_categoria=%s",
+                    (shop_id, categoria_id),
+                )
+                deleted_products = cur.rowcount
+                cur.execute(
+                    "DELETE FROM sottocategorie WHERE id_categoria=%s",
+                    (categoria_id,),
+                )
+                deleted_subcategories = cur.rowcount
+
+                if product_ids:
+                    cur.execute(
+                        "DELETE FROM traduzioni_menu WHERE id_negozio=%s AND tipo='prodotto' AND id_entita = ANY(%s)",
+                        (shop_id, product_ids),
+                    )
+                if subcategory_ids:
+                    cur.execute(
+                        "DELETE FROM traduzioni_menu WHERE id_negozio=%s AND tipo='sottocategoria' AND id_entita = ANY(%s)",
+                        (shop_id, subcategory_ids),
+                    )
+                cur.execute(
+                    "DELETE FROM traduzioni_menu WHERE id_negozio=%s AND tipo='categoria' AND id_entita=%s",
+                    (shop_id, categoria_id),
+                )
+                cur.execute(
+                    "DELETE FROM categorie WHERE id=%s AND id_negozio=%s",
+                    (categoria_id, shop_id),
+                )
+        return jsonify({
+            "ok": True,
+            "prodotti_eliminati": deleted_products,
+            "sottocategorie_eliminate": deleted_subcategories,
+        })
     finally:
         conn.close()
 
