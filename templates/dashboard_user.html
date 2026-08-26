@@ -37,7 +37,10 @@
     .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;
       padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius);background:rgba(255,255,255,.03);box-shadow:var(--shadow)}
     .topbar h1{margin:0;font-size:16px}
+    .topbar-actions{display:flex;align-items:center;gap:10px}
     .pill{padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.04)}
+    .logout-button{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid rgba(255,110,110,.45);border-radius:10px;background:rgba(255,80,80,.12);color:#ffd2d2;text-decoration:none;font-size:14px;font-weight:600}
+    .logout-button:hover{background:rgba(255,80,80,.22);border-color:rgba(255,150,150,.7)}
     .content{margin-top:14px;border:1px solid var(--border);border-radius:var(--radius);
       background:rgba(255,255,255,.03);box-shadow:var(--shadow);padding:16px;min-height: 320px}
     .loading{opacity:.65}
@@ -82,7 +85,10 @@
     <main class="main">
       <div class="topbar">
         <h1 id="pageTitle">Dashboard</h1>
-        <div class="pill">Utente: {{ username }}</div>
+        <div class="topbar-actions">
+          <div class="pill">Utente: {{ username }}</div>
+          <a class="logout-button" href="/logout" aria-label="Esci dall'account">🚪 Esci</a>
+        </div>
       </div>
 
       <div id="content" class="content"></div>
