@@ -16,6 +16,30 @@ VOLUME_ROOT = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
 UPLOAD_ROOT = os.environ.get("UPLOAD_DIR") or (os.path.join(VOLUME_ROOT, "uploads") if VOLUME_ROOT else os.path.join(app.root_path, "static", "uploads"))
 UPLOAD_URL_PREFIX = os.environ.get("UPLOAD_URL_PREFIX", "/uploads").rstrip("/")
 ALLOWED_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp"}
+ALLERGEN_KEYWORDS = {
+    "Glutine": ("farina", "frumento", "grano", "orzo", "segale", "avena", "farro", "pane", "pasta", "pizza"),
+    "Crostacei": ("gamber", "scampo", "aragosta", "astice", "granchio"),
+    "Uova": ("uovo", "uova", "maionese"),
+    "Pesce": ("pesce", "tonno", "salmone", "acciuga", "acciughe", "merluzzo"),
+    "Arachidi": ("arachide", "arachidi"),
+    "Soia": ("soia", "tofu", "edamame"),
+    "Latte": ("latte", "lattosio", "mozzarella", "formaggio", "burro", "panna", "yogurt"),
+    "Frutta a guscio": ("mandorla", "nocciola", "noce", "noci", "pistacchio", "anacardo", "pecan", "macadamia"),
+    "Sedano": ("sedano",),
+    "Senape": ("senape",),
+    "Semi di sesamo": ("sesamo",),
+    "Solfiti": ("solfiti", "solfato", "vino"),
+    "Lupini": ("lupino", "lupini"),
+    "Molluschi": ("cozza", "cozze", "vongola", "vongole", "calamaro", "calamari", "polpo", "ostrica", "ostriche"),
+}
+
+def detect_allergens(ingredients: str) -> list[str]:
+    text = (ingredients or "").lower()
+    return [
+        allergen for allergen, keywords in ALLERGEN_KEYWORDS.items()
+        if any(re.search(r"(?<!\\w)" + re.escape(keyword) + r"\\w*", text) for keyword in keywords)
+    ]
+
 
 def ensure_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
@@ -67,6 +91,7 @@ def init_db() -> None:
                 """)
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS etichette TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS allergeni_auto TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]")
     finally:
         conn.close()
 
@@ -248,7 +273,8 @@ def api_prodotti_list():
                     p.id_sottocategoria, sc.nome as sottocategoria_nome,
                     COALESCE(img.url, '') as immagine_url,
                     p.ordine, COALESCE(p.etichette, ARRAY[]::TEXT[]) as etichette,
-                    COALESCE(p.note, '') as note
+                    COALESCE(p.note, '') as note,
+                    COALESCE(p.allergeni_auto, ARRAY[]::TEXT[]) as allergeni_auto
                 FROM prodotti p
                 LEFT JOIN categorie c ON c.id = p.id_categoria
                 LEFT JOIN sottocategorie sc ON sc.id = p.id_sottocategoria
@@ -280,6 +306,7 @@ def api_prodotti_list():
                 "ordine": r[10],
                 "etichette": r[11] or [],
                 "note": r[12] or "",
+                "allergeni_auto": r[13] or [],
             })
         return jsonify({"items": items})
     finally:
@@ -348,6 +375,7 @@ def api_prodotti_create():
     nome = (request.form.get("nome") or "").strip()
     descrizione = (request.form.get("descrizione") or "").strip()
     note = (request.form.get("note") or "").strip()
+    allergeni_auto = detect_allergens(descrizione)
     prezzo_euro = request.form.get("prezzo_euro")
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
     id_categoria = request.form.get("id_categoria") or None
@@ -398,13 +426,13 @@ def api_prodotti_create():
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, ordine, etichette)
+                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, ordine, etichette, allergeni_auto)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
                         COALESCE(%s, (SELECT COALESCE(MAX(ordine), 0) + 10 FROM prodotti WHERE id_negozio = %s)),
-                        %s
+                        %s, %s
                     )
                     RETURNING id
-                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, ordine, shop_id, etichette))
+                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, ordine, shop_id, etichette, allergeni_auto))
                 new_id = cur.fetchone()[0]
 
                 # Senza un ordine manuale, mantieni l'ordine alfabetico nella categoria.
@@ -451,6 +479,7 @@ def api_prodotti_update(prodotto_id: int):
     nome = (request.form.get("nome") or "").strip()
     descrizione = (request.form.get("descrizione") or "").strip()
     note = (request.form.get("note") or "").strip()
+    allergeni_auto = detect_allergens(descrizione)
     prezzo_euro = request.form.get("prezzo_euro")
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
     id_categoria = request.form.get("id_categoria") or None
@@ -507,9 +536,9 @@ def api_prodotti_update(prodotto_id: int):
                 cur.execute("""
                     UPDATE prodotti
                     SET id_categoria=%s, id_sottocategoria=%s, nome=%s, descrizione=%s, note=%s, prezzo_euro=%s, disponibile=%s,
-                        ordine=COALESCE(%s, ordine), etichette=%s
+                        ordine=COALESCE(%s, ordine), etichette=%s, allergeni_auto=%s
                     WHERE id=%s
-                """, (id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, ordine, etichette, prodotto_id))
+                """, (id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, ordine, etichette, allergeni_auto, prodotto_id))
 
                 # immagine principale: gestisci remove / sostituzione
                 cur.execute("SELECT id, url FROM immagini_prodotti WHERE id_prodotto=%s AND principale=TRUE LIMIT 1", (prodotto_id,))
