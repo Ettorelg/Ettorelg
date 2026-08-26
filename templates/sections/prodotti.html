@@ -62,6 +62,8 @@
   .custom-sort-item{display:flex;align-items:center;gap:12px;padding:9px 10px;border:1px solid rgba(255,255,255,.11);border-radius:10px}
   .custom-sort-item span{flex:1}
   .custom-sort-item input{width:84px}
+  .allergen-preview{margin-top:8px;padding:10px 12px;border:1px solid rgba(255,197,107,.35);border-radius:12px;background:rgba(255,197,107,.08);font-size:13px}
+  .allergen-preview strong{display:block;margin-bottom:4px;color:#ffe0a6}
   .tool-group-title{margin:18px 0 0;font-size:14px;font-weight:650;color:#dbe8ff}
   .search-tools{margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,255,255,.16)}
 </style>
@@ -127,6 +129,11 @@
   <div class="field">
     <label>Ingredienti</label>
     <textarea id="descrizione" placeholder="Es. pomodoro, mozzarella, basilico"></textarea>
+  </div>
+
+  <div class="allergen-preview" id="allergenPreview">
+    <strong>Allergeni rilevati automaticamente</strong>
+    <span id="detectedAllergens" class="muted">Inserisci gli ingredienti per effettuare il controllo.</span>
   </div>
 
   <div class="field">
@@ -260,6 +267,32 @@
 
   let products = [];
   let categories = [];
+  const allergenKeywords = {
+    "Glutine": ["farina", "frumento", "grano", "orzo", "segale", "avena", "farro", "pane", "pasta", "pizza"],
+    "Crostacei": ["gamber", "scampo", "aragosta", "astice", "granchio"],
+    "Uova": ["uovo", "uova", "maionese"], "Pesce": ["pesce", "tonno", "salmone", "acciuga", "merluzzo"],
+    "Arachidi": ["arachide"], "Soia": ["soia", "tofu", "edamame"],
+    "Latte": ["latte", "lattosio", "mozzarella", "formaggio", "burro", "panna", "yogurt"],
+    "Frutta a guscio": ["mandorla", "nocciola", "noce", "noci", "pistacchio", "anacardo", "pecan", "macadamia"],
+    "Sedano": ["sedano"], "Senape": ["senape"], "Semi di sesamo": ["sesamo"],
+    "Solfiti": ["solfiti", "solfato", "vino"], "Lupini": ["lupino"],
+    "Molluschi": ["cozza", "vongola", "calamaro", "polpo", "ostrica"]
+  };
+
+  function renderDetectedAllergens(allergens){
+    const target = f("detectedAllergens");
+    target.innerHTML = allergens.length
+      ? allergens.map(allergen => `<span class="tag" style="background:rgba(255,197,107,.18)">⚠ ${escapeHtml(allergen)}</span>`).join("")
+      : "Nessun allergene rilevato dagli ingredienti inseriti.";
+  }
+
+  function detectAllergensInIngredients(){
+    const ingredients = f("descrizione").value.toLowerCase();
+    const allergens = Object.entries(allergenKeywords)
+      .filter(([, keywords]) => keywords.some(keyword => ingredients.includes(keyword)))
+      .map(([allergen]) => allergen);
+    renderDetectedAllergens(allergens);
+  }
 
   async function loadCategories(){
     const res = await fetch("/api/categorie");
@@ -326,6 +359,7 @@
                 <div class="muted">${escapeHtml(p.descrizione || "")}</div>
                 ${p.note ? `<div class="muted">Nota: ${escapeHtml(p.note)}</div>` : ""}
                 <div>${(p.etichette || []).map(tag => '<span class="tag">' + escapeHtml(tag) + '</span>').join("")}</div>
+                <div>${(p.allergeni_auto || []).map(allergen => '<span class="tag" style="background:rgba(255,197,107,.16)">⚠ '+ escapeHtml(allergen) + '</span>').join("")}</div>
               </div>
             </div>
           </td>
@@ -348,6 +382,7 @@
       f("prezzo_euro").value = "";
       f("descrizione").value = "";
       f("note").value = "";
+      renderDetectedAllergens([]);
       f("etichette").querySelectorAll("input[type=checkbox]").forEach(input => input.checked = false);
       f("categoryError").textContent = "";
       f("id_categoria").classList.remove("invalid");
@@ -376,6 +411,7 @@
       f("prezzo_euro").value = p.prezzo_euro;
       f("descrizione").value = p.descrizione || "";
       f("note").value = p.note || "";
+      renderDetectedAllergens(p.allergeni_auto || []);
       const productLabels = new Set(p.etichette || []);
       f("etichette").querySelectorAll("input[type=checkbox]").forEach(input => input.checked = productLabels.has(input.value));
       f("categoryError").textContent = "";
@@ -430,6 +466,8 @@
     function selectedLabels(){
       return [...f("etichette").querySelectorAll("input[type=checkbox]:checked")].map(input => input.value);
     }
+
+    f("descrizione").addEventListener("input", detectAllergensInIngredients);
 
     f("immagine").addEventListener("change", () => {
       const file = f("immagine").files?.[0];
