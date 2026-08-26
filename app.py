@@ -1,3 +1,4 @@
+import io
 import os
 import re
 from pathlib import Path
@@ -6,7 +7,8 @@ from werkzeug.utils import secure_filename
 import uuid
 
 import psycopg2
-from flask import Flask, render_template, request, redirect, session, send_from_directory
+import qrcode
+from flask import Flask, render_template, request, redirect, session, send_from_directory, send_file, url_for, abort
 
 from db_config import build_db_config
 
@@ -474,6 +476,138 @@ def api_orari():
         }), 500
     finally:
         conn.close()
+
+
+@app.get("/menu/<slug>")
+def public_menu(slug: str):
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, nome, indirizzo, citta, cap, provincia, email, telefono, nazione,
+                       descrizione_breve, descrizione_estesa, slug, logo_url, copertina_url
+                FROM negozi WHERE slug = %s
+                """,
+                (slug,),
+            )
+            row = cur.fetchone()
+            if not row:
+                abort(404)
+            shop = {
+                "id": row[0], "nome": row[1], "indirizzo": row[2] or "",
+                "citta": row[3] or "", "cap": row[4] or "", "provincia": row[5] or "",
+                "email": row[6] or "", "telefono": row[7] or "", "nazione": row[8] or "",
+                "descrizione_breve": row[9] or "", "descrizione_estesa": row[10] or "",
+                "slug": row[11], "logo_url": row[12] or "", "copertina_url": row[13] or "",
+            }
+
+            cur.execute(
+                """
+                SELECT id, nome FROM categorie
+                WHERE id_negozio = %s AND visibile = TRUE
+                ORDER BY ordine ASC, nome ASC
+                """,
+                (shop["id"],),
+            )
+            categories = [{"id": item[0], "nome": item[1], "prodotti": []} for item in cur.fetchall()]
+            category_map = {category["id"]: category for category in categories}
+
+            cur.execute(
+                """
+                SELECT p.id, p.nome, COALESCE(p.descrizione, ''), COALESCE(p.note, ''),
+                       p.prezzo_euro, p.id_categoria, COALESCE(sc.nome, ''),
+                       COALESCE(img.url, ''), COALESCE(p.etichette, ARRAY[]::TEXT[]),
+                       COALESCE(p.allergeni_auto, ARRAY[]::TEXT[])
+                FROM prodotti p
+                JOIN categorie c ON c.id = p.id_categoria AND c.visibile = TRUE
+                LEFT JOIN sottocategorie sc ON sc.id = p.id_sottocategoria
+                LEFT JOIN LATERAL (
+                    SELECT url FROM immagini_prodotti
+                    WHERE id_prodotto = p.id AND principale = TRUE
+                    ORDER BY ordine ASC, id ASC LIMIT 1
+                ) img ON TRUE
+                WHERE p.id_negozio = %s AND p.disponibile = TRUE
+                  AND (sc.id IS NULL OR sc.visibile = TRUE)
+                ORDER BY c.ordine ASC, COALESCE(sc.ordine, 0) ASC, p.ordine ASC, LOWER(p.nome) ASC
+                """,
+                (shop["id"],),
+            )
+            for product in cur.fetchall():
+                category = category_map.get(product[5])
+                if not category:
+                    continue
+                category["prodotti"].append({
+                    "id": product[0], "nome": product[1], "descrizione": product[2],
+                    "note": product[3], "prezzo": f"{product[4]:.2f}".replace(".", ","),
+                    "sottocategoria": product[6], "immagine_url": product[7],
+                    "etichette": product[8] or [], "allergeni": product[9] or [],
+                })
+            categories = [category for category in categories if category["prodotti"]]
+
+            cur.execute(
+                """
+                SELECT giorno, aperto, apertura, chiusura, apertura_2, chiusura_2
+                FROM orari_negozio WHERE id_negozio = %s ORDER BY giorno
+                """,
+                (shop["id"],),
+            )
+            saved_hours = {
+                item[0]: {
+                    "giorno": item[0], "aperto": bool(item[1]),
+                    "apertura": item[2].strftime("%H:%M") if item[2] else "",
+                    "chiusura": item[3].strftime("%H:%M") if item[3] else "",
+                    "apertura_2": item[4].strftime("%H:%M") if item[4] else "",
+                    "chiusura_2": item[5].strftime("%H:%M") if item[5] else "",
+                }
+                for item in cur.fetchall()
+            }
+            day_names = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+            hours = [{"nome": day_names[day], **saved_hours.get(day, {"aperto": False})} for day in range(7)]
+
+        return render_template("public_menu.html", shop=shop, categories=categories, hours=hours)
+    finally:
+        conn.close()
+
+
+@app.get("/menu/<slug>/qrcode.png")
+def public_menu_qrcode(slug: str):
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM negozi WHERE slug = %s", (slug,))
+            if not cur.fetchone():
+                abort(404)
+    finally:
+        conn.close()
+
+    menu_url = url_for("public_menu", slug=slug, _external=True)
+    image = qrcode.make(menu_url)
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    output.seek(0)
+    return send_file(output, mimetype="image/png", download_name=f"menu-{slug}.png")
+
+
+@app.get("/api/menu-pubblico")
+def api_menu_pubblico():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT slug FROM negozi WHERE id_utente = %s", (session["user_id"],))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Salva prima le informazioni del punto vendita."}), 404
+            slug = row[0]
+    finally:
+        conn.close()
+    return jsonify({
+        "slug": slug,
+        "menu_url": url_for("public_menu", slug=slug, _external=True),
+        "qr_url": url_for("public_menu_qrcode", slug=slug, _external=True),
+    })
 
 
 @app.get("/api/prodotti")
