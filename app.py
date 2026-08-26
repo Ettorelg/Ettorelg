@@ -913,7 +913,8 @@ def api_negozio():
                         """
                         UPDATE negozi
                         SET nome=%s, indirizzo=%s, citta=%s, cap=%s, provincia=%s,
-                            email=%s, telefono=%s, nazione=%s, descrizione_breve=%s, descrizione_estesa=%s
+                            email=%s, telefono=%s, nazione=%s, descrizione_breve=%s, descrizione_estesa=%s,
+                            colore_accento=%s, colore_sfondo=%s
                         WHERE id = %s
                         """,
                         [values[field] for field in fields] + [row[0]],
@@ -926,9 +927,9 @@ def api_negozio():
                         """
                         INSERT INTO negozi (
                             id_utente, nome, indirizzo, citta, cap, provincia, email, telefono,
-                            nazione, descrizione_breve, descrizione_estesa, slug
+                            nazione, descrizione_breve, descrizione_estesa, colore_accento, colore_sfondo, slug
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                         """,
                         [user_id] + [values[field] for field in fields] + [slug],
