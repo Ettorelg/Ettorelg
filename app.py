@@ -514,6 +514,58 @@ def api_prodotti_update(prodotto_id: int):
         conn.close()
 
 
+@app.post("/api/prodotti/disponibilita")
+def api_prodotti_bulk_disponibilita():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    disponibile = data.get("disponibile")
+    id_categoria = data.get("id_categoria")
+    id_sottocategoria = data.get("id_sottocategoria")
+
+    if disponibile not in (True, False):
+        return jsonify({"error": "stato disponibilità non valido"}), 400
+    try:
+        id_categoria = int(id_categoria) if id_categoria not in (None, "", "null") else None
+        id_sottocategoria = int(id_sottocategoria) if id_sottocategoria not in (None, "", "null") else None
+    except (TypeError, ValueError):
+        return jsonify({"error": "categoria o sottocategoria non valida"}), 400
+    if not id_categoria and not id_sottocategoria:
+        return jsonify({"error": "seleziona una categoria o sottocategoria"}), 400
+
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "negozio non trovato"}), 400
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                where = ["id_negozio = %s"]
+                params = [shop_id]
+                if id_categoria:
+                    where.append("id_categoria = %s")
+                    params.append(id_categoria)
+                if id_sottocategoria:
+                    where.append("id_sottocategoria = %s")
+                    params.append(id_sottocategoria)
+
+                cur.execute(
+                    "UPDATE prodotti SET disponibile = %s WHERE " + " AND ".join(where),
+                    [disponibile] + params,
+                )
+                updated = cur.rowcount
+        return jsonify({"ok": True, "updated": updated})
+    except psycopg2.Error as error:
+        return jsonify({
+            "error": "Errore database durante l'aggiornamento dei prodotti.",
+            "detail": error.diag.message_primary or "Errore database non specificato."
+        }), 500
+    finally:
+        conn.close()
+
+
 @app.delete("/api/prodotti/<int:prodotto_id>")
 def api_prodotti_delete(prodotto_id: int):
     if "user_id" not in session:
