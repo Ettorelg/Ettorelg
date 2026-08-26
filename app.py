@@ -132,9 +132,13 @@ def init_db() -> None:
                         aperto BOOLEAN NOT NULL DEFAULT FALSE,
                         apertura TIME,
                         chiusura TIME,
+                        apertura_2 TIME,
+                        chiusura_2 TIME,
                         UNIQUE (id_negozio, giorno)
                     )
                 """)
+                cur.execute("ALTER TABLE orari_negozio ADD COLUMN IF NOT EXISTS apertura_2 TIME")
+                cur.execute("ALTER TABLE orari_negozio ADD COLUMN IF NOT EXISTS chiusura_2 TIME")
     finally:
         conn.close()
 
@@ -372,7 +376,10 @@ def api_orari():
 
     shop_id = get_user_shop_id(session["user_id"])
     defaults = [
-        {"giorno": day, "aperto": False, "apertura": "09:00", "chiusura": "18:00"}
+        {
+            "giorno": day, "aperto": False, "apertura": "09:00", "chiusura": "13:00",
+            "secondo_turno": False, "apertura_2": "14:00", "chiusura_2": "18:00",
+        }
         for day in range(7)
     ]
     if not shop_id:
@@ -385,7 +392,10 @@ def api_orari():
         if request.method == "GET":
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT giorno, aperto, apertura, chiusura FROM orari_negozio WHERE id_negozio = %s ORDER BY giorno",
+                    """
+                    SELECT giorno, aperto, apertura, chiusura, apertura_2, chiusura_2
+                    FROM orari_negozio WHERE id_negozio = %s ORDER BY giorno
+                    """,
                     (shop_id,),
                 )
                 saved = {
@@ -393,7 +403,10 @@ def api_orari():
                         "giorno": row[0],
                         "aperto": bool(row[1]),
                         "apertura": row[2].strftime("%H:%M") if row[2] else "09:00",
-                        "chiusura": row[3].strftime("%H:%M") if row[3] else "18:00",
+                        "chiusura": row[3].strftime("%H:%M") if row[3] else "13:00",
+                        "secondo_turno": bool(row[4] and row[5]),
+                        "apertura_2": row[4].strftime("%H:%M") if row[4] else "14:00",
+                        "chiusura_2": row[5].strftime("%H:%M") if row[5] else "18:00",
                     }
                     for row in cur.fetchall()
                 }
@@ -416,27 +429,42 @@ def api_orari():
                 return jsonify({"error": "Giorni mancanti o duplicati."}), 400
             seen_days.add(day)
             is_open = bool(item.get("aperto"))
+            has_second_shift = is_open and bool(item.get("secondo_turno"))
             opening = (item.get("apertura") or "").strip()
             closing = (item.get("chiusura") or "").strip()
+            opening_2 = (item.get("apertura_2") or "").strip()
+            closing_2 = (item.get("chiusura_2") or "").strip()
+
             if is_open and (not time_pattern.match(opening) or not time_pattern.match(closing)):
-                return jsonify({"error": "Inserisci orari validi per i giorni aperti."}), 400
+                return jsonify({"error": "Inserisci orari validi per il primo turno."}), 400
             if is_open and opening == closing:
-                return jsonify({"error": "Apertura e chiusura devono essere diverse."}), 400
-            normalized.append((day, is_open, opening if is_open else None, closing if is_open else None))
+                return jsonify({"error": "Apertura e chiusura del primo turno devono essere diverse."}), 400
+            if has_second_shift and (not time_pattern.match(opening_2) or not time_pattern.match(closing_2)):
+                return jsonify({"error": "Inserisci orari validi per il secondo turno."}), 400
+            if has_second_shift and opening_2 == closing_2:
+                return jsonify({"error": "Apertura e chiusura del secondo turno devono essere diverse."}), 400
+
+            normalized.append((
+                day, is_open, opening if is_open else None, closing if is_open else None,
+                opening_2 if has_second_shift else None, closing_2 if has_second_shift else None,
+            ))
 
         with conn:
             with conn.cursor() as cur:
-                for day, is_open, opening, closing in normalized:
+                for day, is_open, opening, closing, opening_2, closing_2 in normalized:
                     cur.execute(
                         """
-                        INSERT INTO orari_negozio (id_negozio, giorno, aperto, apertura, chiusura)
-                        VALUES (%s, %s, %s, %s, %s)
+                        INSERT INTO orari_negozio
+                            (id_negozio, giorno, aperto, apertura, chiusura, apertura_2, chiusura_2)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id_negozio, giorno) DO UPDATE SET
                             aperto = EXCLUDED.aperto,
                             apertura = EXCLUDED.apertura,
-                            chiusura = EXCLUDED.chiusura
+                            chiusura = EXCLUDED.chiusura,
+                            apertura_2 = EXCLUDED.apertura_2,
+                            chiusura_2 = EXCLUDED.chiusura_2
                         """,
-                        (shop_id, day, is_open, opening, closing),
+                        (shop_id, day, is_open, opening, closing, opening_2, closing_2),
                     )
         return jsonify({"ok": True})
     except psycopg2.Error as error:
