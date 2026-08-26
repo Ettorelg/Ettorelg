@@ -54,6 +54,8 @@
   .products-list-heading h3{margin:0;white-space:nowrap;color:#dbe8ff}
   .bulk-tools{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:18px 0;padding:14px;border-radius:12px;background:rgba(255,255,255,.04)}
   .bulk-tools .field{min-width:180px}
+  .tool-group-title{margin:18px 0 0;font-size:14px;font-weight:650;color:#dbe8ff}
+  .search-tools{margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,255,255,.16)}
 </style>
 
 <h2>Prodotti</h2>
@@ -149,6 +151,7 @@
   <div class="products-list-heading"><h3 id="productsListTitle">Prodotti inseriti</h3></div>
   <p class="muted">Cerca, filtra e modifica i prodotti del tuo menù.</p>
 
+  <h4 class="tool-group-title">Disponibilità rapida</h4>
   <div class="bulk-tools">
     <div class="field"><label for="bulkCategory">Categoria</label><select id="bulkCategory"><option value="">Seleziona categoria</option></select></div>
     <div class="field"><label for="bulkSubcategory">Sottocategoria</label><select id="bulkSubcategory" disabled><option value="">Tutte le sottocategorie</option></select></div>
@@ -156,6 +159,8 @@
     <button class="btn" type="button" id="applyBulkAvailability">Applica</button>
   </div>
 
+  <div class="search-tools">
+    <h4 class="tool-group-title">Ricerca e filtri</h4>
 <div class="filters">
   <div class="field"><label for="searchProducts">Cerca prodotto</label><input id="searchProducts" placeholder="Nome o descrizione" /></div>
   <div class="field"><label for="filterCategory">Filtra per categoria</label><select id="filterCategory"><option value="">Tutte le categorie</option></select></div>
@@ -191,6 +196,7 @@
     </div>
   </form>
 </div>
+  </div>
 
 <table class="table" id="table">
   <thead>
