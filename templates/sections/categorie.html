@@ -142,12 +142,16 @@
   window.delCat = async function(id){
     const c = items.find(x => x.id === id);
     if(!c) return;
-    if(!confirm(`Eliminare categoria "${c.nome}"? (Elimina anche le sottocategorie collegate)`)) return;
+    const warning = `Sei sicuro di voler eliminare la categoria "${c.nome}"?\n\nVerranno eliminati definitivamente anche TUTTI i prodotti e le sottocategorie collegati.\n\nQuesta operazione non può essere annullata.`;
+    if(!confirm(warning)) return;
     const res = await fetch(`/api/categorie/${id}`, { method: "DELETE" });
-    if(!res.ok){ showToast("Errore eliminazione"); return; }
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok){ showToast(data.error || "Errore eliminazione"); return; }
     await load();
     if(String(f("id").value) === String(id)) resetForm();
-    showToast("Categoria eliminata.");
+    const prodotti = data.prodotti_eliminati || 0;
+    const sottocategorie = data.sottocategorie_eliminate || 0;
+    showToast(`Categoria eliminata: ${prodotti} prodotti e ${sottocategorie} sottocategorie rimossi.`);
   }
 
   form.addEventListener("submit", async (ev) => {
