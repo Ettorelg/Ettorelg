@@ -1,2 +1,56 @@
-<h2>Account</h2>
-<p>Modifica profilo, cambio password, info utente.</p>
+<style>
+.account-wrap{max-width:820px}.account-card{background:#fff;border:1px solid #e1e6ef;border-radius:18px;padding:22px;box-shadow:0 10px 30px rgba(20,35,70,.07);margin-bottom:18px}.account-head{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}.account-head h2,.account-card h3{margin:0}.account-sub{color:#6c7487;margin:7px 0 0}.account-badges{display:flex;gap:8px;flex-wrap:wrap}.account-badge{background:#edf2ff;color:#3452a3;border-radius:999px;padding:7px 11px;font-size:.78rem;font-weight:800}.account-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}.account-field{display:grid;gap:7px}.account-field.full{grid-column:1/-1}.account-field label{font-weight:750;color:#24324a;font-size:.9rem}.account-field input{width:100%;padding:12px 13px;border:1px solid #ccd5e3;border-radius:10px;font:inherit}.account-field input:focus{outline:0;border-color:#3579e8;box-shadow:0 0 0 3px rgba(53,121,232,.15)}.account-actions{display:flex;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap}.account-btn{border:0;border-radius:10px;padding:12px 18px;background:linear-gradient(90deg,#004aad,#007bff);color:#fff;font-weight:800;cursor:pointer}.account-logout{color:#c33343;font-weight:700;text-decoration:none}.account-note{font-size:.84rem;color:#6c7487;margin:8px 0 0}.account-message{display:none;padding:11px 13px;border-radius:10px;margin:15px 0 0}.account-message.ok{display:block;background:#eaf8ef;color:#17653a}.account-message.error{display:block;background:#fff0f1;color:#a51d2d}@media(max-width:650px){.account-grid{grid-template-columns:1fr}.account-field.full{grid-column:auto}.account-card{padding:17px}}
+</style>
+<div class="account-wrap">
+  <section class="account-card">
+    <div class="account-head">
+      <div><h2>Il mio account</h2><p class="account-sub">Aggiorna i dati di accesso e le informazioni personali.</p></div>
+      <div class="account-badges"><span class="account-badge" id="accountRole">UTENTE</span><span class="account-badge" id="googleStatus">GOOGLE NON COLLEGATO</span></div>
+    </div>
+    <div id="accountMessage" class="account-message"></div>
+    <form id="accountForm">
+      <div class="account-grid">
+        <div class="account-field"><label for="accountUsername">Username</label><input id="accountUsername" maxlength="80" autocomplete="username" required></div>
+        <div class="account-field"><label for="accountEmail">Email</label><input id="accountEmail" type="email" maxlength="254" autocomplete="email" required></div>
+      </div>
+      <h3 style="margin-top:26px">Cambia password</h3>
+      <p class="account-note" id="passwordHelp">Lascia i campi vuoti se non vuoi modificare la password.</p>
+      <div class="account-grid">
+        <div class="account-field full" id="currentPasswordField"><label for="currentPassword">Password attuale</label><input id="currentPassword" type="password" autocomplete="current-password"></div>
+        <div class="account-field"><label for="newPassword">Nuova password</label><input id="newPassword" type="password" minlength="8" autocomplete="new-password"></div>
+        <div class="account-field"><label for="confirmPassword">Conferma nuova password</label><input id="confirmPassword" type="password" minlength="8" autocomplete="new-password"></div>
+      </div>
+      <div class="account-actions"><button class="account-btn" type="submit">Salva modifiche</button><a class="account-logout" href="/logout">Esci dall’account</a></div>
+    </form>
+  </section>
+</div>
+<script>
+(()=>{
+ const form=document.getElementById('accountForm'), msg=document.getElementById('accountMessage');
+ const show=(text,error=false)=>{msg.textContent=text;msg.className='account-message '+(error?'error':'ok')};
+ async function loadAccount(){
+   try{
+     const r=await fetch('/api/account'),d=await r.json();if(!r.ok)throw new Error(d.error||'Impossibile caricare l’account.');
+     const x=d.item;accountUsername.value=x.username||'';accountEmail.value=x.email||'';
+     accountRole.textContent=x.admin?'AMMINISTRATORE':'UTENTE';
+     googleStatus.textContent=x.google_collegato?'GOOGLE COLLEGATO':'GOOGLE NON COLLEGATO';
+     if(!x.password_impostata){currentPasswordField.style.display='none';passwordHelp.textContent='Account creato con Google: puoi impostare una password per accedere anche manualmente.'}
+   }catch(e){show(e.message,true)}
+ }
+ form.addEventListener('submit',async e=>{
+   e.preventDefault();
+   if(newPassword.value!==confirmPassword.value){show('Le nuove password non coincidono.',true);return}
+   const button=form.querySelector('button[type=submit]');button.disabled=true;button.textContent='Salvataggio…';
+   try{
+     const r=await fetch('/api/account',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+       username:accountUsername.value.trim(),email:accountEmail.value.trim(),password_attuale:currentPassword.value,
+       nuova_password:newPassword.value,conferma_password:confirmPassword.value
+     })});
+     const d=await r.json();if(!r.ok)throw new Error(d.error||'Aggiornamento non riuscito.');
+     currentPassword.value=newPassword.value=confirmPassword.value='';show(d.message||'Account aggiornato.');await loadAccount();
+   }catch(err){show(err.message,true)}
+   finally{button.disabled=false;button.textContent='Salva modifiche'}
+ });
+ loadAccount();
+})();
+</script>
