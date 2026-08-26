@@ -122,6 +122,7 @@
       }
 
       storeMessage.textContent = "Informazioni e immagini del punto vendita salvate.";
+      window.loadShopBranding?.();
       return;
     }
     (data.fields || []).forEach(id => document.getElementById(id)?.classList.add("store-error"));
