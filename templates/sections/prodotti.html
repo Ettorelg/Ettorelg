@@ -58,6 +58,10 @@
   .bulk-operations summary{cursor:pointer;font-weight:650;color:#cfe0ff}
   .bulk-operations .bulk-tools{margin-bottom:0}
   .advanced-divider{border:0;border-top:1px solid rgba(255,255,255,.13);margin:18px 0}
+  .custom-sort-list{display:grid;gap:8px;margin-top:12px}
+  .custom-sort-item{display:flex;align-items:center;gap:12px;padding:9px 10px;border:1px solid rgba(255,255,255,.11);border-radius:10px}
+  .custom-sort-item span{flex:1}
+  .custom-sort-item input{width:84px}
   .tool-group-title{margin:18px 0 0;font-size:14px;font-weight:650;color:#dbe8ff}
   .search-tools{margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,255,255,.16)}
 </style>
@@ -152,7 +156,7 @@
 </form>
 
 <details class="bulk-operations">
-  <summary>Operazioni avanzate: disponibilità per categoria</summary>
+  <summary>Opzioni avanzate</summary>
   <p class="muted">Attiva o disattiva tutti i prodotti di una categoria o sottocategoria.</p>
   <div class="bulk-tools">
     <div class="field"><label for="bulkCategory">Categoria</label><select id="bulkCategory"><option value="">Seleziona categoria</option></select></div>
@@ -162,11 +166,16 @@
   </div>
   <hr class="advanced-divider" />
   <h4 class="tool-group-title">Ordina prodotti per categoria</h4>
-  <p class="muted">L’ordinamento predefinito è alfabetico (A–Z).</p>
+  <p class="muted">L’ordinamento predefinito è alfabetico (A–Z). Puoi anche assegnare una posizione a ogni prodotto.</p>
   <div class="bulk-tools">
     <div class="field"><label for="sortCategory">Categoria</label><select id="sortCategory"><option value="">Seleziona categoria</option></select></div>
-    <div class="field"><label for="sortMode">Ordinamento</label><select id="sortMode"><option value="alphabetical">Alfabetico (A–Z)</option></select></div>
-    <button class="btn" type="button" id="applyCategorySort">Ordina prodotti</button>
+    <div class="field"><label for="sortMode">Ordinamento</label><select id="sortMode"><option value="alphabetical">Alfabetico (A–Z)</option><option value="custom">Personalizzato</option></select></div>
+    <button class="btn" type="button" id="applyCategorySort">Applica ordinamento</button>
+  </div>
+  <div id="customSortPanel" class="hidden">
+    <p class="muted">Imposta la posizione di ciascun prodotto: il numero più basso viene mostrato per primo.</p>
+    <div class="custom-sort-list" id="customSortList"></div>
+    <div class="actions" style="margin-top:12px"><button class="btn primary" type="button" id="saveCustomSort">Salva ordine personalizzato</button></div>
   </div>
 </details>
 
@@ -433,12 +442,31 @@
     f("filterCategory").addEventListener("change", renderTable);
     f("filterAvailability").addEventListener("change", renderTable);
     f("bulkCategory").addEventListener("change", () => loadBulkSubcategories(f("bulkCategory").value));
+    function renderCustomSortProducts(){
+      const categoryId = f("sortCategory").value;
+      const list = f("customSortList");
+      const selected = products.filter(product => String(product.id_categoria) === categoryId)
+        .sort((a, b) => Number(a.ordine) - Number(b.ordine) || a.nome.localeCompare(b.nome));
+      list.innerHTML = selected.map((product, index) =>
+        `<label class="custom-sort-item"><span>${escapeHtml(product.nome)}</span><input type="number" min="0" step="1" value="${escapeAttr(product.ordine ?? (index + 1) * 10)}" data-product-id="${product.id}" aria-label="Posizione di ${escapeAttr(product.nome)}"></label>`
+      ).join("");
+    }
+
+    function updateSortMode(){
+      const isCustom = f("sortMode").value === "custom";
+      f("customSortPanel").classList.toggle("hidden", !isCustom);
+      if (isCustom && f("sortCategory").value) renderCustomSortProducts();
+    }
+
+    f("sortMode").addEventListener("change", updateSortMode);
+    f("sortCategory").addEventListener("change", updateSortMode);
     f("applyCategorySort").addEventListener("click", async () => {
       const id_categoria = f("sortCategory").value;
       if (!id_categoria) { showToast("Seleziona una categoria da ordinare."); return; }
+      if (f("sortMode").value === "custom") { renderCustomSortProducts(); updateSortMode(); return; }
       const res = await fetch("/api/prodotti/ordina", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_categoria, mode: f("sortMode").value })
+        body: JSON.stringify({ id_categoria })
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -448,6 +476,24 @@
       const data = await res.json();
       await loadProducts();
       showToast(`${data.updated} prodotti ordinati alfabeticamente.`);
+    });
+    f("saveCustomSort").addEventListener("click", async () => {
+      const id_categoria = f("sortCategory").value;
+      const posizioni = [...f("customSortList").querySelectorAll("input")].map(input => ({ id: input.dataset.productId, posizione: input.value }));
+      if (!id_categoria || !posizioni.length) { showToast("Seleziona una categoria con prodotti."); return; }
+      const res = await fetch("/api/prodotti/posizioni", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_categoria, posizioni })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || err.error || "Errore ordine personalizzato");
+        return;
+      }
+      const data = await res.json();
+      await loadProducts();
+      renderCustomSortProducts();
+      showToast(`${data.updated} posizioni aggiornate.`);
     });
 
     f("applyBulkAvailability").addEventListener("click", async () => {
