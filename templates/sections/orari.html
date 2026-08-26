@@ -1,2 +1,91 @@
-<h2>Orari</h2>
-<p>Gestione orari settimanali (mattina/sera, aperto/chiuso).</p>
+<style>
+  .hours-card{max-width:920px;padding:22px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:rgba(255,255,255,.035)}
+  .hours-card h2{margin:0 0 8px}.hours-card>p{color:#aab4d6;line-height:1.5}
+  .hours-list{display:grid;gap:10px;margin-top:20px}
+  .hours-row{display:grid;grid-template-columns:minmax(130px,1fr) 110px minmax(135px,1fr) minmax(135px,1fr);align-items:center;gap:14px;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.025)}
+  .hours-day{font-weight:700}.hours-toggle{display:flex;align-items:center;gap:8px;color:#aab4d6;font-size:.88rem}
+  .hours-toggle input{width:18px;height:18px;accent-color:#6ea8fe}
+  .hours-time{display:flex;flex-direction:column;gap:6px}.hours-time label{font-size:.78rem;color:#aab4d6}
+  .hours-time input{width:100%;padding:9px 10px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.05);color:#e7ecff;font:inherit;color-scheme:dark}
+  .hours-time input:disabled{opacity:.4;cursor:not-allowed}
+  .hours-actions{display:flex;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap}
+  .hours-save{border:1px solid rgba(110,168,254,.4);border-radius:12px;padding:10px 14px;background:rgba(110,168,254,.18);color:#e7ecff;font:600 .9rem system-ui;cursor:pointer}
+  .hours-message{color:#aab4d6;font-size:.88rem}.hours-note{margin-top:12px;color:#7f8aaa;font-size:.8rem}
+  @media(max-width:700px){.hours-row{grid-template-columns:1fr 1fr}.hours-day{grid-column:1}.hours-toggle{grid-column:2;justify-self:end}.hours-time{grid-column:auto}}
+</style>
+
+<section class="hours-card">
+  <h2>Orari di apertura</h2>
+  <p>Imposta l'apertura e la chiusura per ogni giorno della settimana. Disattiva “Aperto” nei giorni di chiusura.</p>
+
+  <form id="hoursForm">
+    <div class="hours-list" id="hoursList"></div>
+    <p class="hours-note">Se l'orario di chiusura è precedente a quello di apertura, viene considerato nel giorno successivo.</p>
+    <div class="hours-actions">
+      <button class="hours-save" type="submit">Salva orari</button>
+      <span class="hours-message" id="hoursMessage" role="status"></span>
+    </div>
+  </form>
+</section>
+
+<script>
+  const dayNames = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
+  const hoursForm = document.getElementById("hoursForm");
+  const hoursList = document.getElementById("hoursList");
+  const hoursMessage = document.getElementById("hoursMessage");
+
+  function renderHours(items){
+    hoursList.replaceChildren();
+    items.forEach((item, day) => {
+      const row = document.createElement("div");
+      row.className = "hours-row";
+      row.dataset.day = day;
+      row.innerHTML = `
+        <div class="hours-day">${dayNames[day]}</div>
+        <label class="hours-toggle"><input class="day-open" type="checkbox" ${item.aperto ? "checked" : ""}> Aperto</label>
+        <div class="hours-time"><label>Apertura</label><input class="day-opening" type="time" value="${item.apertura || "09:00"}"></div>
+        <div class="hours-time"><label>Chiusura</label><input class="day-closing" type="time" value="${item.chiusura || "18:00"}"></div>
+      `;
+      const toggle = row.querySelector(".day-open");
+      const timeInputs = row.querySelectorAll('input[type="time"]');
+      const updateState = () => timeInputs.forEach(input => input.disabled = !toggle.checked);
+      toggle.addEventListener("change", updateState);
+      updateState();
+      hoursList.appendChild(row);
+    });
+  }
+
+  async function loadHours(){
+    hoursMessage.textContent = "Caricamento…";
+    const response = await fetch("/api/orari");
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      hoursMessage.textContent = data.error || "Impossibile caricare gli orari.";
+      return;
+    }
+    renderHours(data.items || []);
+    hoursMessage.textContent = "Orari caricati.";
+  }
+
+  hoursForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const items = [...hoursList.querySelectorAll(".hours-row")].map(row => ({
+      giorno: Number(row.dataset.day),
+      aperto: row.querySelector(".day-open").checked,
+      apertura: row.querySelector(".day-opening").value,
+      chiusura: row.querySelector(".day-closing").value,
+    }));
+    hoursMessage.textContent = "Salvataggio…";
+    const response = await fetch("/api/orari", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({items}),
+    });
+    const data = await response.json().catch(() => ({}));
+    hoursMessage.textContent = response.ok
+      ? "Orari settimanali salvati."
+      : (data.detail || data.error || "Errore nel salvataggio degli orari.");
+  });
+
+  loadHours();
+</script>
