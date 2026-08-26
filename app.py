@@ -209,6 +209,11 @@ def api_negozio():
                     shop_id = cur.fetchone()[0]
 
         return jsonify({"ok": True, "id": shop_id, "nome": nome})
+    except psycopg2.Error as error:
+        return jsonify({
+            "error": "Errore database durante il salvataggio del negozio.",
+            "detail": error.diag.message_primary or "Errore database non specificato."
+        }), 500
     finally:
         conn.close()
 
