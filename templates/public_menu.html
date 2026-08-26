@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="{{ language }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -8,6 +8,7 @@
   <style>
     :root{--bg:#f7f3ed;--card:#fff;--text:#211d19;--muted:#70675f;--accent:#9d3e27;--line:#e8ded4;--shadow:0 14px 40px rgba(70,48,33,.12)}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+    .language-picker{position:absolute;top:14px;right:14px;z-index:4}.language-picker select{border:1px solid rgba(255,255,255,.55);border-radius:999px;padding:9px 12px;background:rgba(20,13,9,.68);color:#fff;font-weight:750;backdrop-filter:blur(8px)}
     .hero{position:relative;min-height:310px;display:flex;align-items:flex-end;background:#382c25 center/cover no-repeat;overflow:hidden}
     .hero.has-cover{background-image:linear-gradient(180deg,rgba(20,13,9,.12),rgba(20,13,9,.82)),url('{{ shop.copertina_url }}')}
     .hero:not(.has-cover){background-image:linear-gradient(135deg,#7d3020,#221813)}
@@ -32,6 +33,7 @@
 </head>
 <body>
   <header class="hero{% if shop.copertina_url %} has-cover{% endif %}">
+    {% if languages|length > 1 %}<form class="language-picker"><select aria-label="Lingua" onchange="location.href=this.value">{% for item in languages %}<option value="{{ url_for('public_menu', slug=shop.slug, lang=item.codice) }}"{% if item.codice == language %} selected{% endif %}>{{ item.nome }}</option>{% endfor %}</select></form>{% endif %}
     <div class="hero-inner">
       <div class="brand-logo">
         {% if shop.logo_url %}<img src="{{ shop.logo_url }}" alt="Logo {{ shop.nome }}">{% else %}{{ shop.nome[:2]|upper }}{% endif %}
@@ -40,13 +42,13 @@
     </div>
   </header>
 
-  {% if categories %}<nav class="category-nav" id="categoryNav" aria-label="Categorie del menu" hidden>{% for category in categories %}<a href="#categoria-{{ category.id }}" data-category-target="categoria-{{ category.id }}">{{ category.nome }}</a>{% endfor %}</nav>{% endif %}
+  {% if categories %}<nav class="category-nav" id="categoryNav" aria-label="{{ ui.categories }}" hidden>{% for category in categories %}<a href="#categoria-{{ category.id }}" data-category-target="categoria-{{ category.id }}">{{ category.nome }}</a>{% endfor %}</nav>{% endif %}
 
   <main>
     {% if shop.descrizione_estesa or shop.indirizzo or shop.telefono or shop.email %}
     <section class="intro" id="companyInfo">
-      <div class="intro-card"><h2>Il nostro locale</h2><p>{{ shop.descrizione_estesa or shop.descrizione_breve }}</p></div>
-      <div class="intro-card contacts"><h2>Contatti</h2>
+      <div class="intro-card"><h2>{{ ui.venue }}</h2><p>{{ shop.descrizione_estesa or shop.descrizione_breve }}</p></div>
+      <div class="intro-card contacts"><h2>{{ ui.contacts }}</h2>
         {% if shop.indirizzo %}<span>📍 {{ shop.indirizzo }}, {{ shop.cap }} {{ shop.citta }}{% if shop.provincia %} ({{ shop.provincia }}){% endif %}</span>{% endif %}
         {% if shop.telefono %}<a href="tel:{{ shop.telefono }}">☎ {{ shop.telefono }}</a>{% endif %}
         {% if shop.email %}<a href="mailto:{{ shop.email }}">✉ {{ shop.email }}</a>{% endif %}
@@ -54,7 +56,7 @@
     </section>
     {% endif %}
 
-    <div class="view-actions"><button class="menu-button" id="showMenu" type="button">VISUALIZZA IL MENU'</button></div>
+    <div class="view-actions"><button class="menu-button" id="showMenu" type="button">{{ ui.show }}</button></div>
     <div class="menu-content" id="menuContent" hidden>
     {% if categories %}
       {% for category in categories %}
@@ -80,12 +82,12 @@
         </div>
       </section>
       {% endfor %}
-    {% else %}<div class="empty">Il menu sarà disponibile presto.</div>{% endif %}
-      <div class="view-actions"><button class="menu-button secondary" id="hideMenu" type="button">Torna alle informazioni</button></div>
+    {% else %}<div class="empty">{{ ui.empty }}</div>{% endif %}
+      <div class="view-actions"><button class="menu-button secondary" id="hideMenu" type="button">{{ ui.back }}</button></div>
     </div>
 
-    {% if hours %}<section class="hours" id="businessHours"><h2>Orari di apertura</h2><div class="hours-grid">
-      {% for day in hours %}<div class="hours-row"><strong>{{ day.nome }}</strong><span>{% if day.aperto %}{{ day.apertura }}–{{ day.chiusura }}{% if day.apertura_2 and day.chiusura_2 %}<br>{{ day.apertura_2 }}–{{ day.chiusura_2 }}{% endif %}{% else %}Chiuso{% endif %}</span></div>{% endfor %}
+    {% if hours %}<section class="hours" id="businessHours"><h2>{{ ui.hours }}</h2><div class="hours-grid">
+      {% for day in hours %}<div class="hours-row"><strong>{{ day.nome }}</strong><span>{% if day.aperto %}{{ day.apertura }}–{{ day.chiusura }}{% if day.apertura_2 and day.chiusura_2 %}<br>{{ day.apertura_2 }}–{{ day.chiusura_2 }}{% endif %}{% else %}{{ ui.closed }}{% endif %}</span></div>{% endfor %}
     </div></section>{% endif %}
   </main>
   <script>
