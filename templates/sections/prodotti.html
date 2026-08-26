@@ -314,7 +314,7 @@
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        showToast(err.error || "Errore creazione categoria");
+        showToast(err.detail || err.error || "Errore creazione categoria");
         return;
       }
 
@@ -359,7 +359,7 @@
   
     if(!res.ok){
       const err = await res.json().catch(()=>({}));
-      showToast(err.error || "Errore salvataggio");
+      showToast(err.detail || err.error || "Errore salvataggio");
       return;
     }
   
