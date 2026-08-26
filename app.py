@@ -185,6 +185,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE orari_negozio ADD COLUMN IF NOT EXISTS chiusura_2 TIME")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS email TEXT")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS google_sub TEXT")
+                cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS password_impostata BOOLEAN NOT NULL DEFAULT TRUE")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_email_unique ON utenti (LOWER(email)) WHERE email IS NOT NULL")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_google_sub_unique ON utenti (google_sub) WHERE google_sub IS NOT NULL")
                 cur.execute("""
@@ -341,7 +342,7 @@ def auth_google_callback():
                             break
                         suffix += 1
                         username = f"{base[:65]}-{suffix}"
-                    cur.execute("INSERT INTO utenti (username, email, google_sub, password, admin) VALUES (%s, %s, %s, %s, FALSE) RETURNING id", (username, email, google_sub, hash_password(os.urandom(32).hex())))
+                    cur.execute("INSERT INTO utenti (username, email, google_sub, password, admin, password_impostata) VALUES (%s, %s, %s, %s, FALSE, FALSE) RETURNING id", (username, email, google_sub, hash_password(os.urandom(32).hex())))
                     user_id = cur.fetchone()[0]
                     is_admin = False
                 cur.execute("INSERT INTO licenze_utenti (id_utente, data_scadenza) VALUES (%s, %s) ON CONFLICT (id_utente) DO NOTHING", (user_id, annual_expiry()))
@@ -381,6 +382,84 @@ def api_license_current():
             return jsonify({"item": None})
         remaining = (row[2] - date.today()).days
         return jsonify({"item": {"stato": row[0], "data_inizio": row[1].isoformat(), "data_scadenza": row[2].isoformat(), "giorni_rimanenti": remaining}})
+    finally:
+        conn.close()
+
+
+@app.get("/api/account")
+def api_account_get():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT username, COALESCE(email, ''), google_sub IS NOT NULL,
+                       COALESCE(password_impostata, TRUE), admin
+                FROM utenti WHERE id = %s
+            """, (session["user_id"],))
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Account non trovato."}), 404
+        return jsonify({"item": {
+            "username": row[0], "email": row[1], "google_collegato": bool(row[2]),
+            "password_impostata": bool(row[3]), "admin": bool(row[4])
+        }})
+    finally:
+        conn.close()
+
+
+@app.put("/api/account")
+def api_account_update():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    current_password = data.get("password_attuale") or ""
+    new_password = data.get("nuova_password") or ""
+    confirm_password = data.get("conferma_password") or ""
+
+    if not username or not email:
+        return jsonify({"error": "Username ed email sono obbligatori."}), 400
+    if len(username) > 80 or len(email) > 254:
+        return jsonify({"error": "Username o email troppo lunghi."}), 400
+    if new_password:
+        if len(new_password) < 8:
+            return jsonify({"error": "La nuova password deve avere almeno 8 caratteri."}), 400
+        if new_password != confirm_password:
+            return jsonify({"error": "Le nuove password non coincidono."}), 400
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT password, COALESCE(password_impostata, TRUE) FROM utenti WHERE id = %s FOR UPDATE",
+                    (session["user_id"],),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "Account non trovato."}), 404
+                stored_password, password_set = row
+                if new_password and password_set and not verify_password(current_password, stored_password):
+                    return jsonify({"error": "La password attuale non è corretta."}), 400
+
+                if new_password:
+                    cur.execute("""
+                        UPDATE utenti
+                        SET username=%s, email=%s, password=%s, password_impostata=TRUE
+                        WHERE id=%s
+                    """, (username, email, hash_password(new_password), session["user_id"]))
+                else:
+                    cur.execute(
+                        "UPDATE utenti SET username=%s, email=%s WHERE id=%s",
+                        (username, email, session["user_id"]),
+                    )
+        session["username"] = username
+        return jsonify({"ok": True, "message": "Account aggiornato correttamente."})
+    except psycopg2.IntegrityError:
+        return jsonify({"error": "Username o email già utilizzati da un altro account."}), 409
     finally:
         conn.close()
 
