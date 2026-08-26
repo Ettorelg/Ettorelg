@@ -47,6 +47,8 @@
       <div class="store-field"><label for="nazione">Nazione</label><input id="nazione" data-store-field maxlength="80" placeholder="Es. Italia" /></div>
       <div class="store-field"><label for="email">Email</label><input id="email" data-store-field type="email" maxlength="160" /></div>
       <div class="store-field"><label for="telefono">Telefono</label><input id="telefono" data-store-field type="tel" maxlength="40" /></div>
+      <div class="store-field"><label for="colore_accento">Colore principale</label><input id="colore_accento" data-store-field type="color" value="#9d3e27" /></div>
+      <div class="store-field"><label for="colore_sfondo">Colore di sfondo</label><input id="colore_sfondo" data-store-field type="color" value="#f7f3ed" /></div>
       <div class="store-field full"><label for="descrizione_breve">Descrizione Breve *</label><textarea id="descrizione_breve" data-store-field required maxlength="300" placeholder="Una breve presentazione del locale."></textarea></div>
       <div class="store-field full"><label for="descrizione_estesa">Descrizione Estesa *</label><textarea id="descrizione_estesa" data-store-field required maxlength="3000" placeholder="Racconta la storia, la proposta e l'atmosfera del tuo punto vendita."></textarea></div>
     </div>
@@ -87,7 +89,7 @@
     if (!res.ok) { storeMessage.textContent = "Impossibile caricare i dati del punto vendita."; return; }
     const data = await res.json();
     if (data.item) {
-      storeFields.forEach(field => field.value = data.item[field.id] || "");
+      storeFields.forEach(field => field.value = data.item[field.id] || (field.type === "color" ? field.value : ""));
       showImage("logoPreview", data.item.logo_url, "Nessun logo caricato");
       showImage("copertinaPreview", data.item.copertina_url, "Nessuna copertina caricata");
       storeMessage.textContent = "Informazioni caricate.";
