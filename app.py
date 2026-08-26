@@ -12,7 +12,8 @@ from db_config import build_db_config
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
-UPLOAD_ROOT = os.environ.get("UPLOAD_DIR", os.path.join(app.root_path, "static", "uploads"))
+VOLUME_ROOT = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
+UPLOAD_ROOT = os.environ.get("UPLOAD_DIR") or (os.path.join(VOLUME_ROOT, "uploads") if VOLUME_ROOT else os.path.join(app.root_path, "static", "uploads"))
 UPLOAD_URL_PREFIX = os.environ.get("UPLOAD_URL_PREFIX", "/uploads").rstrip("/")
 ALLOWED_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 
