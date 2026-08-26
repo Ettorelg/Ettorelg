@@ -92,6 +92,15 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS etichette TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS allergeni_auto TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS indirizzo TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS citta TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS cap TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS provincia TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS telefono TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS nazione TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS descrizione_breve TEXT NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS descrizione_estesa TEXT NOT NULL DEFAULT ''")
     finally:
         conn.close()
 
@@ -216,35 +225,60 @@ def api_negozio():
         return jsonify({"error": "unauthorized"}), 401
 
     user_id = session["user_id"]
+    fields = (
+        "nome", "indirizzo", "citta", "cap", "provincia", "email",
+        "telefono", "nazione", "descrizione_breve", "descrizione_estesa",
+    )
+    required_fields = ("nome", "indirizzo", "citta", "cap", "provincia", "descrizione_breve", "descrizione_estesa")
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
             with conn.cursor() as cur:
                 if request.method == "GET":
-                    cur.execute("SELECT id, nome FROM negozi WHERE id_utente = %s", (user_id,))
+                    cur.execute(
+                        "SELECT id, " + ", ".join(fields) + " FROM negozi WHERE id_utente = %s",
+                        (user_id,),
+                    )
                     row = cur.fetchone()
-                    return jsonify({"item": {"id": row[0], "nome": row[1]} if row else None})
+                    item = {"id": row[0], **dict(zip(fields, row[1:]))} if row else None
+                    return jsonify({"item": item})
 
                 data = request.get_json(silent=True) or {}
-                nome = (data.get("nome") or "").strip()
-                if not nome:
-                    return jsonify({"error": "nome obbligatorio"}), 400
+                values = {field: (data.get(field) or "").strip() for field in fields}
+                missing = [field for field in required_fields if not values[field]]
+                if missing:
+                    return jsonify({"error": "campi obbligatori mancanti", "fields": missing}), 400
 
                 cur.execute("SELECT id FROM negozi WHERE id_utente = %s", (user_id,))
                 row = cur.fetchone()
                 if row:
-                    cur.execute("UPDATE negozi SET nome = %s WHERE id = %s", (nome, row[0]))
+                    cur.execute(
+                        """
+                        UPDATE negozi
+                        SET nome=%s, indirizzo=%s, citta=%s, cap=%s, provincia=%s,
+                            email=%s, telefono=%s, nazione=%s, descrizione_breve=%s, descrizione_estesa=%s
+                        WHERE id = %s
+                        """,
+                        [values[field] for field in fields] + [row[0]],
+                    )
                     shop_id = row[0]
                 else:
-                    slug_base = re.sub(r"[^a-z0-9]+", "-", nome.lower()).strip("-") or "negozio"
+                    slug_base = re.sub(r"[^a-z0-9]+", "-", values["nome"].lower()).strip("-") or "negozio"
                     slug = f"{slug_base}-{user_id}"
                     cur.execute(
-                        "INSERT INTO negozi (id_utente, nome, slug) VALUES (%s, %s, %s) RETURNING id",
-                        (user_id, nome, slug),
+                        """
+                        INSERT INTO negozi (
+                            id_utente, nome, indirizzo, citta, cap, provincia, email, telefono,
+                            nazione, descrizione_breve, descrizione_estesa, slug
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                        """,
+                        [user_id] + [values[field] for field in fields] + [slug],
                     )
                     shop_id = cur.fetchone()[0]
 
-        return jsonify({"ok": True, "id": shop_id, "nome": nome})
+        return jsonify({"ok": True, "id": shop_id, "item": values})
     except psycopg2.Error as error:
         return jsonify({
             "error": "Errore database durante il salvataggio del negozio.",
