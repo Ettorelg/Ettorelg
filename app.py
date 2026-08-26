@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 from werkzeug.utils import secure_filename
@@ -202,9 +203,11 @@ def api_negozio():
                     cur.execute("UPDATE negozi SET nome = %s WHERE id = %s", (nome, row[0]))
                     shop_id = row[0]
                 else:
+                    slug_base = re.sub(r"[^a-z0-9]+", "-", nome.lower()).strip("-") or "negozio"
+                    slug = f"{slug_base}-{user_id}"
                     cur.execute(
-                        "INSERT INTO negozi (id_utente, nome) VALUES (%s, %s) RETURNING id",
-                        (user_id, nome),
+                        "INSERT INTO negozi (id_utente, nome, slug) VALUES (%s, %s, %s) RETURNING id",
+                        (user_id, nome, slug),
                     )
                     shop_id = cur.fetchone()[0]
 
