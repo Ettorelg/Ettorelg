@@ -8,7 +8,7 @@
   <style>
     :root{--bg:#f7f3ed;--card:#fff;--text:#211d19;--muted:#70675f;--accent:#9d3e27;--line:#e8ded4;--shadow:0 14px 40px rgba(70,48,33,.12)}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
-    .language-picker{position:absolute;top:14px;right:14px;z-index:4}.language-picker select{border:1px solid rgba(255,255,255,.55);border-radius:999px;padding:9px 12px;background:rgba(20,13,9,.68);color:#fff;font-weight:750;backdrop-filter:blur(8px)}
+    .language-picker{position:absolute;top:14px;right:14px;z-index:4;display:flex;align-items:center;gap:9px;padding:8px 10px 8px 14px;border:1px solid rgba(255,255,255,.75);border-radius:16px;background:rgba(255,255,255,.94);box-shadow:0 8px 28px rgba(0,0,0,.24);color:#211d19;backdrop-filter:blur(10px)}.language-picker label{font-size:.78rem;font-weight:850;text-transform:uppercase;letter-spacing:.05em}.language-picker select{border:1px solid #d8c9bb;border-radius:11px;padding:9px 32px 9px 11px;background:#fff;color:#211d19;font-size:.95rem;font-weight:800;cursor:pointer}
     .hero{position:relative;min-height:310px;display:flex;align-items:flex-end;background:#382c25 center/cover no-repeat;overflow:hidden}
     .hero.has-cover{background-image:linear-gradient(180deg,rgba(20,13,9,.12),rgba(20,13,9,.82)),url('{{ shop.copertina_url }}')}
     .hero:not(.has-cover){background-image:linear-gradient(135deg,#7d3020,#221813)}
@@ -33,7 +33,7 @@
 </head>
 <body>
   <header class="hero{% if shop.copertina_url %} has-cover{% endif %}">
-    {% if languages|length > 1 %}<form class="language-picker"><select aria-label="Lingua" onchange="location.href=this.value">{% for item in languages %}<option value="{{ url_for('public_menu', slug=shop.slug, lang=item.codice) }}"{% if item.codice == language %} selected{% endif %}>{{ item.nome }}</option>{% endfor %}</select></form>{% endif %}
+    {% if languages|length > 1 %}{% set flags = {'it': '🇮🇹', 'en': '🇬🇧', 'fr': '🇫🇷', 'de': '🇩🇪', 'es': '🇪🇸'} %}<form class="language-picker"><label for="menuLanguage">🌐 Lingua</label><select id="menuLanguage" aria-label="Lingua del menu" onchange="location.href=this.value">{% for item in languages %}<option value="{{ url_for('public_menu', slug=shop.slug, lang=item.codice) }}"{% if item.codice == language %} selected{% endif %}>{{ flags.get(item.codice, '🌐') }} {{ item.nome }}</option>{% endfor %}</select></form>{% endif %}
     <div class="hero-inner">
       <div class="brand-logo">
         {% if shop.logo_url %}<img src="{{ shop.logo_url }}" alt="Logo {{ shop.nome }}">{% else %}{{ shop.nome[:2]|upper }}{% endif %}
