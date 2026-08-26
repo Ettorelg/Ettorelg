@@ -1,2 +1,64 @@
-<h2>Negozio</h2>
-<p>Dati negozio: nome, descrizioni, indirizzo, contatti, logo, cover, slug pubblico.</p>
+<style>
+  .store-card{max-width:620px;padding:22px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:rgba(255,255,255,.035)}
+  .store-card h2{margin:0 0 8px}
+  .store-card p{color:#aab4d6;line-height:1.5}
+  .store-field{display:flex;flex-direction:column;gap:7px;margin-top:18px}
+  .store-field label{font-size:.85rem;font-weight:650}
+  .store-field input{padding:11px 12px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:rgba(255,255,255,.05);color:#e7ecff;font:inherit}
+  .store-actions{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
+  .store-save{border:1px solid rgba(110,168,254,.4);border-radius:12px;padding:10px 14px;background:rgba(110,168,254,.18);color:#e7ecff;font:600 .9rem system-ui;cursor:pointer}
+  .store-message{color:#aab4d6;font-size:.88rem}
+</style>
+
+<section class="store-card">
+  <h2>Il tuo negozio</h2>
+  <p>Imposta il nome del locale. È necessario per organizzare categorie e prodotti del tuo menu.</p>
+
+  <form id="storeForm">
+    <div class="store-field">
+      <label for="storeName">Nome del locale *</label>
+      <input id="storeName" required maxlength="120" placeholder="Es. Alpha System" />
+    </div>
+    <div class="store-actions">
+      <button class="store-save" type="submit">Salva negozio</button>
+      <span class="store-message" id="storeMessage" role="status"></span>
+    </div>
+  </form>
+</section>
+
+<script>
+  const storeForm = document.getElementById("storeForm");
+  const storeName = document.getElementById("storeName");
+  const storeMessage = document.getElementById("storeMessage");
+
+  async function loadStore(){
+    const res = await fetch("/api/negozio");
+    if (!res.ok) {
+      storeMessage.textContent = "Impossibile caricare il negozio.";
+      return;
+    }
+    const data = await res.json();
+    if (data.item) {
+      storeName.value = data.item.nome;
+      storeMessage.textContent = "Negozio configurato.";
+    }
+  }
+
+  storeForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const nome = storeName.value.trim();
+    if (!nome) return;
+
+    const res = await fetch("/api/negozio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome })
+    });
+    const data = await res.json().catch(() => ({}));
+    storeMessage.textContent = res.ok
+      ? "Negozio salvato. Ora puoi creare categorie e prodotti."
+      : (data.error || "Errore nel salvataggio.");
+  });
+
+  loadStore();
+</script>
