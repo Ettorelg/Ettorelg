@@ -29,17 +29,27 @@
     footer{text-align:center;padding:22px;color:var(--muted);font-size:.8rem}
     @media(max-width:780px){.hero-inner{align-items:center}.brand-logo{width:76px;height:76px;border-radius:18px}.intro{grid-template-columns:1fr}.products{grid-template-columns:1fr}.hours-grid{grid-template-columns:1fr}}
     @media(max-width:480px){.hero{min-height:225px}.hero-inner{padding:32px 14px 18px;gap:11px}.brand-logo{width:58px;height:58px;border-radius:14px}.hero h1{font-size:1.7rem}.hero p{font-size:.84rem}.category-nav{padding:8px 10px}.category-nav a{min-height:40px;display:flex;align-items:center;padding:8px 13px}.menu-section{margin-top:18px}.menu-section h2{font-size:1.45rem;margin-bottom:10px}.products{gap:8px}.product,.product.with-image{grid-template-columns:60px minmax(0,1fr) auto;align-items:start;padding:9px;gap:9px;border-radius:13px}.product:not(.with-image){grid-template-columns:minmax(0,1fr) auto}.product img{width:60px;height:60px;border-radius:10px}.product.with-image .price{grid-column:3;grid-row:1;justify-self:end}.product h3{margin-bottom:3px;font-size:.95rem}.subcat{margin-bottom:2px;font-size:.65rem}.product p{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:.78rem;line-height:1.3}.price{font-size:.9rem}.chips{gap:3px;margin-top:5px}.chip{padding:3px 5px;font-size:.62rem}.note{margin-top:4px;font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.menu-button{width:100%;min-height:46px}.intro-card{padding:15px}main{padding:16px 10px 48px}}
+
+    .print-menu-button{position:absolute;top:10px;left:10px;z-index:4;border:1px solid rgba(255,255,255,.55);border-radius:999px;padding:8px 12px;background:rgba(20,13,9,.62);color:#fff;font:750 .78rem system-ui;cursor:pointer;backdrop-filter:blur(7px)}
+    .cover-charge{display:inline-block!important;margin-top:10px!important;padding:6px 10px;border:1px solid rgba(255,255,255,.42);border-radius:999px;color:#fff!important;font-weight:800}
+    @page{size:A4 portrait;margin:14mm}
+    @media print{
+      body{background:#fff!important;color:#111!important;font-family:Arial,sans-serif}.language-picker,.print-menu-button,.category-nav,.intro,.hours,.view-actions,.legal-footer{display:none!important}
+      .hero{min-height:0!important;background:none!important;overflow:visible;border-bottom:2px solid #111}.hero-inner{display:block;width:auto;padding:0 0 7mm;color:#111}.hero h1{color:#111;font-size:24pt}.hero p:not(.cover-charge),.brand-logo,img{display:none!important}.cover-charge{color:#111!important;border:1px solid #777!important;padding:3px 8px}
+      main{width:auto;margin:0;padding:0}.menu-content,.menu-content[hidden]{display:block!important}.menu-section,.menu-section[hidden]{display:block!important;margin:0;break-after:page;page-break-after:always}.menu-section:last-of-type{break-after:auto;page-break-after:auto}.menu-section h2{margin:8mm 0 4mm;font-size:22pt}
+      .products{display:grid;grid-template-columns:1fr;gap:0}.product,.product.with-image{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8mm;padding:3mm 0;border:0;border-bottom:1px solid #bbb;border-radius:0;box-shadow:none;break-inside:avoid;page-break-inside:avoid}.product h3{font-size:12pt}.product p{font-size:9pt}.price{color:#111}.chip{border:1px solid #aaa;background:none;color:#111}
+    }
   </style>
 </head>
 <body>
   <header class="hero{% if shop.copertina_url %} has-cover{% endif %}">
     {% if languages|length > 1 %}{% set flags = {'it': '🇮🇹', 'en': '🇬🇧', 'fr': '🇫🇷', 'de': '🇩🇪', 'es': '🇪🇸'} %}<form class="language-picker"><select aria-label="Lingua del menu" title="Cambia lingua" onchange="location.href=this.value">{% for item in languages %}<option value="{{ url_for('public_menu', slug=shop.slug, lang=item.codice) }}"{% if item.codice == language %} selected{% endif %}>{{ flags.get(item.codice, '🌐') }} {{ item.nome }}</option>{% endfor %}</select></form>{% endif %}
-    
+    <button class="print-menu-button" type="button" onclick="window.print()">🖨 {{ ui.print }}</button>
     <div class="hero-inner">
       <div class="brand-logo">
         {% if shop.logo_url %}<img src="{{ shop.logo_url }}" alt="Logo {{ shop.nome }}">{% else %}{{ shop.nome[:2]|upper }}{% endif %}
       </div>
-      <div><h1>{{ shop.nome }}</h1>{% if shop.descrizione_breve %}<p>{{ shop.descrizione_breve }}</p>{% endif %}</div>
+      <div><h1>{{ shop.nome }}</h1>{% if shop.descrizione_breve %}<p>{{ shop.descrizione_breve }}</p>{% endif %}{% if shop.costo_coperto != '0,00' %}<p class="cover-charge">{{ ui.cover }} € {{ shop.costo_coperto }}</p>{% endif %}</div>
     </div>
   </header>
 
