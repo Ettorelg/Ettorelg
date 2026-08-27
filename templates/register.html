@@ -99,7 +99,7 @@
         <form method="POST">
             <div class="form-group">
                 <label for="plan">Licenza</label>
-                <select id="plan" name="plan" required><option value="professional" data-price="99">Professional – 99 €/anno (consigliata)</option><option value="base" data-price="69">Base – 69 €/anno</option></select>
+                <select id="plan" name="plan" required><option value="professional" data-price="99">Professional – 99 €/anno (consigliata)</option><option value="base" data-price="69"{% if not base_available %} disabled{% endif %}>Base – 69 €/anno{% if not base_available %} (in configurazione){% endif %}</option></select>
             </div>
             <div class="form-group">
                 <label for="username">Username</label>
