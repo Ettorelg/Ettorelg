@@ -15,6 +15,7 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
+            overflow-x: hidden;
             background: url("/static/background.png") no-repeat center center fixed;
             background-size: cover;
         }
@@ -86,8 +87,10 @@
             font-size: 14px;
         }
         @media (max-width: 480px) {
-            .login-card { padding: 30px 22px; }
+            body { justify-content: flex-start; padding: 14px; }
+            .login-card { padding: 28px 20px; }
             .logo { width: 210px; }
+            .btn { min-height: 46px; }
         }
     </style>
 </head>
