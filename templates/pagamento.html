@@ -6,7 +6,7 @@
     <title>Attiva il tuo account - Menu Online</title>
     <style>
         * { box-sizing: border-box; }
-        body { font-family: Inter, Arial, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 20px; color: #15304b; background: url('/static/background.png') center/cover fixed; }
+        body { font-family: Inter, Arial, sans-serif; margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; color: #15304b; background: url('/static/background.png') center/cover fixed; }
         body::before { content: ''; position: fixed; inset: 0; background: rgba(0,0,0,.48); backdrop-filter: blur(2px); z-index: -1; }
         .card { width: 100%; max-width: 520px; background: #fff; border-radius: 20px; padding: 32px; box-shadow: 0 18px 55px rgba(0,0,0,.25); }
         .logo { display: block; width: 205px; max-width: 70%; margin: 0 auto 16px; }
@@ -50,6 +50,7 @@
         <p class="small">Autorizzando PayPal accetti l'addebito annuale di {{ price }} € dopo la prova gratuita. Puoi annullare il rinnovo dalla gestione del tuo account.</p>
     {% endif %}
 </main>
+{% include '_legal_footer.html' %}
 
 {% if paypal_configured and not license_active %}
 <script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id|urlencode }}&vault=true&intent=subscription&currency={{ currency }}"></script>
