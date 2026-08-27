@@ -67,6 +67,7 @@
   .tool-group-title{margin:18px 0 0;font-size:14px;font-weight:650;color:#dbe8ff}
   .search-tools{margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,255,255,.16)}
   .products-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
+  .products-head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
   .products-head h2{margin:0 0 7px;font-size:1.65rem;color:#f3f6ff}.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8fb9ff;font-weight:800}
   #productForm{padding:22px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.022));box-shadow:0 14px 34px rgba(0,0,0,.16)}
   .form-section-label{display:flex;align-items:center;gap:10px;margin:22px 0 12px;color:#dbe8ff;font-size:13px;font-weight:850;letter-spacing:.05em;text-transform:uppercase}.form-section-label:first-of-type{margin-top:0}.form-section-label::after{content:"";height:1px;flex:1;background:rgba(110,168,254,.25)}
@@ -78,11 +79,11 @@
   }
 </style>
 
-<div class="products-head"><div><span class="eyebrow">Catalogo del menu</span><h2>Prodotti</h2><p class="muted">Inserisci prima i dati essenziali, poi completa ingredienti ed etichette.</p></div><button class="btn" type="button" onclick="loadSection('allergeni')" title="Apri la gestione allergeni">⚠️ Gestisci allergeni</button></div>
+<div class="products-head"><div><span class="eyebrow">Catalogo del menu</span><h2>Prodotti inseriti</h2><p class="muted">Consulta, cerca e modifica i prodotti già presenti nel menu.</p></div><div class="products-head-actions"><button class="btn primary" type="button" id="newProductBtn">＋ Nuovo prodotto</button><button class="btn" type="button" onclick="loadSection('allergeni')" title="Apri la gestione allergeni">⚠️ Gestisci allergeni</button></div></div>
 
 <div class="toast hidden" id="toast"></div>
 
-<form id="productForm">
+<form id="productForm" class="hidden" aria-label="Inserimento o modifica prodotto">
   <input type="hidden" id="id" />
 
   <div class="form-section-label">1 · Informazioni principali</div>
@@ -168,7 +169,7 @@
   <div class="actions" style="margin-top:10px">
     <button class="btn primary" type="submit" id="saveBtn">Salva prodotto</button>
     <button class="btn" type="submit" id="saveAndNewBtn">Salva e crea un altro</button>
-    <button class="btn" type="button" id="resetBtn">Nuovo</button>
+    <button class="btn" type="button" id="resetBtn">Annulla</button>
     <span class="muted" id="modeHint">Modalità: creazione</span>
   </div>
 </form>
@@ -392,7 +393,18 @@
           </td>
         </tr>
       `;
-    }).join("");
+    }).join("") || `<tr><td colspan="5"><div class="empty-products"><strong>Nessun prodotto trovato</strong><div class="muted">Usa il pulsante “Nuovo prodotto” per aggiungere il primo articolo.</div></div></td></tr>`;
+  }
+
+  function openProductForm(){
+    form.classList.remove("hidden");
+    form.scrollIntoView({behavior:"smooth", block:"start"});
+  }
+
+  function closeProductForm(){
+    resetForm();
+    form.classList.add("hidden");
+    document.getElementById("productsListTitle")?.scrollIntoView({behavior:"smooth", block:"start"});
   }
 
   function resetForm(keepCategory = false){
@@ -425,6 +437,7 @@
     window.editProduct = async function(id){
       const p = products.find(x => x.id === id);
       if(!p) return;
+      openProductForm();
   
       f("id").value = p.id;
       f("nome").value = p.nome;
@@ -445,7 +458,7 @@
       modeHint.textContent = "Modalità: modifica";
       f("saveBtn").textContent = "Aggiorna prodotto";
       showToast("Modifica prodotto: aggiorna i campi e salva.");
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      form.scrollIntoView({behavior:"smooth", block:"start"});
       const removeCb = document.getElementById("remove_image");
       if (removeCb) removeCb.checked = false;
       const fileInput = document.getElementById("immagine");
@@ -697,7 +710,8 @@
       showToast("Categoria creata e selezionata.");
     });
   
-    f("resetBtn").addEventListener("click", () => resetForm());
+    f("newProductBtn").addEventListener("click", () => { resetForm(); openProductForm(); });
+    f("resetBtn").addEventListener("click", closeProductForm);
   
     form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -748,10 +762,9 @@
 
     if (saveAndNew) {
       resetForm(true);
-    } else if (!id) {
-      f("id").value = saved.id;
-      modeHint.textContent = "Modalità: modifica";
-      f("saveBtn").textContent = "Aggiorna prodotto";
+      f("nome").focus();
+    } else {
+      closeProductForm();
     }
     if (fileInput) fileInput.value = "";
     if (removeCb) removeCb.checked = false;
