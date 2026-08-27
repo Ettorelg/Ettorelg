@@ -9,8 +9,6 @@ from pathlib import Path
 
 from werkzeug.utils import secure_filename
 import uuid
-import smtplib
-from email.message import EmailMessage
 
 import psycopg2
 import qrcode
@@ -137,15 +135,57 @@ def license_is_active(status, expiry) -> bool:
     return status == "attiva" and bool(expiry) and expiry >= date.today()
 
 
-PAYPAL_PRICE = "99.00"
+def get_user_license_plan(user_id: int) -> str:
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COALESCE(piano, 'professional') FROM licenze_utenti WHERE id_utente=%s", (user_id,))
+            row = cur.fetchone()
+        return normalize_license_plan(row[0] if row else None)
+    finally:
+        conn.close()
+
+
+def remaining_product_slots(user_id: int, shop_id: int) -> int | None:
+    plan = get_user_license_plan(user_id)
+    limit = LICENSE_PLANS[plan]["product_limit"]
+    if limit is None:
+        return None
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM prodotti WHERE id_negozio=%s", (shop_id,))
+            used = cur.fetchone()[0]
+        return max(0, limit - used)
+    finally:
+        conn.close()
+
+
 PAYPAL_CURRENCY = "EUR"
 PAYPAL_TRIAL_DAYS = 14
+LICENSE_PLANS = {
+    "base": {"name": "Base", "price": "69.00", "product_limit": 50},
+    "professional": {"name": "Professional", "price": "99.00", "product_limit": None},
+}
 
 
-def paypal_configured() -> bool:
-    return all(os.environ.get(key) for key in (
-        "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_PLAN_ID"
-    ))
+def normalize_license_plan(value: str | None) -> str:
+    return value if value in LICENSE_PLANS else "professional"
+
+
+def paypal_plan_id(plan: str) -> str:
+    plan = normalize_license_plan(plan)
+    if plan == "base":
+        return os.environ.get("PAYPAL_PLAN_BASE_ID", "")
+    return os.environ.get("PAYPAL_PLAN_PRO_ID") or os.environ.get("PAYPAL_PLAN_ID", "")
+
+
+def paypal_configured(plan: str = "professional") -> bool:
+    return bool(
+        os.environ.get("PAYPAL_CLIENT_ID")
+        and os.environ.get("PAYPAL_CLIENT_SECRET")
+        and paypal_plan_id(plan)
+    )
 
 
 def paypal_base_url() -> str:
@@ -364,6 +404,7 @@ def init_db() -> None:
                         updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
                     )
                 """)
+                cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS piano TEXT NOT NULL DEFAULT 'professional'")
                 cur.execute("""
                     INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza)
                     SELECT id, 'attiva', CURRENT_DATE, CURRENT_DATE + 365
@@ -496,18 +537,19 @@ def login():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "GET":
-        return render_template("register.html", google_enabled=google_enabled())
+        return render_template("register.html", google_enabled=google_enabled(), plans=LICENSE_PLANS)
 
     username = request.form.get("username", "").strip()
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
     confirm = request.form.get("password_confirm", "")
+    plan = normalize_license_plan(request.form.get("plan"))
     if not username or not email or not password:
-        return render_template("register.html", error="Compila tutti i campi.", google_enabled=google_enabled())
+        return render_template("register.html", error="Compila tutti i campi.", google_enabled=google_enabled(), plans=LICENSE_PLANS)
     if password != confirm:
-        return render_template("register.html", error="Le password non coincidono.", google_enabled=google_enabled())
+        return render_template("register.html", error="Le password non coincidono.", google_enabled=google_enabled(), plans=LICENSE_PLANS)
     if len(password) < 8:
-        return render_template("register.html", error="La password deve avere almeno 8 caratteri.", google_enabled=google_enabled())
+        return render_template("register.html", error="La password deve avere almeno 8 caratteri.", google_enabled=google_enabled(), plans=LICENSE_PLANS)
 
     conn = psycopg2.connect(**build_db_config())
     try:
@@ -519,15 +561,15 @@ def register():
                 )
                 user_id = cur.fetchone()[0]
                 cur.execute(
-                    "INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza) VALUES (%s, 'sospesa', CURRENT_DATE, CURRENT_DATE)",
-                    (user_id,),
+                    "INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza, piano) VALUES (%s, 'sospesa', CURRENT_DATE, CURRENT_DATE, %s)",
+                    (user_id, plan),
                 )
-                cur.execute("INSERT INTO abbonamenti_paypal (id_utente, plan_id) VALUES (%s, %s)", (user_id, os.environ.get("PAYPAL_PLAN_ID")))
+                cur.execute("INSERT INTO abbonamenti_paypal (id_utente, plan_id) VALUES (%s, %s)", (user_id, paypal_plan_id(plan)))
         session.clear()
         session.update(pending_user_id=user_id, pending_username=username)
         return redirect(url_for("pagamento"))
     except psycopg2.IntegrityError:
-        return render_template("register.html", error="Username o email già utilizzati.", google_enabled=google_enabled())
+        return render_template("register.html", error="Username o email già utilizzati.", google_enabled=google_enabled(), plans=LICENSE_PLANS)
     finally:
         conn.close()
 
@@ -536,6 +578,7 @@ def register():
 def auth_google():
     if not google_enabled():
         return redirect(url_for("login"))
+    session["pending_plan"] = normalize_license_plan(request.args.get("plan"))
     callback = url_for("auth_google_callback", _external=True, _scheme="https")
     return google.authorize_redirect(callback)
 
@@ -575,8 +618,9 @@ def auth_google_callback():
                     user_id = cur.fetchone()[0]
                     is_admin = False
                 if is_new_user:
-                    cur.execute("INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza) VALUES (%s, 'sospesa', CURRENT_DATE, CURRENT_DATE)", (user_id,))
-                    cur.execute("INSERT INTO abbonamenti_paypal (id_utente, plan_id) VALUES (%s, %s)", (user_id, os.environ.get("PAYPAL_PLAN_ID")))
+                    plan = normalize_license_plan(session.get("pending_plan"))
+                    cur.execute("INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza, piano) VALUES (%s, 'sospesa', CURRENT_DATE, CURRENT_DATE, %s)", (user_id, plan))
+                    cur.execute("INSERT INTO abbonamenti_paypal (id_utente, plan_id) VALUES (%s, %s)", (user_id, paypal_plan_id(plan)))
                 else:
                     cur.execute("INSERT INTO licenze_utenti (id_utente, data_scadenza) VALUES (%s, %s) ON CONFLICT (id_utente) DO NOTHING", (user_id, annual_expiry()))
                 cur.execute("SELECT stato, data_scadenza FROM licenze_utenti WHERE id_utente = %s", (user_id,))
@@ -601,7 +645,7 @@ def pagamento():
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT u.username, u.email, a.subscription_id, a.stato, a.trial_fino,
-                       a.prossimo_addebito, l.stato, l.data_scadenza
+                       a.prossimo_addebito, l.stato, l.data_scadenza, COALESCE(l.piano, 'professional')
                 FROM utenti u
                 LEFT JOIN abbonamenti_paypal a ON a.id_utente = u.id
                 LEFT JOIN licenze_utenti l ON l.id_utente = u.id
@@ -613,12 +657,14 @@ def pagamento():
     if not row:
         session.clear()
         return redirect(url_for("login"))
+    selected_plan = normalize_license_plan(row[8])
+    plan_info = LICENSE_PLANS[selected_plan]
     return render_template(
         "pagamento.html", username=row[0], email=row[1], subscription_id=row[2],
         subscription_status=row[3], trial_until=row[4], next_billing=row[5],
         license_active=license_is_active(row[6], row[7]),
-        paypal_configured=paypal_configured(), paypal_client_id=os.environ.get("PAYPAL_CLIENT_ID", ""),
-        paypal_plan_id=os.environ.get("PAYPAL_PLAN_ID", ""), price=PAYPAL_PRICE,
+        paypal_configured=paypal_configured(selected_plan), paypal_client_id=os.environ.get("PAYPAL_CLIENT_ID", ""),
+        paypal_plan_id=paypal_plan_id(selected_plan), price=plan_info["price"], plan=selected_plan, plan_name=plan_info["name"],
         currency=PAYPAL_CURRENCY, trial_days=PAYPAL_TRIAL_DAYS,
     )
 
@@ -628,8 +674,17 @@ def paypal_subscription_activate():
     user_id = session.get("pending_user_id") or session.get("user_id")
     if not user_id or session.get("is_admin"):
         return jsonify({"error": "Sessione di registrazione non valida."}), 401
-    if not paypal_configured():
-        return jsonify({"error": "PayPal non è ancora configurato."}), 503
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COALESCE(piano, 'professional') FROM licenze_utenti WHERE id_utente=%s", (user_id,))
+            plan_row = cur.fetchone()
+    finally:
+        conn.close()
+    selected_plan = normalize_license_plan(plan_row[0] if plan_row else None)
+    expected_plan_id = paypal_plan_id(selected_plan)
+    if not paypal_configured(selected_plan):
+        return jsonify({"error": "Il piano PayPal selezionato non è ancora configurato."}), 503
     subscription_id = (request.get_json(silent=True) or {}).get("subscription_id", "").strip()
     if not subscription_id:
         return jsonify({"error": "Identificativo abbonamento mancante."}), 400
@@ -639,7 +694,7 @@ def paypal_subscription_activate():
         return jsonify({"error": "Non è stato possibile verificare l'abbonamento con PayPal."}), 502
     if details.get("status") != "ACTIVE":
         return jsonify({"error": "L'abbonamento PayPal non risulta attivo."}), 409
-    if details.get("plan_id") != os.environ.get("PAYPAL_PLAN_ID"):
+    if details.get("plan_id") != expected_plan_id:
         return jsonify({"error": "Il piano PayPal non corrisponde all'offerta selezionata."}), 400
     if str(details.get("custom_id", "")) != str(user_id):
         return jsonify({"error": "L'abbonamento non appartiene a questo account."}), 403
@@ -782,12 +837,12 @@ def api_license_current():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT stato, data_inizio, data_scadenza FROM licenze_utenti WHERE id_utente = %s", (session["user_id"],))
+            cur.execute("SELECT stato, data_inizio, data_scadenza, COALESCE(piano, 'professional') FROM licenze_utenti WHERE id_utente = %s", (session["user_id"],))
             row = cur.fetchone()
         if not row:
             return jsonify({"item": None})
         remaining = (row[2] - date.today()).days
-        return jsonify({"item": {"stato": row[0], "data_inizio": row[1].isoformat(), "data_scadenza": row[2].isoformat(), "giorni_rimanenti": remaining}})
+        return jsonify({"item": {"stato": row[0], "data_inizio": row[1].isoformat(), "data_scadenza": row[2].isoformat(), "giorni_rimanenti": remaining, "piano": normalize_license_plan(row[3]), "nome_piano": LICENSE_PLANS[normalize_license_plan(row[3])]["name"]}})
     finally:
         conn.close()
 
@@ -874,6 +929,8 @@ def api_account_update():
 def api_languages_get():
     if "user_id" not in session:
         return jsonify({"error": "unauthorized"}), 401
+    if get_user_license_plan(session["user_id"]) != "professional":
+        return jsonify({"error": "Le lingue aggiuntive richiedono la licenza Professional."}), 403
     shop_id = get_user_shop_id(session["user_id"])
     if not shop_id:
         return jsonify({"items": [], "disponibili": SUPPORTED_MENU_LANGUAGES, "api_configurata": bool(os.environ.get("GOOGLE_TRANSLATE_API_KEY"))})
@@ -891,6 +948,8 @@ def api_languages_get():
 def api_languages_save():
     if "user_id" not in session:
         return jsonify({"error": "unauthorized"}), 401
+    if get_user_license_plan(session["user_id"]) != "professional":
+        return jsonify({"error": "Le lingue aggiuntive richiedono la licenza Professional."}), 403
     shop_id = get_user_shop_id(session["user_id"])
     if not shop_id:
         return jsonify({"error": "Salva prima le informazioni del negozio."}), 400
@@ -914,6 +973,8 @@ def api_languages_save():
 def api_translations_generate():
     if "user_id" not in session:
         return jsonify({"error": "unauthorized"}), 401
+    if get_user_license_plan(session["user_id"]) != "professional":
+        return jsonify({"error": "La traduzione automatica richiede la licenza Professional."}), 403
     shop_id = get_user_shop_id(session["user_id"])
     if not shop_id:
         return jsonify({"error": "Salva prima le informazioni del negozio."}), 400
@@ -1000,7 +1061,7 @@ def api_admin_users_list():
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT u.id, u.username, COALESCE(u.email, ''), u.admin, COALESCE(n.nome, ''),
-                       COALESCE(l.stato, 'sospesa'), l.data_inizio, l.data_scadenza
+                       COALESCE(l.stato, 'sospesa'), l.data_inizio, l.data_scadenza, COALESCE(l.piano, 'professional')
                 FROM utenti u
                 LEFT JOIN negozi n ON n.id_utente = u.id
                 LEFT JOIN licenze_utenti l ON l.id_utente = u.id
@@ -1015,7 +1076,8 @@ def api_admin_users_list():
                               "data_inizio": row[6].isoformat() if row[6] else None,
                               "data_scadenza": expiry.isoformat() if expiry else None,
                               "giorni_rimanenti": days,
-                              "in_scadenza": days is not None and 0 <= days <= 30})
+                              "in_scadenza": days is not None and 0 <= days <= 30,
+                              "piano": normalize_license_plan(row[8])})
         return jsonify({"items": items, "current_user_id": session["user_id"]})
     finally:
         conn.close()
@@ -1031,6 +1093,7 @@ def api_admin_users_create():
     email = (data.get("email") or "").strip().lower() or None
     password = data.get("password") or ""
     is_admin = bool(data.get("admin"))
+    plan = normalize_license_plan(data.get("piano"))
     if not username or not password:
         return jsonify({"error": "Username e password sono obbligatori."}), 400
     conn = psycopg2.connect(**build_db_config())
@@ -1039,7 +1102,7 @@ def api_admin_users_create():
             with conn.cursor() as cur:
                 cur.execute("INSERT INTO utenti (username, email, password, admin) VALUES (%s, %s, %s, %s) RETURNING id", (username, email, hash_password(password), is_admin))
                 user_id = cur.fetchone()[0]
-                cur.execute("INSERT INTO licenze_utenti (id_utente, data_scadenza) VALUES (%s, %s)", (user_id, annual_expiry()))
+                cur.execute("INSERT INTO licenze_utenti (id_utente, data_scadenza, piano) VALUES (%s, %s, %s)", (user_id, annual_expiry(), plan))
         return jsonify({"ok": True, "id": user_id}), 201
     except psycopg2.IntegrityError:
         return jsonify({"error": "Username o email già utilizzati."}), 409
@@ -1088,6 +1151,7 @@ def api_admin_license_update(user_id: int):
     data = request.get_json(silent=True) or {}
     status = data.get("stato")
     expiry_raw = data.get("data_scadenza")
+    plan = normalize_license_plan(data.get("piano"))
     if status not in {"attiva", "sospesa"}:
         return jsonify({"error": "Stato licenza non valido."}), 400
     try:
@@ -1099,11 +1163,11 @@ def api_admin_license_update(user_id: int):
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO licenze_utenti (id_utente, stato, data_scadenza)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO licenze_utenti (id_utente, stato, data_scadenza, piano)
+                    VALUES (%s, %s, %s, %s)
                     ON CONFLICT (id_utente) DO UPDATE
-                    SET stato=EXCLUDED.stato, data_scadenza=EXCLUDED.data_scadenza, updated_at=NOW()
-                """, (user_id, status, expiry))
+                    SET stato=EXCLUDED.stato, data_scadenza=EXCLUDED.data_scadenza, piano=EXCLUDED.piano, updated_at=NOW()
+                """, (user_id, status, expiry, plan))
         return jsonify({"ok": True})
     finally:
         conn.close()
@@ -1205,11 +1269,13 @@ def dashboard_user():
         return redirect("/login")
 
     # sezione iniziale
+    license_plan = get_user_license_plan(session["user_id"])
     return render_template(
         "dashboard_user.html",
         username=session.get("username", "utente"),
         active_section="home",
         shop_configured=get_user_shop_id(session["user_id"]) is not None,
+        license_plan=license_plan,
     )
 
 @app.route("/dashboard_user/section/<section>")
@@ -1236,6 +1302,13 @@ def dashboard_user_section(section: str):
     }
     if section not in allowed:
         abort(404)
+
+    if section in {"lingue", "statistiche"} and get_user_license_plan(session["user_id"]) != "professional":
+        return (
+            '<div class="error"><b>Funzione disponibile con la licenza Professional.</b>'
+            '<br>Puoi chiedere all’amministratore il passaggio al piano Professional.</div>',
+            403,
+        )
 
     shop_required_sections = {
         "prodotti", "categorie", "sottocategorie", "allergeni",
@@ -1495,6 +1568,8 @@ def api_orari():
 def api_statistiche():
     if "user_id" not in session:
         return jsonify({"error": "unauthorized"}), 401
+    if get_user_license_plan(session["user_id"]) != "professional":
+        return jsonify({"error": "Le statistiche richiedono la licenza Professional."}), 403
     shop_id = get_user_shop_id(session["user_id"])
     if not shop_id:
         return jsonify({"error": "negozio non trovato"}), 400
@@ -1685,69 +1760,6 @@ def api_menu_pubblico():
     })
 
 
-@app.post("/api/richieste-qr")
-def api_qr_quote_request():
-    if "user_id" not in session:
-        return jsonify({"error": "unauthorized"}), 401
-
-    data = request.get_json(silent=True) or {}
-    formato = (data.get("formato") or "").strip()
-    configurazione = (data.get("configurazione") or "").strip()
-    try:
-        quantita = int(data.get("quantita", 0))
-    except (TypeError, ValueError):
-        quantita = 0
-    if not formato or not configurazione or not 1 <= quantita <= 10000:
-        return jsonify({"error": "Inserisci formato, configurazione e una quantità valida."}), 400
-
-    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip()
-    smtp_username = os.environ.get("SMTP_USERNAME", "").strip()
-    smtp_password = os.environ.get("SMTP_PASSWORD", "")
-    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-    recipient = os.environ.get("QR_ORDER_RECIPIENT", "alphasystemsrl@gmail.com").strip()
-    sender = os.environ.get("SMTP_FROM", smtp_username).strip()
-    if not all((smtp_host, smtp_username, smtp_password, recipient, sender)):
-        return jsonify({"error": "Il servizio richieste non è ancora configurato. Contatta Alpha System."}), 503
-
-    conn = psycopg2.connect(**build_db_config())
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT n.nome, n.email, u.username, u.email
-                FROM utenti u
-                LEFT JOIN negozi n ON n.id_utente = u.id
-                WHERE u.id = %s
-            """, (session["user_id"],))
-            row = cur.fetchone()
-    finally:
-        conn.close()
-
-    shop_name = (row[0] or row[2] or "Non indicato") if row else "Non indicato"
-    contact_email = (row[1] or row[3] or "Non indicata") if row else "Non indicata"
-    message = EmailMessage()
-    message["Subject"] = f"Richiesta preventivo QR 3D - {shop_name}"
-    message["From"] = sender
-    message["To"] = recipient
-    message.set_content(
-        "Nuova richiesta preventivo QR fisici\n\n"
-        f"Locale: {shop_name}\n"
-        f"Email cliente: {contact_email}\n"
-        f"Formato: {formato}\n"
-        f"Configurazione: {configurazione}\n"
-        f"Quantità: {quantita}\n"
-    )
-    try:
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as smtp:
-            smtp.starttls()
-            smtp.login(smtp_username, smtp_password)
-            smtp.send_message(message)
-    except (OSError, smtplib.SMTPException):
-        app.logger.exception("Invio richiesta QR non riuscito")
-        return jsonify({"error": "Non è stato possibile inviare la richiesta. Riprova tra poco."}), 502
-
-    return jsonify({"message": "Richiesta inviata. Ti contatteremo al più presto."}), 201
-
-
 @app.get("/api/prodotti")
 def api_prodotti_list():
     if "user_id" not in session:
@@ -1864,6 +1876,8 @@ def api_prodotti_create():
     shop_id = get_user_shop_id(session["user_id"])
     if not shop_id:
         return jsonify({"error": "negozio non trovato"}), 400
+    if remaining_product_slots(session["user_id"], shop_id) == 0:
+        return jsonify({"error": "Il piano Base consente fino a 50 prodotti. Passa a Professional per inserirne altri."}), 403
 
     # multipart form fields
     nome = (request.form.get("nome") or "").strip().upper()
@@ -1967,6 +1981,8 @@ def api_prodotto_duplica(prodotto_id: int):
     shop_id = get_user_shop_id(session["user_id"])
     if not shop_id:
         return jsonify({"error": "negozio non trovato"}), 400
+    if remaining_product_slots(session["user_id"], shop_id) == 0:
+        return jsonify({"error": "Il piano Base consente fino a 50 prodotti. Passa a Professional per duplicarne altri."}), 403
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
@@ -2017,6 +2033,9 @@ def api_prodotti_importa_csv():
     uploaded = request.files.get("file")
     if not shop_id or not uploaded:
         return jsonify({"error": "File CSV mancante"}), 400
+    remaining_slots = remaining_product_slots(session["user_id"], shop_id)
+    if remaining_slots == 0:
+        return jsonify({"error": "Hai raggiunto il limite di 50 prodotti del piano Base."}), 403
     try:
         content = uploaded.read().decode("utf-8-sig")
         dialect = csv.Sniffer().sniff(content[:2048], delimiters=",;")
@@ -2029,6 +2048,8 @@ def api_prodotti_importa_csv():
         with conn:
             with conn.cursor() as cur:
                 for raw in rows:
+                    if remaining_slots is not None and imported >= remaining_slots:
+                        break
                     data = {(key or "").strip().lower(): (value or "").strip() for key, value in raw.items()}
                     name = data.get("nome", "").upper()
                     category_name = data.get("categoria", "").upper()
@@ -2052,7 +2073,7 @@ def api_prodotti_importa_csv():
                         VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT COALESCE(MAX(ordine),0)+10 FROM prodotti WHERE id_negozio=%s),%s)
                     """, (shop_id, category_id, name, description, data.get("note", ""), price, available, shop_id, detect_allergens(description)))
                     imported += 1
-        return jsonify({"ok": True, "importati": imported})
+        return jsonify({"ok": True, "importati": imported, "limite_raggiunto": remaining_slots is not None and imported >= remaining_slots})
     finally:
         conn.close()
 
