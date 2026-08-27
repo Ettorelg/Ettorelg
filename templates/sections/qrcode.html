@@ -1,9 +1,13 @@
 <style>
-  .qr-card{max-width:760px;padding:22px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:rgba(255,255,255,.035)}
+  .qr-card{max-width:860px;padding:22px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:rgba(255,255,255,.035)}
   .qr-card h2{margin:0 0 8px}.qr-card>p{color:#aab4d6;line-height:1.5}.qr-layout{display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:center;margin-top:20px}
   .qr-image{width:260px;height:260px;padding:12px;border-radius:18px;background:#fff;object-fit:contain}.qr-url{padding:11px;border:1px solid rgba(255,255,255,.14);border-radius:11px;background:rgba(255,255,255,.04);color:#aab4d6;overflow-wrap:anywhere;font-size:.84rem}
   .qr-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}.qr-button{padding:9px 12px;border:1px solid rgba(110,168,254,.4);border-radius:10px;background:rgba(110,168,254,.18);color:#e7ecff;text-decoration:none;font:700 .84rem system-ui;cursor:pointer}.qr-message{color:#aab4d6}
-  @media(max-width:620px){.qr-layout{grid-template-columns:1fr}.qr-image{width:min(100%,280px);height:auto;margin:auto}}
+  .qr-service{max-width:860px;margin-top:22px;padding:22px;border:1px solid rgba(115,86,255,.42);border-radius:16px;background:linear-gradient(135deg,rgba(115,86,255,.16),rgba(46,201,184,.08))}
+  .qr-service-head{display:flex;gap:14px;justify-content:space-between;align-items:flex-start}.qr-service h3{margin:0 0 6px;color:#f2f5ff}.qr-service p{margin:0;color:#c2cae4;line-height:1.5}.qr-price{white-space:nowrap;font-size:1.1rem;font-weight:800;color:#9ff4d9}
+  .qr-features{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.qr-pill{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.13);font-size:.82rem;color:#e7ecff}
+  .qr-quote{display:grid;grid-template-columns:1fr 1fr 120px auto;gap:10px;align-items:end}.qr-quote label{display:grid;gap:6px;color:#c2cae4;font-size:.84rem;font-weight:700}.qr-quote select,.qr-quote input{box-sizing:border-box;width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#151727;color:#f2f5ff;font:inherit}.qr-note{margin-top:11px!important;font-size:.85rem}
+  @media(max-width:700px){.qr-layout{grid-template-columns:1fr}.qr-image{width:min(100%,280px);height:auto;margin:auto}.qr-service-head{flex-direction:column}.qr-quote{grid-template-columns:1fr 1fr}.qr-quote .qr-button{grid-column:1/-1;text-align:center}}@media(max-width:420px){.qr-quote{grid-template-columns:1fr}}
 </style>
 <section class="qr-card">
   <h2>QR Code del menù</h2><p>Stampa o condividi questo codice: porterà direttamente alla pagina pubblica del locale.</p>
@@ -17,23 +21,50 @@
     </div></div>
   </div>
 </section>
+<section class="qr-service" aria-labelledby="qrServiceTitle">
+  <div class="qr-service-head">
+    <div><h3 id="qrServiceTitle">QR fisico stampato in 3D</h3><p>Porta il menù sui tavoli, al bancone o all'ingresso con supporti in diversi formati. È disponibile anche l'NFC integrato.</p></div>
+    <div class="qr-price">da € 2,50 cad.</div>
+  </div>
+  <div class="qr-features"><span class="qr-pill">Formati personalizzabili</span><span class="qr-pill">Stampa 3D</span><span class="qr-pill">NFC opzionale</span><span class="qr-pill">Sconti per pacchetti</span></div>
+  <div class="qr-quote">
+    <label>Formato<select id="quoteFormat"><option>Da tavolo</option><option>Adesivo / vetrofania</option><option>Porta conto</option><option>Altro formato</option></select></label>
+    <label>Configurazione<select id="quoteNfc"><option>Solo QR</option><option>QR + NFC integrato</option></select></label>
+    <label>Quantità<input id="quoteQuantity" type="number" min="1" max="10000" value="1" inputmode="numeric"></label>
+    <a class="qr-button" id="quoteLink" href="mailto:alphasystemsrl@pec.it">Richiedi preventivo</a>
+  </div>
+  <p class="qr-note">Il prezzo indicato è “a partire da”: per quantitativi e configurazione NFC prepariamo un preventivo con sconto pacchetto.</p>
+</section>
 <script>
   (async () => {
     const message = document.getElementById("qrMessage");
     const layout = document.getElementById("qrLayout");
-    const response = await fetch("/api/menu-pubblico");
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) { message.textContent = data.error || "Impossibile generare il QR code."; return; }
-    document.getElementById("qrImage").src = data.qr_url;
-    document.getElementById("menuUrl").textContent = data.menu_url;
-    document.getElementById("openMenu").href = data.menu_url;
-    document.getElementById("downloadQr").href = data.qr_url;
-    document.getElementById("copyUrl").addEventListener("click", async () => {
-      await navigator.clipboard.writeText(data.menu_url);
-      message.hidden = false;
-      message.textContent = "Link copiato.";
-    });
-    layout.hidden = false;
-    message.hidden = true;
+    const quoteLink = document.getElementById("quoteLink");
+    const updateQuote = () => {
+      const quantity = Math.max(1, Number(document.getElementById("quoteQuantity").value) || 1);
+      const format = document.getElementById("quoteFormat").value;
+      const nfc = document.getElementById("quoteNfc").value;
+      const subject = encodeURIComponent("Preventivo QR 3D per menu");
+      const body = encodeURIComponent("Buongiorno, vorrei un preventivo per " + quantity + " QR fisici stampati in 3D.\nFormato: " + format + "\nConfigurazione: " + nfc + "\nLocale: ");
+      quoteLink.href = "mailto:alphasystemsrl@pec.it?subject=" + subject + "&body=" + body;
+    };
+    ["quoteFormat","quoteNfc","quoteQuantity"].forEach(id => document.getElementById(id).addEventListener("input", updateQuote));
+    updateQuote();
+    try {
+      const response = await fetch("/api/menu-pubblico");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { message.textContent = data.error || "Impossibile generare il QR code."; return; }
+      document.getElementById("qrImage").src = data.qr_url;
+      document.getElementById("menuUrl").textContent = data.menu_url;
+      document.getElementById("openMenu").href = data.menu_url;
+      document.getElementById("downloadQr").href = data.qr_url;
+      document.getElementById("copyUrl").addEventListener("click", async () => {
+        await navigator.clipboard.writeText(data.menu_url);
+        message.hidden = false;
+        message.textContent = "Link copiato.";
+      });
+      layout.hidden = false;
+      message.hidden = true;
+    } catch (error) { message.textContent = "Impossibile generare il QR code."; }
   })();
 </script>
