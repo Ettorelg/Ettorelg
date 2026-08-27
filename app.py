@@ -232,6 +232,16 @@ MENU_UI = {
     "es": {"venue": "Nuestro local", "contacts": "Contactos", "show": "VER EL MENÚ", "back": "Volver a la información", "hours": "Horario de apertura", "closed": "Cerrado", "empty": "El menú estará disponible pronto.", "categories": "Categorías del menú", "days": ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]},
 }
 
+for _code, (_cover, _print) in {
+    "it": ("Coperto", "Stampa menu A4"),
+    "en": ("Cover charge", "Print A4 menu"),
+    "fr": ("Couvert", "Imprimer le menu A4"),
+    "de": ("Gedeck", "A4-Menü drucken"),
+    "es": ("Cubierto", "Imprimir menú A4"),
+}.items():
+    MENU_UI[_code]["cover"] = _cover
+    MENU_UI[_code]["print"] = _print
+
 
 def google_translate_texts(texts: list[str], target: str) -> list[str]:
     api_key = os.environ.get("GOOGLE_TRANSLATE_API_KEY")
@@ -290,6 +300,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS copertina_url TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS colore_accento TEXT NOT NULL DEFAULT '#9d3e27'")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS colore_sfondo TEXT NOT NULL DEFAULT '#f7f3ed'")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS costo_coperto NUMERIC(10,2) NOT NULL DEFAULT 0")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS orari_negozio (
                         id SERIAL PRIMARY KEY,
@@ -1260,7 +1271,7 @@ def api_negozio():
     fields = (
         "nome", "indirizzo", "citta", "cap", "provincia", "email",
         "telefono", "nazione", "descrizione_breve", "descrizione_estesa",
-        "colore_accento", "colore_sfondo",
+        "colore_accento", "colore_sfondo", "costo_coperto",
     )
     required_fields = ("nome", "indirizzo", "citta", "cap", "provincia", "descrizione_breve", "descrizione_estesa")
     conn = psycopg2.connect(**build_db_config())
@@ -1288,6 +1299,10 @@ def api_negozio():
                 values = {field: (data.get(field) or "").strip() for field in fields}
                 values["colore_accento"] = values["colore_accento"] if re.fullmatch(r"#[0-9a-fA-F]{6}", values["colore_accento"]) else "#9d3e27"
                 values["colore_sfondo"] = values["colore_sfondo"] if re.fullmatch(r"#[0-9a-fA-F]{6}", values["colore_sfondo"]) else "#f7f3ed"
+                cover_value = values["costo_coperto"].replace(",", ".") or "0"
+                if not re.fullmatch(r"\d{1,7}(?:\.\d{1,2})?", cover_value):
+                    return jsonify({"error": "Il costo del coperto non è valido.", "fields": ["costo_coperto"]}), 400
+                values["costo_coperto"] = f"{float(cover_value):.2f}"
                 missing = [field for field in required_fields if not values[field]]
                 if missing:
                     return jsonify({"error": "campi obbligatori mancanti", "fields": missing}), 400
@@ -1300,7 +1315,7 @@ def api_negozio():
                         UPDATE negozi
                         SET nome=%s, indirizzo=%s, citta=%s, cap=%s, provincia=%s,
                             email=%s, telefono=%s, nazione=%s, descrizione_breve=%s, descrizione_estesa=%s,
-                            colore_accento=%s, colore_sfondo=%s
+                            colore_accento=%s, colore_sfondo=%s, costo_coperto=%s
                         WHERE id = %s
                         """,
                         [values[field] for field in fields] + [row[0]],
@@ -1313,9 +1328,9 @@ def api_negozio():
                         """
                         INSERT INTO negozi (
                             id_utente, nome, indirizzo, citta, cap, provincia, email, telefono,
-                            nazione, descrizione_breve, descrizione_estesa, colore_accento, colore_sfondo, slug
+                            nazione, descrizione_breve, descrizione_estesa, colore_accento, colore_sfondo, costo_coperto, slug
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                         """,
                         [user_id] + [values[field] for field in fields] + [slug],
@@ -1518,7 +1533,7 @@ def public_menu(slug: str):
                 """
                 SELECT id, nome, indirizzo, citta, cap, provincia, email, telefono, nazione,
                        descrizione_breve, descrizione_estesa, slug, logo_url, copertina_url,
-                       colore_accento, colore_sfondo
+                       colore_accento, colore_sfondo, costo_coperto
                 FROM negozi WHERE slug = %s
                 """,
                 (slug,),
@@ -1533,6 +1548,7 @@ def public_menu(slug: str):
                 "descrizione_breve": row[9] or "", "descrizione_estesa": row[10] or "",
                 "slug": row[11], "logo_url": row[12] or "", "copertina_url": row[13] or "",
                 "colore_accento": row[14] or "#9d3e27", "colore_sfondo": row[15] or "#f7f3ed",
+                "costo_coperto": f"{float(row[16] or 0):.2f}".replace(".", ","),
             }
             cur.execute(
                 "INSERT INTO menu_visite (id_negozio, lingua) VALUES (%s, %s)",
