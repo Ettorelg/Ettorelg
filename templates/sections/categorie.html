@@ -28,10 +28,23 @@
   .right{white-space:nowrap}
   .toast{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
   .hidden{display:none}
+  .catalog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:20px}
+  .catalog-head h2{margin:0 0 7px;font-size:1.65rem;color:#f3f6ff}
+  .catalog-head .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8fb9ff;font-weight:800}
+  #catForm,#scForm{padding:20px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.025));box-shadow:0 12px 30px rgba(0,0,0,.15)}
+  #catForm::before,#scForm::before{display:block;margin-bottom:16px;color:#dbe8ff;font-size:14px;font-weight:800}
+  #catForm::before{content:"1 · DATI DELLA CATEGORIA"}
+  #scForm::before{content:"2 · DATI DELLA SOTTOCATEGORIA"}
+  .table-wrap-catalog{margin-top:18px;overflow:auto;border-radius:14px}
+  .table-wrap-catalog .table{margin-top:0}
+  @media(max-width:720px){
+    .catalog-head{display:block}.row{display:grid;grid-template-columns:1fr}.field{min-width:0!important;max-width:none!important}
+    #catForm,#scForm{padding:15px}.actions .btn{flex:1;justify-content:center}
+    .table-wrap-catalog{overflow:visible}.table{border:0;background:transparent}.table thead{display:none}.table tbody{display:grid;gap:12px}.table tr{display:grid;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.035)}.table td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border:0}.table td:first-child{font-size:1.02rem}.table td:nth-child(2)::before{content:"Ordine";color:#9eabca;font-size:12px}.table td:nth-child(3)::before{content:"Visibile";color:#9eabca;font-size:12px}.table td.right{display:flex;white-space:normal}.table td.right .btn{flex:1;justify-content:center}
+  }
 </style>
 
-<h2>Categorie</h2>
-<p class="muted">Crea e gestisci le categorie del tuo menù. Usa “Ordine” per stabilire la posizione.</p>
+<div class="catalog-head"><div><span class="eyebrow">Struttura del menu</span><h2>Categorie</h2><p class="muted">Organizza il menu in categorie chiare; usa “Ordine” per stabilire la posizione.</p></div></div>
 
 <div class="toast hidden" id="toast"></div>
 
@@ -65,7 +78,7 @@
   </div>
 </form>
 
-<table class="table">
+<div class="table-wrap-catalog"><table class="table">
   <thead>
     <tr>
       <th>Nome</th>
@@ -75,7 +88,7 @@
     </tr>
   </thead>
   <tbody id="tbody"></tbody>
-</table>
+</table></div>
 
 <script>
   const toast = document.getElementById("toast");
@@ -280,7 +293,7 @@
   </div>
 </form>
 
-<table class="table">
+<div class="table-wrap-catalog"><table class="table">
   <thead>
     <tr>
       <th>Categoria</th>
@@ -291,7 +304,7 @@
     </tr>
   </thead>
   <tbody id="scTbody"></tbody>
-</table>
+</table></div>
 
 <script>
   const toast = document.getElementById("scToast");
@@ -430,3 +443,4 @@
     await load();
   })();
 </script>
+
