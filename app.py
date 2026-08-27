@@ -173,6 +173,22 @@ def paypal_get_subscription(subscription_id: str) -> dict:
     return response.json()
 
 
+def paypal_cancel_subscription_by_id(subscription_id: str, reason: str) -> None:
+    """Disattiva il rinnovo PayPal prima di revocare l'accesso locale."""
+    if not subscription_id:
+        return
+    if not paypal_configured():
+        raise RuntimeError("PayPal non è configurato: impossibile disdire l'abbonamento in sicurezza.")
+    response = requests.post(
+        f"{paypal_base_url()}/v1/billing/subscriptions/{subscription_id}/cancel",
+        headers={"Authorization": f"Bearer {paypal_access_token()}", "Content-Type": "application/json"},
+        json={"reason": reason}, timeout=20,
+    )
+    # PayPal può rispondere 422 se l'abbonamento era già terminato o cancellato.
+    if response.status_code not in (200, 204, 422):
+        raise RuntimeError("PayPal non ha confermato la disdetta dell'abbonamento.")
+
+
 def paypal_verify_webhook(payload: dict) -> bool:
     webhook_id = os.environ.get("PAYPAL_WEBHOOK_ID")
     if not webhook_id:
@@ -339,6 +355,7 @@ def init_db() -> None:
                     INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza)
                     SELECT id, 'attiva', CURRENT_DATE, CURRENT_DATE + 365
                     FROM utenti
+                    WHERE NOT EXISTS (SELECT 1 FROM licenze_utenti)
                     ON CONFLICT (id_utente) DO NOTHING
                 """)
                 cur.execute("""
@@ -1094,6 +1111,67 @@ def api_admin_license_renew(user_id: int):
                 """, (user_id,))
                 expiry = cur.fetchone()[0]
         return jsonify({"ok": True, "data_scadenza": expiry.isoformat()})
+    finally:
+        conn.close()
+
+
+@app.delete("/api/admin/licenze/<int:user_id>")
+def api_admin_license_delete(user_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM utenti WHERE id=%s", (user_id,))
+                if not cur.fetchone():
+                    return jsonify({"error": "Utente non trovato."}), 404
+                cur.execute("SELECT subscription_id FROM abbonamenti_paypal WHERE id_utente=%s FOR UPDATE", (user_id,))
+                subscription = cur.fetchone()
+                if subscription and subscription[0]:
+                    try:
+                        paypal_cancel_subscription_by_id(subscription[0], "Licenza revocata dall'amministratore")
+                    except RuntimeError as error:
+                        return jsonify({"error": str(error)}), 502
+                cur.execute("UPDATE abbonamenti_paypal SET stato='cancellato', cancellato_il=NOW(), updated_at=NOW() WHERE id_utente=%s", (user_id,))
+                cur.execute("DELETE FROM licenze_utenti WHERE id_utente=%s", (user_id,))
+                if not cur.rowcount:
+                    return jsonify({"error": "Licenza non trovata."}), 404
+        return jsonify({"ok": True, "message": "Licenza eliminata e rinnovo automatico disattivato."})
+    finally:
+        conn.close()
+
+
+@app.delete("/api/admin/utenti/<int:user_id>")
+def api_admin_user_delete(user_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    if user_id == session.get("user_id"):
+        return jsonify({"error": "Non puoi eliminare l'account amministratore con cui hai effettuato l'accesso."}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT username FROM utenti WHERE id=%s FOR UPDATE", (user_id,))
+                user = cur.fetchone()
+                if not user:
+                    return jsonify({"error": "Utente non trovato."}), 404
+                cur.execute("SELECT subscription_id FROM abbonamenti_paypal WHERE id_utente=%s", (user_id,))
+                subscription = cur.fetchone()
+                if subscription and subscription[0]:
+                    try:
+                        paypal_cancel_subscription_by_id(subscription[0], "Account eliminato dall'amministratore")
+                    except RuntimeError as error:
+                        return jsonify({"error": str(error)}), 502
+                # I dati del negozio vengono rimossi per primi: le relative FK eliminano
+                # categorie, prodotti, orari, lingue, traduzioni e statistiche collegate.
+                cur.execute("DELETE FROM negozi WHERE id_utente=%s", (user_id,))
+                cur.execute("DELETE FROM utenti WHERE id=%s", (user_id,))
+        return jsonify({"ok": True, "message": f"Utente {user[0]} e dati collegati eliminati."})
+    except psycopg2.IntegrityError:
+        return jsonify({"error": "Impossibile eliminare l'utente: esistono dati collegati non rimovibili automaticamente."}), 409
     finally:
         conn.close()
 
