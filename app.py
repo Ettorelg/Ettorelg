@@ -439,6 +439,11 @@ def terms_of_service():
     return render_template("terms.html")
 
 
+@app.get("/cookie")
+def cookie_policy():
+    return render_template("cookie.html")
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
