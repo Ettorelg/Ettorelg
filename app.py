@@ -537,19 +537,21 @@ def login():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "GET":
-        return render_template("register.html", google_enabled=google_enabled(), plans=LICENSE_PLANS)
+        return render_template("register.html", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
 
     username = request.form.get("username", "").strip()
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
     confirm = request.form.get("password_confirm", "")
     plan = normalize_license_plan(request.form.get("plan"))
+    if plan == "base" and not paypal_configured("base"):
+        return render_template("register.html", error="La licenza Base è in configurazione PayPal. Seleziona Professional.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=False)
     if not username or not email or not password:
-        return render_template("register.html", error="Compila tutti i campi.", google_enabled=google_enabled(), plans=LICENSE_PLANS)
+        return render_template("register.html", error="Compila tutti i campi.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
     if password != confirm:
-        return render_template("register.html", error="Le password non coincidono.", google_enabled=google_enabled(), plans=LICENSE_PLANS)
+        return render_template("register.html", error="Le password non coincidono.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
     if len(password) < 8:
-        return render_template("register.html", error="La password deve avere almeno 8 caratteri.", google_enabled=google_enabled(), plans=LICENSE_PLANS)
+        return render_template("register.html", error="La password deve avere almeno 8 caratteri.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
 
     conn = psycopg2.connect(**build_db_config())
     try:
@@ -569,7 +571,7 @@ def register():
         session.update(pending_user_id=user_id, pending_username=username)
         return redirect(url_for("pagamento"))
     except psycopg2.IntegrityError:
-        return render_template("register.html", error="Username o email già utilizzati.", google_enabled=google_enabled(), plans=LICENSE_PLANS)
+        return render_template("register.html", error="Username o email già utilizzati.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
     finally:
         conn.close()
 
@@ -578,7 +580,8 @@ def register():
 def auth_google():
     if not google_enabled():
         return redirect(url_for("login"))
-    session["pending_plan"] = normalize_license_plan(request.args.get("plan"))
+    requested_plan = normalize_license_plan(request.args.get("plan"))
+    session["pending_plan"] = requested_plan if requested_plan != "base" or paypal_configured("base") else "professional"
     callback = url_for("auth_google_callback", _external=True, _scheme="https")
     return google.authorize_redirect(callback)
 
