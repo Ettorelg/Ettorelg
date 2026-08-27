@@ -31,25 +31,39 @@
     <label>Formato<select id="quoteFormat"><option>Da tavolo</option><option>Adesivo / vetrofania</option><option>Porta conto</option><option>Altro formato</option></select></label>
     <label>Configurazione<select id="quoteNfc"><option>Solo QR</option><option>QR + NFC integrato</option></select></label>
     <label>Quantità<input id="quoteQuantity" type="number" min="1" max="10000" value="1" inputmode="numeric"></label>
-    <a class="qr-button" id="quoteLink" href="mailto:alphasystemsrl@gmail.com">Richiedi preventivo</a>
+    <button class="qr-button" id="quoteButton" type="button">Richiedi preventivo</button>
   </div>
-  <p class="qr-note">Il prezzo indicato è “a partire da”: per quantitativi e configurazione NFC prepariamo un preventivo con sconto pacchetto.</p>
+  <p class="qr-note">Il prezzo indicato è “a partire da”: per quantitativi e configurazione NFC prepariamo un preventivo con sconto pacchetto.</p><p class="qr-message" id="quoteStatus" aria-live="polite"></p>
 </section>
 <script>
   (async () => {
     const message = document.getElementById("qrMessage");
     const layout = document.getElementById("qrLayout");
-    const quoteLink = document.getElementById("quoteLink");
-    const updateQuote = () => {
-      const quantity = Math.max(1, Number(document.getElementById("quoteQuantity").value) || 1);
-      const format = document.getElementById("quoteFormat").value;
-      const nfc = document.getElementById("quoteNfc").value;
-      const subject = encodeURIComponent("Preventivo QR 3D per menu");
-      const body = encodeURIComponent("Buongiorno, vorrei un preventivo per " + quantity + " QR fisici stampati in 3D.\nFormato: " + format + "\nConfigurazione: " + nfc + "\nLocale: ");
-      quoteLink.href = "mailto:alphasystemsrl@gmail.com?subject=" + subject + "&body=" + body;
-    };
-    ["quoteFormat","quoteNfc","quoteQuantity"].forEach(id => document.getElementById(id).addEventListener("input", updateQuote));
-    updateQuote();
+    const quoteButton = document.getElementById("quoteButton");
+    const quoteStatus = document.getElementById("quoteStatus");
+    const quoteData = () => ({
+      formato: document.getElementById("quoteFormat").value,
+      configurazione: document.getElementById("quoteNfc").value,
+      quantita: Math.max(1, Number(document.getElementById("quoteQuantity").value) || 1)
+    });
+    quoteButton.addEventListener("click", async () => {
+      quoteButton.disabled = true;
+      quoteStatus.textContent = "Invio della richiesta…";
+      try {
+        const response = await fetch("/api/richieste-qr", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(quoteData())
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Invio non riuscito.");
+        quoteStatus.textContent = result.message || "Richiesta inviata.";
+      } catch (error) {
+        quoteStatus.textContent = error.message || "Invio non riuscito. Riprova.";
+      } finally {
+        quoteButton.disabled = false;
+      }
+    });
     try {
       const response = await fetch("/api/menu-pubblico");
       const data = await response.json().catch(() => ({}));
