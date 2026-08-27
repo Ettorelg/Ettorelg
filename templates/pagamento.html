@@ -20,6 +20,7 @@
         .error { display: none; background: #fdebec; color: #a3212c; padding: 12px; border-radius: 10px; margin-top: 12px; font-size: 14px; }
         .small { color: #68798a; font-size: 12px; line-height: 1.5; text-align: center; margin: 15px 0 0; }
         .btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 9px; background: #004aad; color: #fff; font-weight: 700; text-align: center; text-decoration: none; cursor: pointer; }
+        .plan-choice{margin:0 0 18px;padding:14px;border:1px solid #c9d6e2;border-radius:12px;background:#f7fbff}.plan-choice label{display:block;font-weight:700;color:#003366;margin-bottom:6px}.plan-choice select{width:100%;padding:11px;border:1px solid #c9d6e2;border-radius:8px;font-size:15px}.plan-diff{margin:8px 0 0;color:#52657a;font-size:12px;line-height:1.45}
         @media (max-width: 520px) { body { padding: 10px; align-items: stretch; justify-content:flex-start; overflow-x:hidden } .card { margin-top: 6px; padding: 22px 17px; border-radius:16px } h1 { font-size: 22px; } .offer{padding:16px}.btn{min-height:46px} }
     </style>
 </head>
@@ -28,6 +29,7 @@
     <img src="/static/logo1.png" alt="AlphaSystem" class="logo">
     <h1>Attiva il tuo menu digitale</h1>
     <p class="lead">Ciao {{ username }}, completa l'attivazione della licenza <strong>{{ plan_name }}</strong>.</p>
+    {% if not license_active and paypal_configured %}<div class="plan-choice"><label for="pendingPlan">Scegli il piano prima di pagare</label><select id="pendingPlan"><option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 69 € / anno</option><option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 99 € / anno</option></select><p class="plan-diff">Base: fino a 50 prodotti, menu in italiano. Professional: prodotti illimitati, traduzioni automatiche e statistiche.</p></div>{% endif %}
     <section class="offer">
         <strong>14 giorni gratis</strong>
         <div>Licenza {{ plan_name }}: poi {{ price }} € IVA inclusa ogni anno.</div>
@@ -55,6 +57,8 @@
 {% if paypal_configured and not license_active %}
 <script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id|urlencode }}&vault=true&intent=subscription&currency={{ currency }}"></script>
 <script>
+const pendingPlan=document.getElementById('pendingPlan'); let selectedPlan={{ plan|tojson }};
+pendingPlan?.addEventListener('change',async()=>{const r=await fetch('/api/paypal/pending-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({piano:pendingPlan.value})});const d=await r.json();if(!r.ok){alert(d.error||'Impossibile cambiare piano.');pendingPlan.value=selectedPlan;return}selectedPlan=d.plan;location.reload()});
 const errorBox = document.getElementById('payment-error');
 function showError(message) {
     errorBox.textContent = message;
