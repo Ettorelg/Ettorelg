@@ -9,6 +9,8 @@ from pathlib import Path
 
 from werkzeug.utils import secure_filename
 import uuid
+import smtplib
+from email.message import EmailMessage
 
 import psycopg2
 import qrcode
@@ -1681,6 +1683,69 @@ def api_menu_pubblico():
         "menu_url": url_for("public_menu", slug=slug, _external=True, _scheme="https"),
         "qr_url": url_for("public_menu_qrcode", slug=slug, _external=True, _scheme="https"),
     })
+
+
+@app.post("/api/richieste-qr")
+def api_qr_quote_request():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    formato = (data.get("formato") or "").strip()
+    configurazione = (data.get("configurazione") or "").strip()
+    try:
+        quantita = int(data.get("quantita", 0))
+    except (TypeError, ValueError):
+        quantita = 0
+    if not formato or not configurazione or not 1 <= quantita <= 10000:
+        return jsonify({"error": "Inserisci formato, configurazione e una quantità valida."}), 400
+
+    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip()
+    smtp_username = os.environ.get("SMTP_USERNAME", "").strip()
+    smtp_password = os.environ.get("SMTP_PASSWORD", "")
+    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+    recipient = os.environ.get("QR_ORDER_RECIPIENT", "alphasystemsrl@gmail.com").strip()
+    sender = os.environ.get("SMTP_FROM", smtp_username).strip()
+    if not all((smtp_host, smtp_username, smtp_password, recipient, sender)):
+        return jsonify({"error": "Il servizio richieste non è ancora configurato. Contatta Alpha System."}), 503
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT n.nome, n.email, u.username, u.email
+                FROM utenti u
+                LEFT JOIN negozi n ON n.id_utente = u.id
+                WHERE u.id = %s
+            """, (session["user_id"],))
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    shop_name = (row[0] or row[2] or "Non indicato") if row else "Non indicato"
+    contact_email = (row[1] or row[3] or "Non indicata") if row else "Non indicata"
+    message = EmailMessage()
+    message["Subject"] = f"Richiesta preventivo QR 3D - {shop_name}"
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(
+        "Nuova richiesta preventivo QR fisici\n\n"
+        f"Locale: {shop_name}\n"
+        f"Email cliente: {contact_email}\n"
+        f"Formato: {formato}\n"
+        f"Configurazione: {configurazione}\n"
+        f"Quantità: {quantita}\n"
+    )
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as smtp:
+            smtp.starttls()
+            smtp.login(smtp_username, smtp_password)
+            smtp.send_message(message)
+    except (OSError, smtplib.SMTPException):
+        app.logger.exception("Invio richiesta QR non riuscito")
+        return jsonify({"error": "Non è stato possibile inviare la richiesta. Riprova tra poco."}), 502
+
+    return jsonify({"message": "Richiesta inviata. Ti contatteremo al più presto."}), 201
 
 
 @app.get("/api/prodotti")
