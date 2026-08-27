@@ -418,6 +418,8 @@ def init_db() -> None:
                     )
                 """)
                 cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS piano TEXT NOT NULL DEFAULT 'professional'")
+                cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS piano_programmato TEXT")
+                cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS cambio_piano_il DATE")
                 cur.execute("""
                     INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza)
                     SELECT id, 'attiva', CURRENT_DATE, CURRENT_DATE + 365
@@ -778,6 +780,13 @@ def paypal_webhook():
                         next_date = annual_expiry()
                     cur.execute("UPDATE abbonamenti_paypal SET stato='attivo', prossimo_addebito=%s, ultimo_pagamento=NOW(), updated_at=NOW() WHERE id_utente=%s", (next_date, user_id))
                     cur.execute("UPDATE licenze_utenti SET stato='attiva', data_scadenza=%s, updated_at=NOW() WHERE id_utente=%s", (next_date, user_id))
+                    cur.execute("""
+                        UPDATE licenze_utenti
+                        SET piano=piano_programmato, piano_programmato=NULL,
+                            cambio_piano_il=NULL, updated_at=NOW()
+                        WHERE id_utente=%s AND piano_programmato IS NOT NULL
+                          AND cambio_piano_il IS NOT NULL AND cambio_piano_il <= CURRENT_DATE
+                    """, (user_id,))
                 elif event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
                     next_date = parse_paypal_date(resource.get("billing_info", {}).get("next_billing_time"), date.today() + timedelta(days=PAYPAL_TRIAL_DAYS))
                     cur.execute("UPDATE abbonamenti_paypal SET stato='prova', trial_fino=COALESCE(trial_fino,%s), prossimo_addebito=%s, updated_at=NOW() WHERE id_utente=%s", (next_date, next_date, user_id))
@@ -840,6 +849,85 @@ def paypal_subscription_current():
         conn.close()
 
 
+@app.get("/cambio-piano")
+def paypal_change_plan_page():
+    user_id = session.get("user_id")
+    if not user_id or session.get("is_admin"):
+        return redirect(url_for("login"))
+    target_plan = normalize_license_plan(request.args.get("plan"))
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COALESCE(l.piano, 'professional'), a.subscription_id,
+                       a.prossimo_addebito, a.stato
+                FROM licenze_utenti l
+                LEFT JOIN abbonamenti_paypal a ON a.id_utente=l.id_utente
+                WHERE l.id_utente=%s
+            """, (user_id,))
+            row = cur.fetchone()
+    finally:
+        conn.close()
+    if not row or not row[1]:
+        return redirect(url_for("dashboard_user") + "#licenze")
+    current_plan = normalize_license_plan(row[0])
+    if target_plan == current_plan:
+        return redirect(url_for("dashboard_user") + "#licenze")
+    if not paypal_configured(target_plan):
+        return render_template("cambio_piano.html", error="Il piano selezionato non è ancora configurato su PayPal.")
+    return render_template(
+        "cambio_piano.html", error=None, current_plan=current_plan,
+        current_name=LICENSE_PLANS[current_plan]["name"], target_plan=target_plan,
+        target_name=LICENSE_PLANS[target_plan]["name"],
+        target_price=LICENSE_PLANS[target_plan]["price"],
+        target_plan_id=paypal_plan_id(target_plan), subscription_id=row[1],
+        next_billing=row[2], paypal_client_id=os.environ.get("PAYPAL_CLIENT_ID", ""),
+        currency=PAYPAL_CURRENCY,
+    )
+
+
+@app.post("/api/paypal/subscription/change/confirm")
+def paypal_change_plan_confirm():
+    user_id = session.get("user_id")
+    if not user_id or session.get("is_admin"):
+        return jsonify({"error": "Accesso richiesto."}), 401
+    target_plan = normalize_license_plan((request.get_json(silent=True) or {}).get("piano"))
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COALESCE(l.piano, 'professional'), a.subscription_id,
+                       a.prossimo_addebito, l.data_scadenza
+                FROM licenze_utenti l JOIN abbonamenti_paypal a ON a.id_utente=l.id_utente
+                WHERE l.id_utente=%s
+            """, (user_id,))
+            row = cur.fetchone()
+        if not row or not row[1]:
+            return jsonify({"error": "Abbonamento PayPal non trovato."}), 404
+        current_plan = normalize_license_plan(row[0])
+        if current_plan == target_plan:
+            return jsonify({"ok": True, "message": "Il piano è già attivo."})
+        try:
+            details = paypal_get_subscription(row[1])
+        except requests.RequestException:
+            return jsonify({"error": "Non è stato possibile verificare il cambio con PayPal."}), 502
+        if details.get("status") != "ACTIVE" or details.get("plan_id") != paypal_plan_id(target_plan):
+            return jsonify({"error": "PayPal non ha ancora confermato il nuovo piano."}), 409
+        change_date = row[2] or row[3] or date.today()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE abbonamenti_paypal SET plan_id=%s, updated_at=NOW() WHERE id_utente=%s", (details.get("plan_id"), user_id))
+                if target_plan == "professional":
+                    cur.execute("UPDATE licenze_utenti SET piano='professional', piano_programmato=NULL, cambio_piano_il=NULL, updated_at=NOW() WHERE id_utente=%s", (user_id,))
+                    message = "Upgrade a Professional completato. Le nuove funzioni sono già disponibili."
+                else:
+                    cur.execute("UPDATE licenze_utenti SET piano_programmato='base', cambio_piano_il=%s, updated_at=NOW() WHERE id_utente=%s", (change_date, user_id))
+                    message = f"Downgrade programmato: il piano Base partirà dal {change_date.isoformat()}."
+        return jsonify({"ok": True, "message": message, "redirect": url_for("dashboard_user") + "#licenze"})
+    finally:
+        conn.close()
+
+
 @app.route("/dashboard_admin")
 def dashboard_admin():
     if not session.get("is_admin"):
@@ -859,8 +947,6 @@ def api_admin_create_paypal_base_plan():
     if denied:
         return denied
     existing = paypal_plan_id("base")
-    if existing:
-        return jsonify({"ok": True, "plan_id": existing, "existing": True})
     if not os.environ.get("PAYPAL_CLIENT_ID") or not os.environ.get("PAYPAL_CLIENT_SECRET"):
         return jsonify({"error": "Credenziali PayPal mancanti su Railway."}), 503
     try:
@@ -869,23 +955,17 @@ def api_admin_create_paypal_base_plan():
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "PayPal-Request-Id": f"alpha-menu-base-product-{date.today().isoformat()}",
         }
-        product_response = requests.post(
-            f"{paypal_base_url()}/v1/catalogs/products",
-            headers=headers,
-            json={
-                "name": "Alpha Menu Base",
-                "description": "Licenza annuale Base per Alpha Menu",
-                "type": "SERVICE",
-                "category": "SOFTWARE",
-            },
-            timeout=25,
-        )
-        product_response.raise_for_status()
-        product_id = product_response.json()["id"]
+        professional_id = paypal_plan_id("professional")
+        professional_response = requests.get(f"{paypal_base_url()}/v1/billing/plans/{professional_id}", headers=headers, timeout=25)
+        professional_response.raise_for_status()
+        product_id = professional_response.json()["product_id"]
+        if existing:
+            existing_response = requests.get(f"{paypal_base_url()}/v1/billing/plans/{existing}", headers=headers, timeout=25)
+            if existing_response.ok and existing_response.json().get("product_id") == product_id:
+                return jsonify({"ok": True, "plan_id": existing, "existing": True})
         plan_headers = dict(headers)
-        plan_headers["PayPal-Request-Id"] = f"alpha-menu-base-plan-{date.today().isoformat()}"
+        plan_headers["PayPal-Request-Id"] = f"alpha-menu-base-compatible-{date.today().isoformat()}"
         plan_response = requests.post(
             f"{paypal_base_url()}/v1/billing/plans",
             headers=plan_headers,
@@ -940,7 +1020,15 @@ def api_admin_create_paypal_base_plan():
                     VALUES ('paypal_plan_base_id', %s)
                     ON CONFLICT (chiave) DO UPDATE SET valore=EXCLUDED.valore, updated_at=NOW()
                 """, (plan_id,))
-        return jsonify({"ok": True, "plan_id": plan_id, "status": plan_data.get("status")})
+        if existing and existing != plan_id:
+            try:
+                requests.post(
+                    f"{paypal_base_url()}/v1/billing/plans/{existing}/deactivate",
+                    headers={"Authorization": f"Bearer {paypal_access_token()}", "Content-Type": "application/json"}, timeout=20,
+                )
+            except requests.RequestException:
+                pass
+        return jsonify({"ok": True, "plan_id": plan_id, "status": plan_data.get("status"), "replaced": bool(existing)})
     finally:
         conn.close()
 
@@ -952,12 +1040,12 @@ def api_license_current():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT stato, data_inizio, data_scadenza, COALESCE(piano, 'professional') FROM licenze_utenti WHERE id_utente = %s", (session["user_id"],))
+            cur.execute("SELECT stato, data_inizio, data_scadenza, COALESCE(piano, 'professional'), piano_programmato, cambio_piano_il FROM licenze_utenti WHERE id_utente = %s", (session["user_id"],))
             row = cur.fetchone()
         if not row:
             return jsonify({"item": None})
         remaining = (row[2] - date.today()).days
-        return jsonify({"item": {"stato": row[0], "data_inizio": row[1].isoformat(), "data_scadenza": row[2].isoformat(), "giorni_rimanenti": remaining, "piano": normalize_license_plan(row[3]), "nome_piano": LICENSE_PLANS[normalize_license_plan(row[3])]["name"]}})
+        return jsonify({"item": {"stato": row[0], "data_inizio": row[1].isoformat(), "data_scadenza": row[2].isoformat(), "giorni_rimanenti": remaining, "piano": normalize_license_plan(row[3]), "nome_piano": LICENSE_PLANS[normalize_license_plan(row[3])]["name"], "piano_programmato": normalize_license_plan(row[4]) if row[4] else None, "cambio_piano_il": row[5].isoformat() if row[5] else None}})
     finally:
         conn.close()
 
