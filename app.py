@@ -565,7 +565,10 @@ def register():
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
     confirm = request.form.get("password_confirm", "")
-    plan = normalize_license_plan(request.form.get("plan"))
+    requested_plan = (request.form.get("plan") or "").strip().lower()
+    if requested_plan not in LICENSE_PLANS:
+        return render_template("register.html", error="Scegli prima il piano Base o Professional.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
+    plan = normalize_license_plan(requested_plan)
     if plan == "base" and not paypal_configured("base"):
         return render_template("register.html", error="La licenza Base è in configurazione PayPal. Seleziona Professional.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=False)
     if not username or not email or not password:
@@ -602,7 +605,10 @@ def register():
 def auth_google():
     if not google_enabled():
         return redirect(url_for("login"))
-    requested_plan = normalize_license_plan(request.args.get("plan"))
+    raw_plan = (request.args.get("plan") or "").strip().lower()
+    if raw_plan not in LICENSE_PLANS:
+        return redirect(url_for("register", choose_plan="1"))
+    requested_plan = normalize_license_plan(raw_plan)
     session["pending_plan"] = requested_plan if requested_plan != "base" or paypal_configured("base") else "professional"
     callback = url_for("auth_google_callback", _external=True, _scheme="https")
     return google.authorize_redirect(callback)
