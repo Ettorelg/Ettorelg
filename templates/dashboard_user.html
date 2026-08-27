@@ -31,7 +31,7 @@
     .nav-item.active{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.12)}
     .nav-item.shop-locked,.nav-item.plan-locked{opacity:.38;cursor:not-allowed;filter:saturate(.35)}
     .nav-item.shop-locked:hover,.nav-item.plan-locked:hover{background:transparent;border-color:transparent}
-    .nav-item.shop-locked::after{content:"🔒";margin-left:auto;font-size:12px}
+    .nav-item.shop-locked::after,.nav-item.plan-locked::after{content:"🔒";margin-left:auto;font-size:12px}
     .sidebar.collapsed .nav-item.shop-locked::after,.sidebar.collapsed .nav-item.plan-locked::after{display:none}
     .icon{width:26px;height:26px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.06);
       border:1px solid rgba(255,255,255,.08);flex:0 0 auto}
@@ -120,15 +120,13 @@
 
     function syncShopLocks(){
       for (const btn of nav.querySelectorAll('[data-section]')) {
+        const shopLocked = btn.dataset.requiresShop === '1' && !shopConfigured;
         const planLocked = licensePlan !== 'professional' && professionalSections.has(btn.dataset.section);
+        const locked = shopLocked || planLocked;
+        btn.classList.toggle('shop-locked', shopLocked);
         btn.classList.toggle('plan-locked', planLocked);
-        if (planLocked) { btn.disabled = true; btn.title = 'Disponibile con la licenza Professional'; btn.setAttribute('aria-disabled', 'true'); }
-      }
-      for (const btn of nav.querySelectorAll('[data-requires-shop="1"]')) {
-        const locked = !shopConfigured;
-        btn.classList.toggle('shop-locked', locked);
         btn.disabled = locked;
-        btn.title = locked ? 'Completa prima l’anagrafica del negozio' : '';
+        btn.title = shopLocked ? 'Completa prima l’anagrafica del negozio' : planLocked ? 'Disponibile con la licenza Professional' : '';
         btn.setAttribute('aria-disabled', locked ? 'true' : 'false');
       }
     }
