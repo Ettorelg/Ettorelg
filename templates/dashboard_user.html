@@ -49,6 +49,15 @@
       background:rgba(255,255,255,.03);box-shadow:var(--shadow);padding:16px;min-height: 320px}
     .loading{opacity:.65}
     .error{padding:10px;border:1px solid rgba(255,80,80,.4);background:rgba(255,80,80,.12);border-radius:12px}
+
+    @media(max-width:760px){
+      body{overflow-x:hidden}.app{display:block;min-height:100vh}.sidebar,.sidebar.collapsed{position:sticky;top:0;z-index:20;width:100%;height:auto;max-height:none;overflow:visible;border-right:0;border-bottom:1px solid var(--border)}
+      .sb-top{padding:9px 10px}.logo{width:38px;height:38px;border-radius:10px}.titles,.sidebar.collapsed .titles{display:block;flex:1}.titles strong{font-size:13px}.toggle{display:none}
+      .sb-nav{display:flex;flex-direction:row;gap:6px;padding:7px 8px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:x proximity;scrollbar-width:none}.sb-nav::-webkit-scrollbar{display:none}
+      .nav-item{flex:0 0 auto;min-height:42px;padding:8px 10px;gap:7px;scroll-snap-align:start}.icon{width:28px;height:28px;border-radius:8px}.label,.sidebar.collapsed .label{display:block;max-width:118px;font-size:12px}.nav-item.shop-locked::after{font-size:10px}
+      .main{width:100%;padding:9px}.topbar{padding:10px 11px;border-radius:12px;box-shadow:none}.topbar h1{font-size:15px}.topbar-actions{gap:6px}.pill{display:none}.logout-button{min-height:40px;padding:8px 10px;font-size:12px}
+      .content{margin-top:9px;padding:11px;min-height:260px;border-radius:12px;box-shadow:none;overflow:hidden}.content input:not([type=checkbox]):not([type=radio]):not([type=color]),.content select,.content textarea{max-width:100%;font-size:16px}.content button,.content .btn{min-height:42px;touch-action:manipulation}.content img{max-width:100%}
+    }
   </style>
 </head>
 <body>
