@@ -66,16 +66,26 @@
   .allergen-preview strong{display:block;margin-bottom:4px;color:#ffe0a6}
   .tool-group-title{margin:18px 0 0;font-size:14px;font-weight:650;color:#dbe8ff}
   .search-tools{margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,255,255,.16)}
+  .products-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
+  .products-head h2{margin:0 0 7px;font-size:1.65rem;color:#f3f6ff}.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8fb9ff;font-weight:800}
+  #productForm{padding:22px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.022));box-shadow:0 14px 34px rgba(0,0,0,.16)}
+  .form-section-label{display:flex;align-items:center;gap:10px;margin:22px 0 12px;color:#dbe8ff;font-size:13px;font-weight:850;letter-spacing:.05em;text-transform:uppercase}.form-section-label:first-of-type{margin-top:0}.form-section-label::after{content:"";height:1px;flex:1;background:rgba(110,168,254,.25)}
+  .import-panel{margin-top:20px;padding:16px;border:1px dashed rgba(110,168,254,.35);border-radius:14px;background:rgba(110,168,254,.035)}
+  #productForm>.field{margin-top:13px}
+  @media(max-width:760px){
+    .products-head{display:block}.products-head .btn{margin-top:12px}.row{display:grid;grid-template-columns:1fr}.field{min-width:0!important;max-width:none!important}#productForm{padding:15px}.actions .btn{flex:1;justify-content:center}.tag-option{flex:1;min-width:135px}.products-list-panel{padding:15px;margin-top:24px}.products-list-heading::before,.products-list-heading::after{display:none}
+    #table{border:0;background:transparent}#table thead{display:none}#table tbody{display:grid;gap:12px}#table tr{display:grid;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.035)}#table td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border:0}#table td:nth-child(2)::before{content:"Categoria";color:#9eabca;font-size:12px}#table td:nth-child(3)::before{content:"Prezzo";color:#9eabca;font-size:12px}#table td:nth-child(4)::before{content:"Stato";color:#9eabca;font-size:12px}#table td.right{white-space:normal;display:flex}#table td.right .btn{flex:1;justify-content:center}
+  }
 </style>
 
-<h2>Prodotti</h2>
-<div class="actions" style="justify-content:space-between"><p class="muted">Aggiungi, modifica o elimina i prodotti del tuo menù. Tutto resta dentro la dashboard.</p><button class="btn" type="button" onclick="loadSection('allergeni')" title="Apri la gestione allergeni">⚠️ Gestisci allergeni</button></div>
+<div class="products-head"><div><span class="eyebrow">Catalogo del menu</span><h2>Prodotti</h2><p class="muted">Inserisci prima i dati essenziali, poi completa ingredienti ed etichette.</p></div><button class="btn" type="button" onclick="loadSection('allergeni')" title="Apri la gestione allergeni">⚠️ Gestisci allergeni</button></div>
 
 <div class="toast hidden" id="toast"></div>
 
 <form id="productForm">
   <input type="hidden" id="id" />
 
+  <div class="form-section-label">1 · Informazioni principali</div>
   <div class="row">
     <div class="field">
       <label>Nome *</label>
@@ -96,6 +106,7 @@
     </div>
   </div>
 
+  <div class="form-section-label">2 · Posizione nel menu e immagine</div>
   <div class="row">
     <div class="field">
       <label>Categoria</label>
@@ -123,9 +134,10 @@
       <input id="immagine" type="file" accept="image/png,image/jpeg,image/webp" />
       <img id="imagePreview" class="image-preview" alt="Anteprima immagine selezionata" />
       <div class="muted">Facoltativa. In modifica puoi caricare una nuova immagine per sostituire.</div>
+    </div>
   </div>
 
-
+  <div class="form-section-label">3 · Descrizione e caratteristiche</div>
   <div class="field">
     <label>Ingredienti</label>
     <textarea id="descrizione" placeholder="Es. pomodoro, mozzarella, basilico"></textarea>
@@ -161,7 +173,7 @@
   </div>
 </form>
 
-<div class="bulk-tools" style="margin-top:24px">
+<div class="bulk-tools import-panel">
   <div class="field"><label for="csvImport">Importa prodotti da CSV</label><input id="csvImport" type="file" accept=".csv,text/csv"></div>
   <button class="btn" type="button" id="importCsvBtn">⬆ Importa CSV</button>
   <span class="muted">Colonne: nome, prezzo, categoria, descrizione/ingredienti, note, disponibile.</span>
@@ -760,3 +772,4 @@
     await loadProducts();
   })();
 </script>
+
