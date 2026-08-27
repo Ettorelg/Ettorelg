@@ -68,10 +68,10 @@
   .search-tools{margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,255,255,.16)}
   .products-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
   .products-head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+  .btn.compact{padding:7px 9px;font-size:12px;align-self:center}
   .products-head h2{margin:0 0 7px;font-size:1.65rem;color:#f3f6ff}.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8fb9ff;font-weight:800}
   #productForm{padding:22px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.022));box-shadow:0 14px 34px rgba(0,0,0,.16)}
   .form-section-label{display:flex;align-items:center;gap:10px;margin:22px 0 12px;color:#dbe8ff;font-size:13px;font-weight:850;letter-spacing:.05em;text-transform:uppercase}.form-section-label:first-of-type{margin-top:0}.form-section-label::after{content:"";height:1px;flex:1;background:rgba(110,168,254,.25)}
-  .import-panel{margin-top:20px;padding:16px;border:1px dashed rgba(110,168,254,.35);border-radius:14px;background:rgba(110,168,254,.035)}
   #productForm>.field{margin-top:13px}
   @media(max-width:760px){
     .products-head{display:block}.products-head .btn{margin-top:12px}.row{display:grid;grid-template-columns:1fr}.field{min-width:0!important;max-width:none!important}#productForm{padding:15px}.actions .btn{flex:1;justify-content:center}.tag-option{flex:1;min-width:135px}.products-list-panel{padding:15px;margin-top:24px}.products-list-heading::before,.products-list-heading::after{display:none}
@@ -79,7 +79,7 @@
   }
 </style>
 
-<div class="products-head"><div><span class="eyebrow">Catalogo del menu</span><h2>Prodotti inseriti</h2><p class="muted">Consulta, cerca e modifica i prodotti già presenti nel menu.</p></div><div class="products-head-actions"><button class="btn primary" type="button" id="newProductBtn">＋ Nuovo prodotto</button><button class="btn" type="button" onclick="loadSection('allergeni')" title="Apri la gestione allergeni">⚠️ Gestisci allergeni</button></div></div>
+<div class="products-head"><div><span class="eyebrow">Catalogo del menu</span><h2>Prodotti inseriti</h2><p class="muted">Consulta, cerca e modifica i prodotti già presenti nel menu.</p></div><div class="products-head-actions"><button class="btn primary" type="button" id="newProductBtn">＋ Nuovo prodotto</button><button class="btn" type="button" onclick="loadSection('allergeni')" title="Apri la gestione allergeni">⚠️ Gestisci allergeni</button><button class="btn compact" type="button" id="importCsvBtn" title="Importa prodotti da un file CSV">⬆ Importa CSV</button><input id="csvImport" class="hidden" type="file" accept=".csv,text/csv" aria-label="Seleziona file CSV da importare"></div></div>
 
 <div class="toast hidden" id="toast"></div>
 
@@ -173,12 +173,6 @@
     <span class="muted" id="modeHint">Modalità: creazione</span>
   </div>
 </form>
-
-<div class="bulk-tools import-panel">
-  <div class="field"><label for="csvImport">Importa prodotti da CSV</label><input id="csvImport" type="file" accept=".csv,text/csv"></div>
-  <button class="btn" type="button" id="importCsvBtn">⬆ Importa CSV</button>
-  <span class="muted">Colonne: nome, prezzo, categoria, descrizione/ingredienti, note, disponibile.</span>
-</div>
 
 <details class="bulk-operations">
   <summary>Opzioni avanzate</summary>
@@ -528,9 +522,10 @@
       preview.src = URL.createObjectURL(file);
       preview.style.display = "block";
     });
-    f("importCsvBtn").addEventListener("click", async () => {
+    f("importCsvBtn").addEventListener("click", () => f("csvImport").click());
+    f("csvImport").addEventListener("change", async () => {
       const file = f("csvImport").files?.[0];
-      if(!file){ showToast("Seleziona un file CSV."); return; }
+      if(!file) return;
       const body = new FormData(); body.append("file", file);
       const res = await fetch("/api/prodotti/importa-csv", {method:"POST", body});
       const data = await res.json().catch(() => ({}));
