@@ -752,6 +752,30 @@ def paypal_subscription_activate():
         conn.close()
 
 
+@app.post("/api/paypal/pending-plan")
+def paypal_pending_plan():
+    user_id = session.get("pending_user_id") or session.get("user_id")
+    if not user_id or session.get("is_admin"):
+        return jsonify({"error": "Sessione di registrazione non valida."}), 401
+    raw_plan = ((request.get_json(silent=True) or {}).get("piano") or "").strip().lower()
+    if raw_plan not in LICENSE_PLANS:
+        return jsonify({"error": "Piano non valido."}), 400
+    plan = normalize_license_plan(raw_plan)
+    if not paypal_configured(plan):
+        return jsonify({"error": "Il piano selezionato non è disponibile."}), 503
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE licenze_utenti SET piano=%s, updated_at=NOW() WHERE id_utente=%s AND stato='sospesa' RETURNING id_utente", (plan, user_id))
+                if not cur.fetchone():
+                    return jsonify({"error": "La registrazione è già stata attivata."}), 409
+                cur.execute("UPDATE abbonamenti_paypal SET plan_id=%s, updated_at=NOW() WHERE id_utente=%s", (paypal_plan_id(plan), user_id))
+        return jsonify({"ok": True, "plan": plan})
+    finally:
+        conn.close()
+
+
 @app.post("/api/paypal/webhook")
 def paypal_webhook():
     payload = request.get_json(silent=True)
