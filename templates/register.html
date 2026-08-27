@@ -39,6 +39,9 @@
         .logo { width: 220px; max-width: 78%; margin-bottom: 13px; }
         .subtitle { margin: 0 0 22px; color: #52657a; font-size: 14px; }
         .form-group { text-align: left; margin-bottom: 14px; }
+        .plan-group { padding: 15px; border: 2px solid #007bff; border-radius: 12px; background: #f2f8ff; }
+        .plan-group label { font-size: 16px; }
+        .plan-help { margin: 7px 0 0; color: #52657a; font-size: 12px; line-height: 1.4; }
         label { display: block; font-weight: 600; font-size: 14px; color: #003366; }
         input, select {
             width: 100%;
@@ -97,9 +100,10 @@
         <p class="subtitle" id="planSummary">Crea il tuo account: 14 giorni gratis, poi 99 € IVA inclusa all'anno.</p>
         {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
         <form method="POST">
-            <div class="form-group">
-                <label for="plan">Licenza</label>
-                <select id="plan" name="plan" required><option value="professional" data-price="99">Professional – 99 €/anno (consigliata)</option><option value="base" data-price="69"{% if not base_available %} disabled{% endif %}>Base – 69 €/anno{% if not base_available %} (in configurazione){% endif %}</option></select>
+            <div class="form-group plan-group">
+                <label for="plan">1. Scegli il piano</label>
+                <select id="plan" name="plan" required><option value="" data-price="">Seleziona Base o Professional…</option><option value="base" data-price="69"{% if not base_available %} disabled{% endif %}>Base – 69 €/anno{% if not base_available %} (in configurazione){% endif %}</option><option value="professional" data-price="99">Professional – 99 €/anno (consigliata)</option></select>
+                <p class="plan-help">Entrambi includono 14 giorni gratuiti. Il pagamento parte solo dopo la prova.</p>
             </div>
             <div class="form-group">
                 <label for="username">Username</label>
@@ -125,7 +129,8 @@
     </div>
     <script>
       const planSelect=document.getElementById('plan'),planSummary=document.getElementById('planSummary'),googleRegister=document.querySelector('.google-btn');
-      function syncPlan(){const option=planSelect.options[planSelect.selectedIndex];planSummary.textContent=`14 giorni gratis, poi ${option.dataset.price} € IVA inclusa all'anno.`;googleRegister.href=`{{ url_for('auth_google') }}?plan=${encodeURIComponent(planSelect.value)}`}
+      const googleEnabled={{ 'true' if google_enabled else 'false' }};
+      function syncPlan(){const option=planSelect.options[planSelect.selectedIndex],chosen=Boolean(planSelect.value);planSummary.textContent=chosen?`14 giorni gratis, poi ${option.dataset.price} € IVA inclusa all'anno.`:'Scegli il piano più adatto, poi crea il tuo account.';googleRegister.classList.toggle('disabled',!chosen||!googleEnabled);googleRegister.setAttribute('aria-disabled',(!chosen||!googleEnabled)?'true':'false');googleRegister.href=chosen&&googleEnabled?`{{ url_for('auth_google') }}?plan=${encodeURIComponent(planSelect.value)}`:'#'}
       planSelect.addEventListener('change',syncPlan);syncPlan();
     </script>
     {% include '_legal_footer.html' %}
