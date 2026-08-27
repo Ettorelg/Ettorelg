@@ -176,7 +176,20 @@ def normalize_license_plan(value: str | None) -> str:
 def paypal_plan_id(plan: str) -> str:
     plan = normalize_license_plan(plan)
     if plan == "base":
-        return os.environ.get("PAYPAL_PLAN_BASE_ID", "")
+        configured = os.environ.get("PAYPAL_PLAN_BASE_ID", "")
+        if configured:
+            return configured
+        if os.environ.get("DATABASE_URL"):
+            conn = psycopg2.connect(**build_db_config())
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT valore FROM impostazioni_app WHERE chiave='paypal_plan_base_id'")
+                    row = cur.fetchone()
+                return row[0] if row else ""
+            except psycopg2.Error:
+                return ""
+            finally:
+                conn.close()
     return os.environ.get("PAYPAL_PLAN_PRO_ID") or os.environ.get("PAYPAL_PLAN_ID", "")
 
 
@@ -431,6 +444,13 @@ def init_db() -> None:
                         event_id TEXT PRIMARY KEY,
                         event_type TEXT NOT NULL,
                         ricevuto_il TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS impostazioni_app (
+                        chiave TEXT PRIMARY KEY,
+                        valore TEXT NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
                     )
                 """)
     finally:
@@ -831,6 +851,98 @@ def require_admin():
     if "user_id" not in session or not session.get("is_admin"):
         return jsonify({"error": "Accesso amministratore richiesto."}), 403
     return None
+
+
+@app.post("/api/admin/paypal/piano-base")
+def api_admin_create_paypal_base_plan():
+    denied = require_admin()
+    if denied:
+        return denied
+    existing = paypal_plan_id("base")
+    if existing:
+        return jsonify({"ok": True, "plan_id": existing, "existing": True})
+    if not os.environ.get("PAYPAL_CLIENT_ID") or not os.environ.get("PAYPAL_CLIENT_SECRET"):
+        return jsonify({"error": "Credenziali PayPal mancanti su Railway."}), 503
+    try:
+        token = paypal_access_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "PayPal-Request-Id": f"alpha-menu-base-product-{date.today().isoformat()}",
+        }
+        product_response = requests.post(
+            f"{paypal_base_url()}/v1/catalogs/products",
+            headers=headers,
+            json={
+                "name": "Alpha Menu Base",
+                "description": "Licenza annuale Base per Alpha Menu",
+                "type": "SERVICE",
+                "category": "SOFTWARE",
+            },
+            timeout=25,
+        )
+        product_response.raise_for_status()
+        product_id = product_response.json()["id"]
+        plan_headers = dict(headers)
+        plan_headers["PayPal-Request-Id"] = f"alpha-menu-base-plan-{date.today().isoformat()}"
+        plan_response = requests.post(
+            f"{paypal_base_url()}/v1/billing/plans",
+            headers=plan_headers,
+            json={
+                "product_id": product_id,
+                "name": "Alpha Menu Base annuale",
+                "description": "14 giorni gratuiti, poi 69 EUR ogni anno",
+                "status": "ACTIVE",
+                "billing_cycles": [
+                    {
+                        "frequency": {"interval_unit": "DAY", "interval_count": 14},
+                        "tenure_type": "TRIAL",
+                        "sequence": 1,
+                        "total_cycles": 1,
+                        "pricing_scheme": {"fixed_price": {"value": "0", "currency_code": PAYPAL_CURRENCY}},
+                    },
+                    {
+                        "frequency": {"interval_unit": "YEAR", "interval_count": 1},
+                        "tenure_type": "REGULAR",
+                        "sequence": 2,
+                        "total_cycles": 0,
+                        "pricing_scheme": {"fixed_price": {"value": LICENSE_PLANS["base"]["price"], "currency_code": PAYPAL_CURRENCY}},
+                    },
+                ],
+                "payment_preferences": {
+                    "auto_bill_outstanding": True,
+                    "setup_fee": {"value": "0", "currency_code": PAYPAL_CURRENCY},
+                    "setup_fee_failure_action": "CONTINUE",
+                    "payment_failure_threshold": 3,
+                },
+            },
+            timeout=25,
+        )
+        plan_response.raise_for_status()
+        plan_data = plan_response.json()
+        plan_id = plan_data["id"]
+    except (requests.RequestException, KeyError) as error:
+        detail = "PayPal non ha creato il piano Base."
+        if isinstance(error, requests.HTTPError) and error.response is not None:
+            try:
+                detail = error.response.json().get("message") or detail
+            except ValueError:
+                pass
+        return jsonify({"error": detail}), 502
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO impostazioni_app (chiave, valore)
+                    VALUES ('paypal_plan_base_id', %s)
+                    ON CONFLICT (chiave) DO UPDATE SET valore=EXCLUDED.valore, updated_at=NOW()
+                """, (plan_id,))
+        return jsonify({"ok": True, "plan_id": plan_id, "status": plan_data.get("status")})
+    finally:
+        conn.close()
 
 
 @app.get("/api/licenza")
