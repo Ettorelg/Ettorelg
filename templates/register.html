@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" type="image/svg+xml">
     <title>Registrazione - Menu Online</title>
     <style>
         * { box-sizing: border-box; }
@@ -36,7 +37,7 @@
             box-shadow: 0 10px 35px rgba(0,0,0,.12);
             text-align: center;
         }
-        .logo { width: 220px; max-width: 78%; margin-bottom: 13px; }
+        .logo { width: 124px; max-width: 42%; margin-bottom: 13px; }
         .subtitle { margin: 0 0 22px; color: #52657a; font-size: 14px; }
         .form-group { text-align: left; margin-bottom: 14px; }
         .plan-group { padding: 15px; border: 2px solid #007bff; border-radius: 12px; background: #f2f8ff; }
@@ -89,14 +90,14 @@
         @media (max-width:480px) {
             body { align-items: flex-start; padding: 14px; }
             .register-card { padding: 24px 18px; }
-            .logo { width: 190px; }
+            .logo { width: 110px; }
             .btn { min-height: 46px; }
         }
     </style>
 </head>
 <body>
     <div class="register-card">
-        <img src="/static/logo1.png" alt="AlphaSystem Logo" class="logo">
+        <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
         <p class="subtitle" id="planSummary">Crea il tuo account: 14 giorni gratis, poi 99 € IVA inclusa all'anno.</p>
         {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
         <form method="POST">
