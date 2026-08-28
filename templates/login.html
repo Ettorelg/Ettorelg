@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" type="image/svg+xml">
     <title>Login - Menu Online</title>
     <style>
         * { box-sizing: border-box; }
@@ -37,7 +38,7 @@
             text-align: center;
         }
         .logo {
-            width: 240px;
+            width: 132px;
             max-width: 80%;
             margin-bottom: 20px;
         }
@@ -89,14 +90,14 @@
         @media (max-width: 480px) {
             body { justify-content: flex-start; padding: 14px; }
             .login-card { padding: 28px 20px; }
-            .logo { width: 210px; }
+            .logo { width: 116px; }
             .btn { min-height: 46px; }
         }
     </style>
 </head>
 <body>
     <div class="login-card">
-        <img src="/static/logo1.png" alt="AlphaSystem Logo" class="logo">
+        <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
         {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
         <form method="POST">
             <div class="form-group">
