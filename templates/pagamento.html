@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" type="image/svg+xml">
     <title>Attiva il tuo account - Menu Online</title>
     <style>
         * { box-sizing: border-box; }
         body { font-family: Inter, Arial, sans-serif; margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; color: #15304b; background: url('/static/background.png') center/cover fixed; }
         body::before { content: ''; position: fixed; inset: 0; background: rgba(0,0,0,.48); backdrop-filter: blur(2px); z-index: -1; }
         .card { width: 100%; max-width: 520px; background: #fff; border-radius: 20px; padding: 32px; box-shadow: 0 18px 55px rgba(0,0,0,.25); }
-        .logo { display: block; width: 205px; max-width: 70%; margin: 0 auto 16px; }
+        .logo { display: block; width: 120px; max-width: 42%; margin: 0 auto 16px; }
         h1 { margin: 0; text-align: center; font-size: 25px; color: #003366; }
         .lead { text-align: center; color: #5b6d7f; line-height: 1.5; margin: 9px 0 23px; }
         .offer { padding: 20px; border: 1px solid #d8e4ef; border-radius: 15px; background: #f7fbff; margin-bottom: 20px; }
@@ -26,7 +27,7 @@
 </head>
 <body>
 <main class="card">
-    <img src="/static/logo1.png" alt="AlphaSystem" class="logo">
+    <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
     <h1>Attiva il tuo menu digitale</h1>
     <p class="lead">Ciao {{ username }}, completa l'attivazione della licenza <strong>{{ plan_name }}</strong>.</p>
     {% if not license_active and paypal_configured %}<div class="plan-choice"><label for="pendingPlan">Scegli il piano prima di pagare</label><select id="pendingPlan"><option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 69 € / anno</option><option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 99 € / anno</option></select><p class="plan-diff">Base: fino a 50 prodotti, menu in italiano. Professional: prodotti illimitati, traduzioni automatiche e statistiche.</p></div>{% endif %}
