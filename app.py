@@ -4,7 +4,11 @@ import os
 import re
 import hmac
 import html
+import json
+import secrets
+import time
 from datetime import date, datetime, timedelta
+from urllib.parse import urlencode
 from pathlib import Path
 
 from werkzeug.utils import secure_filename
@@ -15,6 +19,8 @@ import qrcode
 import bcrypt
 import requests
 from authlib.integrations.flask_client import OAuth
+from authlib.jose import jwt
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from flask import Flask, render_template, request, redirect, session, send_from_directory, send_file, url_for, abort, jsonify
 
 from db_config import build_db_config
@@ -22,6 +28,37 @@ from db_config import build_db_config
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
 app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024
+
+
+def apple_enabled() -> bool:
+    return all(os.environ.get(name) for name in (
+        "APPLE_CLIENT_ID", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY"
+    ))
+
+
+def apple_client_secret() -> str | None:
+    if not apple_enabled():
+        return None
+    now = int(time.time())
+    private_key = os.environ["APPLE_PRIVATE_KEY"].replace("\\n", "\n")
+    token = jwt.encode(
+        {"alg": "ES256", "kid": os.environ["APPLE_KEY_ID"]},
+        {
+            "iss": os.environ["APPLE_TEAM_ID"],
+            "iat": now,
+            "exp": now + 15552000,
+            "aud": "https://appleid.apple.com",
+            "sub": os.environ["APPLE_CLIENT_ID"],
+        },
+        private_key,
+    )
+    return token.decode("utf-8") if isinstance(token, bytes) else token
+
+
+def apple_state_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(app.secret_key, salt="apple-sign-in")
+
+
 oauth = OAuth(app)
 google = oauth.register(
     name="google",
@@ -321,6 +358,11 @@ def google_enabled() -> bool:
     return bool(os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"))
 
 
+@app.context_processor
+def auth_provider_flags():
+    return {"google_enabled": google_enabled(), "apple_enabled": apple_enabled()}
+
+
 def init_db() -> None:
     schema_path = Path(__file__).resolve().parent / "db" / "schema.sql"
     schema_sql = schema_path.read_text(encoding="utf-8")
@@ -373,6 +415,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE orari_negozio ADD COLUMN IF NOT EXISTS chiusura_2 TIME")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS email TEXT")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS google_sub TEXT")
+                cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS apple_sub TEXT")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS password_impostata BOOLEAN NOT NULL DEFAULT TRUE")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS lingue_negozio (
@@ -407,6 +450,7 @@ def init_db() -> None:
                 cur.execute("CREATE INDEX IF NOT EXISTS menu_visite_negozio_data ON menu_visite (id_negozio, visited_at DESC)")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_email_unique ON utenti (LOWER(email)) WHERE email IS NOT NULL")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_google_sub_unique ON utenti (google_sub) WHERE google_sub IS NOT NULL")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_apple_sub_unique ON utenti (apple_sub) WHERE apple_sub IS NOT NULL")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS licenze_utenti (
                         id SERIAL PRIMARY KEY,
@@ -471,7 +515,8 @@ def enforce_current_license():
     if not user_id or session.get("is_admin"):
         return None
     public_endpoints = {
-        "index", "login", "register", "auth_google", "auth_google_callback", "logout",
+        "index", "login", "register", "auth_google", "auth_google_callback",
+        "auth_apple", "auth_apple_callback", "logout",
         "privacy_policy", "terms_of_service", "uploaded_file", "static", "public_menu",
         "paypal_webhook", "pagamento", "paypal_subscription_activate",
         "paypal_subscription_cancel", "paypal_subscription_current",
@@ -660,6 +705,161 @@ def auth_google_callback():
             session.clear()
             session.update(pending_user_id=user_id, pending_username=username)
             return redirect(url_for("pagamento"))
+        session.update(user_id=user_id, username=username, is_admin=bool(is_admin))
+        return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
+    finally:
+        conn.close()
+
+
+@app.get("/auth/apple")
+def auth_apple():
+    if not apple_enabled():
+        return redirect(url_for("login"))
+    raw_plan = (request.args.get("plan") or "").strip().lower()
+    if raw_plan not in LICENSE_PLANS:
+        return redirect(url_for("register", choose_plan="1"))
+    plan = normalize_license_plan(raw_plan)
+    if plan == "base" and not paypal_configured("base"):
+        plan = "professional"
+    nonce = secrets.token_urlsafe(24)
+    state = apple_state_serializer().dumps({"plan": plan, "nonce": nonce})
+    callback = url_for("auth_apple_callback", _external=True, _scheme="https")
+    params = {
+        "client_id": os.environ["APPLE_CLIENT_ID"],
+        "redirect_uri": callback,
+        "response_type": "code",
+        "response_mode": "form_post",
+        "scope": "name email",
+        "state": state,
+        "nonce": nonce,
+    }
+    return redirect("https://appleid.apple.com/auth/authorize?" + urlencode(params))
+
+
+@app.route("/auth/apple/callback", methods=["POST"])
+def auth_apple_callback():
+    if not apple_enabled():
+        return redirect(url_for("login"))
+    try:
+        state_data = apple_state_serializer().loads(request.form.get("state", ""), max_age=600)
+    except (BadSignature, SignatureExpired):
+        return render_template("login.html", error="La richiesta Apple è scaduta o non è valida. Riprova.")
+    if request.form.get("error"):
+        return render_template("login.html", error="Apple non ha autorizzato l'accesso.")
+    code = (request.form.get("code") or "").strip()
+    if not code:
+        return render_template("login.html", error="Apple non ha restituito il codice di accesso.")
+
+    callback = url_for("auth_apple_callback", _external=True, _scheme="https")
+    try:
+        token_response = requests.post(
+            "https://appleid.apple.com/auth/token",
+            data={
+                "client_id": os.environ["APPLE_CLIENT_ID"],
+                "client_secret": apple_client_secret(),
+                "code": code,
+                "grant_type": "authorization_code",
+                "redirect_uri": callback,
+            },
+            timeout=20,
+        )
+        token_response.raise_for_status()
+        id_token = token_response.json()["id_token"]
+        jwks = requests.get("https://appleid.apple.com/auth/keys", timeout=20).json()
+        claims = jwt.decode(id_token, jwks)
+        claims.validate(leeway=10)
+    except (requests.RequestException, KeyError, ValueError):
+        return render_template("login.html", error="Non è stato possibile verificare l'accesso Apple.")
+
+    audience = claims.get("aud")
+    audience_ok = os.environ["APPLE_CLIENT_ID"] in (audience if isinstance(audience, list) else [audience])
+    if claims.get("iss") != "https://appleid.apple.com" or not audience_ok or claims.get("nonce") != state_data.get("nonce"):
+        return render_template("login.html", error="Il token Apple non è valido.")
+
+    apple_sub = (claims.get("sub") or "").strip()
+    email = (claims.get("email") or "").strip().lower()
+    if not apple_sub:
+        return render_template("login.html", error="Apple non ha restituito un identificativo valido.")
+    apple_user = {}
+    try:
+        apple_user = json.loads(request.form.get("user") or "{}")
+    except (TypeError, ValueError):
+        apple_user = {}
+    name_data = apple_user.get("name") or {}
+    display_name = " ".join(filter(None, (
+        (name_data.get("firstName") or "").strip(),
+        (name_data.get("lastName") or "").strip(),
+    ))).strip()
+    plan = normalize_license_plan(state_data.get("plan"))
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, username, admin FROM utenti
+                    WHERE apple_sub=%s OR (%s <> '' AND LOWER(email)=LOWER(%s))
+                    ORDER BY apple_sub=%s DESC LIMIT 1
+                    """,
+                    (apple_sub, email, email, apple_sub),
+                )
+                row = cur.fetchone()
+                is_new_user = not bool(row)
+                if row:
+                    user_id, username, is_admin = row
+                    cur.execute(
+                        "UPDATE utenti SET apple_sub=%s, email=COALESCE(NULLIF(%s,''),email) WHERE id=%s",
+                        (apple_sub, email, user_id),
+                    )
+                else:
+                    if not email:
+                        return render_template("login.html", error="Apple non ha condiviso un indirizzo email per creare l'account.")
+                    base = (display_name or email.split("@")[0])[:70]
+                    username = base
+                    suffix = 1
+                    while True:
+                        cur.execute("SELECT 1 FROM utenti WHERE LOWER(username)=LOWER(%s)", (username,))
+                        if not cur.fetchone():
+                            break
+                        suffix += 1
+                        username = f"{base[:65]}-{suffix}"
+                    cur.execute(
+                        """
+                        INSERT INTO utenti (username,email,apple_sub,password,admin,password_impostata)
+                        VALUES (%s,%s,%s,%s,FALSE,FALSE) RETURNING id
+                        """,
+                        (username, email, apple_sub, hash_password(os.urandom(32).hex())),
+                    )
+                    user_id = cur.fetchone()[0]
+                    is_admin = False
+                if is_new_user:
+                    cur.execute(
+                        """
+                        INSERT INTO licenze_utenti (id_utente,stato,data_inizio,data_scadenza,piano)
+                        VALUES (%s,'sospesa',CURRENT_DATE,CURRENT_DATE,%s)
+                        """,
+                        (user_id, plan),
+                    )
+                    cur.execute(
+                        "INSERT INTO abbonamenti_paypal (id_utente,plan_id) VALUES (%s,%s)",
+                        (user_id, paypal_plan_id(plan)),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO licenze_utenti (id_utente,data_scadenza)
+                        VALUES (%s,%s) ON CONFLICT (id_utente) DO NOTHING
+                        """,
+                        (user_id, annual_expiry()),
+                    )
+                cur.execute("SELECT stato,data_scadenza FROM licenze_utenti WHERE id_utente=%s", (user_id,))
+                license_row = cur.fetchone()
+        if not is_admin and (not license_row or not license_is_active(*license_row)):
+            session.clear()
+            session.update(pending_user_id=user_id, pending_username=username)
+            return redirect(url_for("pagamento"))
+        session.clear()
         session.update(user_id=user_id, username=username, is_admin=bool(is_admin))
         return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
     finally:
