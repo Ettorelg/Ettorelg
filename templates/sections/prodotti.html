@@ -36,7 +36,7 @@
   .btn.icon-btn{justify-content:center;min-width:44px;padding:10px;font-size:20px;line-height:1}
   .modal{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:20px;background:rgba(5,10,19,.7)}
   .modal.hidden{display:none}
-  .modal-card{width:min(100%,420px);padding:20px;border:1px solid rgba(255,255,255,.16);border-radius:16px;background:#13203a;box-shadow:0 18px 40px rgba(0,0,0,.42)}
+  .modal-card{width:min(100%,420px);padding:20px;border:1px solid rgba(255,255,255,.16);border-radius:16px;background:#13203a;box-shadow:0 18px 40px rgba(0,0,0,.42)}.modal-card.import-card{width:min(100%,980px);max-height:92vh;overflow:auto}.import-head{display:flex;justify-content:space-between;gap:14px}.import-table-wrap{overflow:auto;max-height:50vh}.import-table input,.import-table textarea{min-width:140px;width:100%}.import-table textarea{min-height:54px}
   .modal-card h3{margin:0 0 8px}
   .modal-card p{margin:0 0 16px}
   .field-error{min-height:18px;color:#ff9b9b;font-size:12px}
@@ -59,9 +59,8 @@
   .bulk-operations .bulk-tools{margin-bottom:0}
   .advanced-divider{border:0;border-top:1px solid rgba(255,255,255,.13);margin:18px 0}
   .custom-sort-list{display:grid;gap:8px;margin-top:12px}
-  .custom-sort-item{display:flex;align-items:center;gap:12px;padding:9px 10px;border:1px solid rgba(255,255,255,.11);border-radius:10px}
-  .custom-sort-item span{flex:1}
-  .custom-sort-item input{width:84px}
+  .custom-sort-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid rgba(255,255,255,.11);border-radius:10px;background:rgba(255,255,255,.025);cursor:grab;transition:.15s ease}
+  .custom-sort-item span{flex:1}.custom-sort-item.dragging{opacity:.38;transform:scale(.985)}.custom-sort-item.drag-over{border-color:#6ea8fe;background:rgba(110,168,254,.14)}.drag-handle{border:0;background:transparent;color:#9fc2ff;font-size:20px;cursor:grab}.sort-step{width:32px;height:32px;padding:0;justify-content:center}
   .allergen-preview{margin-top:8px;padding:10px 12px;border:1px solid rgba(255,197,107,.35);border-radius:12px;background:rgba(255,197,107,.08);font-size:13px}
   .allergen-preview strong{display:block;margin-bottom:4px;color:#ffe0a6}
   .tool-group-title{margin:18px 0 0;font-size:14px;font-weight:650;color:#dbe8ff}
@@ -79,9 +78,22 @@
   }
 </style>
 
-<div class="products-head"><div><span class="eyebrow">Catalogo del menu</span><h2>Prodotti inseriti</h2><p class="muted">Consulta, cerca e modifica i prodotti già presenti nel menu.</p></div><div class="products-head-actions"><button class="btn primary" type="button" id="newProductBtn">＋ Nuovo prodotto</button><button class="btn" type="button" onclick="loadSection('allergeni')" title="Apri la gestione allergeni">⚠️ Gestisci allergeni</button><button class="btn compact" type="button" id="importCsvBtn" title="Importa prodotti da un file CSV">⬆ Importa CSV</button><input id="csvImport" class="hidden" type="file" accept=".csv,text/csv" aria-label="Seleziona file CSV da importare"></div></div>
+<div class="products-head"><div><span class="eyebrow">Catalogo del menu</span><h2>Prodotti inseriti</h2><p class="muted">Consulta, cerca e modifica i prodotti già presenti nel menu.</p></div><div class="products-head-actions"><button class="btn primary" type="button" id="newProductBtn">＋ Nuovo prodotto</button><button class="btn" type="button" onclick="loadSection('allergeni')" title="Apri la gestione allergeni">⚠️ Gestisci allergeni</button><button class="btn compact" type="button" id="importCsvBtn" title="Importa prodotti da un file CSV">⬆ Importa CSV</button><button class="btn compact" type="button" id="importDocumentBtn" title="Importa prodotti da PDF o fotografia">📄 Importa PDF/Foto</button><input id="csvImport" class="hidden" type="file" accept=".csv,text/csv" aria-label="Seleziona file CSV da importare"></div></div>
 
 <div class="toast hidden" id="toast"></div>
+
+<div class="modal hidden" id="documentImportModal" role="dialog" aria-modal="true" aria-labelledby="documentImportTitle">
+  <div class="modal-card import-card">
+    <div class="import-head"><div><h3 id="documentImportTitle">Importa menu da PDF o fotografia</h3><p class="muted">Il riconoscimento avviene nel browser. Controlla e correggi l’anteprima prima di importare.</p></div><button class="btn" type="button" id="closeDocumentImport">Chiudi</button></div>
+    <div class="row"><div class="field"><label for="documentImportFile">Documento</label><input id="documentImportFile" type="file" accept=".pdf,application/pdf,image/png,image/jpeg,image/webp"></div><button class="btn primary" type="button" id="analyzeDocument">Analizza documento</button></div>
+    <div class="toast hidden" id="documentImportProgress"></div>
+    <div id="documentPreview" class="hidden">
+      <p class="muted">Puoi modificare categoria, prodotto, descrizione e prezzo. Elimina le righe riconosciute male.</p>
+      <div class="import-table-wrap"><table class="table import-table"><thead><tr><th>Categoria</th><th>Prodotto</th><th>Descrizione</th><th>Prezzo</th><th></th></tr></thead><tbody id="documentPreviewRows"></tbody></table></div>
+      <div class="actions"><button class="btn primary" type="button" id="confirmDocumentImport">Importa prodotti confermati</button><span class="muted" id="documentPreviewCount"></span></div>
+    </div>
+  </div>
+</div>
 
 <form id="productForm" class="hidden" aria-label="Inserimento o modifica prodotto">
   <input type="hidden" id="id" />
@@ -192,7 +204,7 @@
     <button class="btn" type="button" id="applyCategorySort">Applica ordinamento</button>
   </div>
   <div id="customSortPanel" class="hidden">
-    <p class="muted">Imposta la posizione di ciascun prodotto: il numero più basso viene mostrato per primo.</p>
+    <p class="muted">Trascina i prodotti usando la maniglia ⋮⋮. Su telefono puoi usare le frecce.</p>
     <div class="custom-sort-list" id="customSortList"></div>
     <div class="actions" style="margin-top:12px"><button class="btn primary" type="button" id="saveCustomSort">Salva ordine personalizzato</button></div>
   </div>
@@ -534,6 +546,68 @@
       f("csvImport").value = "";
       showToast(`${data.importati} prodotti importati.`);
     });
+    function loadExternalScript(src){
+      return new Promise((resolve,reject)=>{
+        const existing=document.querySelector('script[data-src="'+src+'"]');
+        if(existing){if(existing.dataset.loaded)resolve();else existing.addEventListener("load",resolve,{once:true});return;}
+        const script=document.createElement("script");script.src=src;script.dataset.src=src;script.onload=()=>{script.dataset.loaded="true";resolve();};script.onerror=()=>reject(new Error("Libreria non disponibile"));document.head.appendChild(script);
+      });
+    }
+    function setDocumentProgress(message){
+      const progress=f("documentImportProgress");progress.textContent=message;progress.classList.remove("hidden");
+    }
+    async function recognizeImage(source){
+      await loadExternalScript("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js");
+      const result=await Tesseract.recognize(source,"ita+eng",{logger:event=>{if(event.status==="recognizing text")setDocumentProgress("Riconoscimento testo: "+Math.round((event.progress||0)*100)+"%");}});
+      return result.data.text||"";
+    }
+    async function extractPdf(file){
+      setDocumentProgress("Lettura del PDF…");
+      const pdfjs=await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs");
+      pdfjs.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+      const documentPdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
+      let text="";
+      for(let pageNumber=1;pageNumber<=Math.min(documentPdf.numPages,20);pageNumber++){
+        const page=await documentPdf.getPage(pageNumber);const content=await page.getTextContent();
+        text+=content.items.map(item=>item.str+(item.hasEOL?"\n":" ")).join("")+"\n";
+      }
+      if(text.replace(/\s/g,"").length>40)return text;
+      text="";
+      for(let pageNumber=1;pageNumber<=Math.min(documentPdf.numPages,5);pageNumber++){
+        setDocumentProgress("OCR pagina "+pageNumber+" di "+Math.min(documentPdf.numPages,5)+"…");
+        const page=await documentPdf.getPage(pageNumber);const viewport=page.getViewport({scale:2});const canvas=document.createElement("canvas");
+        canvas.width=viewport.width;canvas.height=viewport.height;await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+        text+=await recognizeImage(canvas)+"\n";
+      }
+      return text;
+    }
+    function renderDocumentPreview(items){
+      const rows=f("documentPreviewRows");rows.innerHTML=items.map((item,index)=>'<tr data-import-row><td><input data-field="categoria" value="'+escapeAttr(item.categoria||"MENU IMPORTATO")+'"></td><td><input data-field="nome" value="'+escapeAttr(item.nome||"")+'"></td><td><textarea data-field="descrizione">'+escapeHtml(item.descrizione||"")+'</textarea></td><td><input data-field="prezzo" type="number" min="0" step="0.01" value="'+escapeAttr(item.prezzo||"0")+'"></td><td><button class="btn danger" type="button" data-remove-import="'+index+'">×</button></td></tr>').join("");
+      rows.querySelectorAll("[data-remove-import]").forEach(button=>button.addEventListener("click",()=>{button.closest("tr").remove();updateDocumentCount();}));
+      f("documentPreview").classList.remove("hidden");updateDocumentCount();
+    }
+    function updateDocumentCount(){f("documentPreviewCount").textContent=f("documentPreviewRows").querySelectorAll("[data-import-row]").length+" prodotti pronti";}
+    function collectDocumentItems(){return [...f("documentPreviewRows").querySelectorAll("[data-import-row]")].map(row=>Object.fromEntries([...row.querySelectorAll("[data-field]")].map(input=>[input.dataset.field,input.value.trim()]))).filter(item=>item.nome&&item.categoria);}
+    f("importDocumentBtn").addEventListener("click",()=>{f("documentImportModal").classList.remove("hidden");f("documentImportFile").value="";f("documentPreview").classList.add("hidden");f("documentImportProgress").classList.add("hidden");});
+    f("closeDocumentImport").addEventListener("click",()=>f("documentImportModal").classList.add("hidden"));
+    f("documentImportModal").addEventListener("click",event=>{if(event.target===f("documentImportModal"))f("documentImportModal").classList.add("hidden");});
+    f("analyzeDocument").addEventListener("click",async()=>{
+      const file=f("documentImportFile").files?.[0];if(!file){showToast("Seleziona un PDF o una fotografia.");return;}
+      try{
+        f("analyzeDocument").disabled=true;setDocumentProgress("Preparazione del documento…");
+        const text=file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf")?await extractPdf(file):await recognizeImage(file);
+        setDocumentProgress("Riconoscimento di categorie e prodotti…");
+        const response=await fetch("/api/prodotti/importa-documento/anteprima",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({testo:text})});
+        const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"Documento non riconosciuto");
+        renderDocumentPreview(data.items||[]);setDocumentProgress(data.riconosciuti+" prodotti riconosciuti. Controlla l’anteprima.");
+      }catch(error){setDocumentProgress(error.message||"Errore durante l’analisi.");}finally{f("analyzeDocument").disabled=false;}
+    });
+    f("confirmDocumentImport").addEventListener("click",async()=>{
+      const items=collectDocumentItems();if(!items.length){showToast("Nessun prodotto valido da importare.");return;}
+      const response=await fetch("/api/prodotti/importa-documento",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items})});
+      const data=await response.json().catch(()=>({}));if(!response.ok){showToast(data.error||"Errore importazione");return;}
+      await Promise.all([loadCategories(),loadProducts()]);f("documentImportModal").classList.add("hidden");showToast(data.importati+" prodotti importati dal documento.");
+    });
         ["searchProducts", "filterCategory", "filterAvailability"].forEach(id => f(id).addEventListener("input", renderTable));
     f("filterCategory").addEventListener("change", renderTable);
     f("filterAvailability").addEventListener("change", renderTable);
@@ -543,9 +617,32 @@
       const list = f("customSortList");
       const selected = products.filter(product => String(product.id_categoria) === categoryId)
         .sort((a, b) => Number(a.ordine) - Number(b.ordine) || a.nome.localeCompare(b.nome));
-      list.innerHTML = selected.map((product, index) =>
-        `<label class="custom-sort-item"><span>${escapeHtml(product.nome)}</span><input type="number" min="0" step="1" value="${index + 1}" data-product-id="${product.id}" aria-label="Posizione di ${escapeAttr(product.nome)}"></label>`
+      list.innerHTML = selected.map(product =>
+        `<div class="custom-sort-item" draggable="true" data-product-id="${product.id}"><button class="drag-handle" type="button" aria-label="Trascina ${escapeAttr(product.nome)}">⋮⋮</button><span>${escapeHtml(product.nome)}</span><button class="btn sort-step" type="button" data-move="up" aria-label="Sposta su">↑</button><button class="btn sort-step" type="button" data-move="down" aria-label="Sposta giù">↓</button></div>`
       ).join("");
+      enableProductDragging();
+    }
+
+    function enableProductDragging(){
+      const list = f("customSortList");
+      let dragged = null;
+      list.querySelectorAll(".custom-sort-item").forEach(item => {
+        item.addEventListener("dragstart", () => { dragged = item; item.classList.add("dragging"); });
+        item.addEventListener("dragend", () => { item.classList.remove("dragging"); list.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over")); dragged = null; });
+        item.addEventListener("dragover", event => { event.preventDefault(); if (item !== dragged) item.classList.add("drag-over"); });
+        item.addEventListener("dragleave", () => item.classList.remove("drag-over"));
+        item.addEventListener("drop", event => {
+          event.preventDefault(); item.classList.remove("drag-over");
+          if (!dragged || dragged === item) return;
+          const box = item.getBoundingClientRect();
+          list.insertBefore(dragged, event.clientY < box.top + box.height / 2 ? item : item.nextSibling);
+        });
+      });
+      list.querySelectorAll("[data-move]").forEach(button => button.addEventListener("click", () => {
+        const item = button.closest(".custom-sort-item");
+        if (button.dataset.move === "up" && item.previousElementSibling) list.insertBefore(item, item.previousElementSibling);
+        if (button.dataset.move === "down" && item.nextElementSibling) list.insertBefore(item.nextElementSibling, item);
+      }));
     }
 
     function updateSortMode(){
@@ -575,7 +672,7 @@
     });
     f("saveCustomSort").addEventListener("click", async () => {
       const id_categoria = f("sortCategory").value;
-      const posizioni = [...f("customSortList").querySelectorAll("input")].map(input => ({ id: input.dataset.productId, posizione: input.value }));
+      const posizioni = [...f("customSortList").querySelectorAll(".custom-sort-item")].map((item, index) => ({ id: item.dataset.productId, posizione: index + 1 }));
       if (!id_categoria || !posizioni.length) { showToast("Seleziona una categoria con prodotti."); return; }
       const res = await fetch("/api/prodotti/posizioni", {
         method: "POST", headers: { "Content-Type": "application/json" },

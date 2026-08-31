@@ -324,15 +324,16 @@ MENU_UI = {
     "es": {"venue": "Nuestro local", "contacts": "Contactos", "show": "VER EL MENÚ", "back": "Volver a la información", "hours": "Horario de apertura", "closed": "Cerrado", "empty": "El menú estará disponible pronto.", "categories": "Categorías del menú", "days": ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]},
 }
 
-for _code, (_cover, _print) in {
-    "it": ("Coperto", "Stampa menu A4"),
-    "en": ("Cover charge", "Print A4 menu"),
-    "fr": ("Couvert", "Imprimer le menu A4"),
-    "de": ("Gedeck", "A4-Menü drucken"),
-    "es": ("Cubierto", "Imprimir menú A4"),
+for _code, (_cover, _print, _sold_out) in {
+    "it": ("Coperto", "Stampa menu A4", "Esaurito"),
+    "en": ("Cover charge", "Print A4 menu", "Sold out"),
+    "fr": ("Couvert", "Imprimer le menu A4", "Épuisé"),
+    "de": ("Gedeck", "A4-Menü drucken", "Ausverkauft"),
+    "es": ("Cubierto", "Imprimir menú A4", "Agotado"),
 }.items():
     MENU_UI[_code]["cover"] = _cover
     MENU_UI[_code]["print"] = _print
+    MENU_UI[_code]["sold_out"] = _sold_out
 
 
 def google_translate_texts(texts: list[str], target: str) -> list[str]:
@@ -448,6 +449,17 @@ def init_db() -> None:
                     )
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS menu_visite_negozio_data ON menu_visite (id_negozio, visited_at DESC)")
+                cur.execute("ALTER TABLE menu_visite ADD COLUMN IF NOT EXISTS sorgente TEXT NOT NULL DEFAULT 'diretto'")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS categoria_aperture (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                        id_categoria INTEGER NOT NULL REFERENCES categorie(id) ON DELETE CASCADE,
+                        lingua TEXT NOT NULL DEFAULT 'it',
+                        opened_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS categoria_aperture_negozio_data ON categoria_aperture (id_negozio, opened_at DESC)")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS prodotto_aperture (
                         id BIGSERIAL PRIMARY KEY,
@@ -2035,10 +2047,11 @@ def api_statistiche():
             cur.execute("""
                 SELECT COUNT(*),
                        COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '7 days'),
-                       COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '30 days')
+                       COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '30 days'),
+                       COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '30 days' AND sorgente = 'qr')
                 FROM menu_visite WHERE id_negozio=%s
             """, (shop_id,))
-            total, last7, last30 = cur.fetchone()
+            total, last7, last30, qr30 = cur.fetchone()
             cur.execute("""
                 SELECT lingua, COUNT(*) FROM menu_visite
                 WHERE id_negozio=%s AND visited_at >= NOW() - INTERVAL '30 days'
@@ -2046,22 +2059,38 @@ def api_statistiche():
             """, (shop_id,))
             languages = [{"lingua": row[0], "visite": row[1]} for row in cur.fetchall()]
             cur.execute("""
-                SELECT TO_CHAR(DATE(visited_at), 'YYYY-MM-DD'), COUNT(*) FROM menu_visite
-                WHERE id_negozio=%s AND visited_at >= CURRENT_DATE - INTERVAL '13 days'
+                SELECT TO_CHAR(DATE(visited_at), 'YYYY-MM-DD'), COUNT(*),
+                       COUNT(*) FILTER (WHERE sorgente = 'qr')
+                FROM menu_visite
+                WHERE id_negozio=%s AND visited_at >= CURRENT_DATE - INTERVAL '29 days'
                 GROUP BY DATE(visited_at) ORDER BY DATE(visited_at)
             """, (shop_id,))
-            days = [{"data": row[0], "visite": row[1]} for row in cur.fetchall()]
+            days = [{"data": row[0], "visite": row[1], "qr": row[2]} for row in cur.fetchall()]
             cur.execute("""
                 SELECT p.nome, COUNT(*) AS aperture
                 FROM prodotto_aperture pa
                 JOIN prodotti p ON p.id = pa.id_prodotto
-                WHERE pa.id_negozio = %s
+                WHERE pa.id_negozio = %s AND pa.opened_at >= NOW() - INTERVAL '30 days'
                 GROUP BY p.id, p.nome
                 ORDER BY aperture DESC, LOWER(p.nome) ASC
                 LIMIT 10
             """, (shop_id,))
             top_products = [{"nome": row[0], "aperture": row[1]} for row in cur.fetchall()]
-        return jsonify({"totale": total, "ultimi_7_giorni": last7, "ultimi_30_giorni": last30, "lingue": languages, "giorni": days, "articoli_piu_aperti": top_products})
+            cur.execute("""
+                SELECT c.nome, COUNT(*) AS aperture
+                FROM categoria_aperture ca
+                JOIN categorie c ON c.id = ca.id_categoria
+                WHERE ca.id_negozio = %s AND ca.opened_at >= NOW() - INTERVAL '30 days'
+                GROUP BY c.id, c.nome
+                ORDER BY aperture DESC, LOWER(c.nome) ASC
+                LIMIT 10
+            """, (shop_id,))
+            top_categories = [{"nome": row[0], "aperture": row[1]} for row in cur.fetchall()]
+        return jsonify({
+            "totale": total, "ultimi_7_giorni": last7, "ultimi_30_giorni": last30,
+            "scansioni_qr_30_giorni": qr30, "lingue": languages, "giorni": days,
+            "articoli_piu_aperti": top_products, "categorie_piu_aperte": top_categories,
+        })
     finally:
         conn.close()
 
@@ -2069,6 +2098,7 @@ def api_statistiche():
 @app.get("/menu/<slug>")
 def public_menu(slug: str):
     requested_language = (request.args.get("lang") or "it").lower()
+    visit_source = "qr" if (request.args.get("src") or "").lower() == "qr" else "diretto"
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
@@ -2096,8 +2126,8 @@ def public_menu(slug: str):
                 "ordine_categorie_personalizzato": bool(row[17]),
             }
             cur.execute(
-                "INSERT INTO menu_visite (id_negozio, lingua) VALUES (%s, %s)",
-                (shop["id"], requested_language if requested_language in SUPPORTED_MENU_LANGUAGES else "it"),
+                "INSERT INTO menu_visite (id_negozio, lingua, sorgente) VALUES (%s, %s, %s)",
+                (shop["id"], requested_language if requested_language in SUPPORTED_MENU_LANGUAGES else "it", visit_source),
             )
             conn.commit()
 
@@ -2117,7 +2147,7 @@ def public_menu(slug: str):
                 SELECT p.id, p.nome, COALESCE(p.descrizione, ''), COALESCE(p.note, ''),
                        p.prezzo_euro, p.id_categoria, COALESCE(sc.id, 0), COALESCE(sc.nome, ''),
                        COALESCE(img.url, ''), COALESCE(p.etichette, ARRAY[]::TEXT[]),
-                       COALESCE(p.allergeni_auto, ARRAY[]::TEXT[])
+                       COALESCE(p.allergeni_auto, ARRAY[]::TEXT[]), p.disponibile
                 FROM prodotti p
                 JOIN categorie c ON c.id = p.id_categoria AND c.visibile = TRUE
                 LEFT JOIN sottocategorie sc ON sc.id = p.id_sottocategoria
@@ -2126,7 +2156,7 @@ def public_menu(slug: str):
                     WHERE id_prodotto = p.id AND principale = TRUE
                     ORDER BY ordine ASC, id ASC LIMIT 1
                 ) img ON TRUE
-                WHERE p.id_negozio = %s AND p.disponibile = TRUE
+                WHERE p.id_negozio = %s
                   AND (sc.id IS NULL OR sc.visibile = TRUE)
                 ORDER BY CASE WHEN %s THEN c.ordine ELSE 0 END ASC,
                          COALESCE(sc.ordine, 0) ASC,
@@ -2143,7 +2173,7 @@ def public_menu(slug: str):
                     "id": product[0], "nome": product[1], "descrizione": product[2],
                     "note": product[3], "prezzo": f"{product[4]:.2f}".replace(".", ","),
                     "sottocategoria_id": product[6], "sottocategoria": product[7], "immagine_url": product[8],
-                    "etichette": product[9] or [], "allergeni": product[10] or [],
+                    "etichette": product[9] or [], "allergeni": product[10] or [], "disponibile": bool(product[11]),
                 })
             categories = [category for category in categories if category["prodotti"]]
 
@@ -2191,6 +2221,32 @@ def public_menu(slug: str):
         conn.close()
 
 
+@app.post("/menu/<slug>/categorie/<int:category_id>/apri")
+def track_category_open(slug: str, category_id: int):
+    """Registra in forma aggregata l'apertura di una categoria."""
+    requested_language = (request.args.get("lang") or "it").lower()
+    language = requested_language if requested_language in SUPPORTED_MENU_LANGUAGES else "it"
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT n.id FROM negozi n
+                    JOIN categorie c ON c.id_negozio = n.id
+                    WHERE n.slug = %s AND c.id = %s AND c.visibile = TRUE
+                """, (slug, category_id))
+                row = cur.fetchone()
+                if not row:
+                    abort(404)
+                cur.execute(
+                    "INSERT INTO categoria_aperture (id_negozio, id_categoria, lingua) VALUES (%s, %s, %s)",
+                    (row[0], category_id, language),
+                )
+        return ("", 204)
+    finally:
+        conn.close()
+
+
 @app.post("/menu/<slug>/prodotti/<int:product_id>/apri")
 def track_product_open(slug: str, product_id: int):
     """Registra l'apertura di un articolo del menu pubblico."""
@@ -2232,7 +2288,7 @@ def public_menu_qrcode(slug: str):
     finally:
         conn.close()
 
-    menu_url = url_for("public_menu", slug=slug, _external=True, _scheme="https")
+    menu_url = url_for("public_menu", slug=slug, src="qr", _external=True, _scheme="https")
     image = qrcode.make(menu_url)
     output = io.BytesIO()
     image.save(output, format="PNG")
@@ -2573,6 +2629,110 @@ def api_prodotti_importa_csv():
                         INSERT INTO prodotti (id_negozio,id_categoria,nome,descrizione,note,prezzo_euro,disponibile,ordine,allergeni_auto)
                         VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT COALESCE(MAX(ordine),0)+10 FROM prodotti WHERE id_negozio=%s),%s)
                     """, (shop_id, category_id, name, description, data.get("note", ""), price, available, shop_id, detect_allergens(description)))
+                    imported += 1
+        return jsonify({"ok": True, "importati": imported, "limite_raggiunto": remaining_slots is not None and imported >= remaining_slots})
+    finally:
+        conn.close()
+
+
+def parse_imported_menu_text(raw_text: str) -> list[dict]:
+    """Estrae prodotti da testo OCR/PDF senza salvare nulla."""
+    lines = [re.sub(r"\s+", " ", line).strip(" \t•·") for line in (raw_text or "").splitlines()]
+    lines = [line for line in lines if len(line) > 1][:4000]
+    price_line = re.compile(r"^(.*?)(?:\s*[.·…]{2,}\s*|\s+)(?:€\s*)?(\d{1,3}(?:[.,]\d{2}))\s*€?$")
+    only_price = re.compile(r"^(?:€\s*)?(\d{1,3}(?:[.,]\d{2}))\s*€?$")
+    items = []
+    category = "MENU IMPORTATO"
+    skip_next = False
+    for index, line in enumerate(lines):
+        if skip_next:
+            skip_next = False
+            continue
+        next_line = lines[index + 1] if index + 1 < len(lines) else ""
+        next_price = only_price.match(next_line)
+        if next_price and len(line) <= 100:
+            items.append({"categoria": category, "nome": line[:100], "descrizione": "", "prezzo": next_price.group(1).replace(",", ".")})
+            skip_next = True
+            continue
+        match = price_line.match(line)
+        if match and match.group(1).strip():
+            items.append({"categoria": category, "nome": match.group(1).strip(" .-")[:100], "descrizione": "", "prezzo": match.group(2).replace(",", ".")})
+            continue
+        letters = [char for char in line if char.isalpha()]
+        uppercase_ratio = sum(char.isupper() for char in letters) / max(1, len(letters))
+        looks_like_category = len(line) <= 55 and (line.endswith(":") or uppercase_ratio >= 0.82)
+        if looks_like_category:
+            category = line.rstrip(":").strip()[:100]
+        elif items and len(line) <= 300:
+            current = items[-1]
+            current["descrizione"] = (current["descrizione"] + " " + line).strip()[:500]
+    return [item for item in items if item["nome"] and float(item["prezzo"]) >= 0][:250]
+
+
+@app.post("/api/prodotti/importa-documento/anteprima")
+def api_prodotti_importa_documento_anteprima():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    text = str((request.get_json(silent=True) or {}).get("testo") or "")
+    if len(text.strip()) < 4:
+        return jsonify({"error": "Non è stato possibile estrarre testo dal documento."}), 400
+    items = parse_imported_menu_text(text[:200000])
+    if not items:
+        return jsonify({"error": "Nessun prodotto con prezzo riconosciuto. Controlla che nomi e prezzi siano leggibili."}), 400
+    return jsonify({"items": items, "riconosciuti": len(items)})
+
+
+@app.post("/api/prodotti/importa-documento")
+def api_prodotti_importa_documento():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "negozio non trovato"}), 400
+    payload = request.get_json(silent=True) or {}
+    items = payload.get("items") or []
+    if not isinstance(items, list) or not items:
+        return jsonify({"error": "Nessun prodotto da importare."}), 400
+    remaining_slots = remaining_product_slots(session["user_id"], shop_id)
+    if remaining_slots == 0:
+        return jsonify({"error": "Hai raggiunto il limite di 50 prodotti del piano Base."}), 403
+    imported = 0
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                category_cache = {}
+                for raw in items[:250]:
+                    if remaining_slots is not None and imported >= remaining_slots:
+                        break
+                    name = str(raw.get("nome") or "").strip().upper()[:100]
+                    category_name = str(raw.get("categoria") or "MENU IMPORTATO").strip().upper()[:100]
+                    description = str(raw.get("descrizione") or "").strip()[:500]
+                    try:
+                        price = float(str(raw.get("prezzo") or "0").replace(",", "."))
+                    except ValueError:
+                        continue
+                    if not name or price < 0:
+                        continue
+                    cache_key = category_name.casefold()
+                    category_id = category_cache.get(cache_key)
+                    if not category_id:
+                        cur.execute("SELECT id FROM categorie WHERE id_negozio=%s AND LOWER(nome)=LOWER(%s)", (shop_id, category_name))
+                        row = cur.fetchone()
+                        if row:
+                            category_id = row[0]
+                        else:
+                            cur.execute("""
+                                INSERT INTO categorie (id_negozio, nome, visibile, ordine)
+                                VALUES (%s,%s,TRUE,(SELECT COALESCE(MAX(ordine),0)+10 FROM categorie WHERE id_negozio=%s))
+                                RETURNING id
+                            """, (shop_id, category_name, shop_id))
+                            category_id = cur.fetchone()[0]
+                        category_cache[cache_key] = category_id
+                    cur.execute("""
+                        INSERT INTO prodotti (id_negozio,id_categoria,nome,descrizione,note,prezzo_euro,disponibile,ordine,allergeni_auto)
+                        VALUES (%s,%s,%s,%s,'',%s,TRUE,(SELECT COALESCE(MAX(ordine),0)+10 FROM prodotti WHERE id_negozio=%s),%s)
+                    """, (shop_id, category_id, name, description, price, shop_id, detect_allergens(description)))
                     imported += 1
         return jsonify({"ok": True, "importati": imported, "limite_raggiunto": remaining_slots is not None and imported >= remaining_slots})
     finally:
@@ -3046,6 +3206,34 @@ def api_categorie_delete(categoria_id: int):
         conn.close()
 
 
+@app.post("/api/categorie/posizioni")
+def api_categorie_posizioni():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    positions = (request.get_json(silent=True) or {}).get("posizioni") or []
+    try:
+        ids = [int(item["id"]) for item in positions]
+    except (TypeError, ValueError, KeyError):
+        return jsonify({"error": "posizioni non valide"}), 400
+    if not shop_id or not ids or len(ids) != len(set(ids)):
+        return jsonify({"error": "posizioni non valide"}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM categorie WHERE id_negozio=%s", (shop_id,))
+                valid_ids = {row[0] for row in cur.fetchall()}
+                if set(ids) != valid_ids:
+                    return jsonify({"error": "L’elenco deve contenere tutte le categorie."}), 400
+                for index, category_id in enumerate(ids, 1):
+                    cur.execute("UPDATE categorie SET ordine=%s WHERE id=%s AND id_negozio=%s", (index * 10, category_id, shop_id))
+                cur.execute("UPDATE negozi SET ordine_categorie_personalizzato=TRUE WHERE id=%s", (shop_id,))
+        return jsonify({"ok": True, "updated": len(ids)})
+    finally:
+        conn.close()
+
+
 @app.get("/api/categorie_full")
 def api_categorie_full():
     """Categorie del negozio con visibile + ordine (per gestione)."""
@@ -3084,6 +3272,38 @@ def categoria_belongs_to_shop(categoria_id: int, shop_id: int) -> bool:
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM categorie WHERE id=%s AND id_negozio=%s", (categoria_id, shop_id))
             return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+
+@app.post("/api/sottocategorie/posizioni")
+def api_sottocategorie_posizioni():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    data = request.get_json(silent=True) or {}
+    try:
+        category_id = int(data.get("id_categoria"))
+        ids = [int(item["id"]) for item in (data.get("posizioni") or [])]
+    except (TypeError, ValueError, KeyError):
+        return jsonify({"error": "posizioni non valide"}), 400
+    if not shop_id or not ids or len(ids) != len(set(ids)):
+        return jsonify({"error": "posizioni non valide"}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT sc.id FROM sottocategorie sc
+                    JOIN categorie c ON c.id=sc.id_categoria
+                    WHERE c.id_negozio=%s AND c.id=%s
+                """, (shop_id, category_id))
+                valid_ids = {row[0] for row in cur.fetchall()}
+                if set(ids) != valid_ids:
+                    return jsonify({"error": "L’elenco deve contenere tutte le sottocategorie della categoria."}), 400
+                for index, subcategory_id in enumerate(ids, 1):
+                    cur.execute("UPDATE sottocategorie SET ordine=%s WHERE id=%s AND id_categoria=%s", (index * 10, subcategory_id, category_id))
+        return jsonify({"ok": True, "updated": len(ids)})
     finally:
         conn.close()
 

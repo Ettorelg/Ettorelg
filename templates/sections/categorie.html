@@ -23,7 +23,7 @@
   }
   .table th, .table td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.10); vertical-align:top}
   .table th{font-size:12px; text-transform:uppercase; letter-spacing:.06em; opacity:.75; background: rgba(255,255,255,.03)}
-  .table tr:last-child td{border-bottom:none}
+  .table tr:last-child td{border-bottom:none}.table tr[draggable=true]{cursor:grab}.table tr.dragging-row{opacity:.4}.drag-cell{display:flex;align-items:center;gap:9px}.drag-grip{color:#8fb9ff;font-size:18px}
   .badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.14);font-size:12px;opacity:.9}
   .right{white-space:nowrap}
   .toast{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
@@ -126,8 +126,8 @@
     tbody.innerHTML = items.map(c => {
       const vis = c.visibile ? `<span class="badge">Sì</span>` : `<span class="badge" style="opacity:.6">No</span>`;
       return `
-        <tr>
-          <td style="font-weight:650">${esc(c.nome)}</td>
+        <tr draggable="true" data-category-id="${c.id}">
+          <td style="font-weight:650"><span class="drag-cell"><span class="drag-grip">⋮⋮</span>${esc(c.nome)}</span></td>
           <td>${esc(c.ordine)}</td>
           <td>${vis}</td>
           <td class="right">
@@ -137,6 +137,23 @@
         </tr>
       `;
     }).join("");
+    enableCategoryDragging();
+  }
+
+  function enableCategoryDragging(){
+    let dragged=null;
+    tbody.querySelectorAll("tr[data-category-id]").forEach(row=>{
+      row.addEventListener("dragstart",()=>{dragged=row;row.classList.add("dragging-row")});
+      row.addEventListener("dragend",()=>{row.classList.remove("dragging-row");dragged=null});
+      row.addEventListener("dragover",event=>event.preventDefault());
+      row.addEventListener("drop",async event=>{
+        event.preventDefault();if(!dragged||dragged===row)return;
+        const box=row.getBoundingClientRect();tbody.insertBefore(dragged,event.clientY<box.top+box.height/2?row:row.nextSibling);
+        const posizioni=[...tbody.querySelectorAll("tr[data-category-id]")].map(item=>({id:item.dataset.categoryId}));
+        const response=await fetch("/api/categorie/posizioni",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({posizioni})});
+        if(!response.ok){showToast("Errore salvataggio ordine.");await load();return;}showToast("Ordine categorie salvato.");await load();
+      });
+    });
   }
 
   window.editCat = function(id){
@@ -244,7 +261,7 @@
   }
   .table th, .table td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.10); vertical-align:top}
   .table th{font-size:12px; text-transform:uppercase; letter-spacing:.06em; opacity:.75; background: rgba(255,255,255,.03)}
-  .table tr:last-child td{border-bottom:none}
+  .table tr:last-child td{border-bottom:none}.table tr[draggable=true]{cursor:grab}.table tr.dragging-row{opacity:.4}.drag-cell{display:flex;align-items:center;gap:9px}.drag-grip{color:#8fb9ff;font-size:18px}
   .badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.14);font-size:12px;opacity:.9}
   .right{white-space:nowrap}
   .toast{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
@@ -354,9 +371,9 @@
     tbody.innerHTML = items.map(sc => {
       const vis = sc.visibile ? `<span class="badge">Sì</span>` : `<span class="badge" style="opacity:.6">No</span>`;
       return `
-        <tr>
+        <tr draggable="true" data-subcategory-id="${sc.id}" data-category-id="${sc.id_categoria}">
           <td>${esc(sc.categoria_nome)}</td>
-          <td style="font-weight:650">${esc(sc.nome)}</td>
+          <td style="font-weight:650"><span class="drag-cell"><span class="drag-grip">⋮⋮</span>${esc(sc.nome)}</span></td>
           <td>${esc(sc.ordine)}</td>
           <td>${vis}</td>
           <td class="right">
@@ -366,6 +383,24 @@
         </tr>
       `;
     }).join("");
+    enableSubcategoryDragging();
+  }
+
+  function enableSubcategoryDragging(){
+    let dragged=null;
+    tbody.querySelectorAll("tr[data-subcategory-id]").forEach(row=>{
+      row.addEventListener("dragstart",()=>{dragged=row;row.classList.add("dragging-row")});
+      row.addEventListener("dragend",()=>{row.classList.remove("dragging-row");dragged=null});
+      row.addEventListener("dragover",event=>{if(dragged&&dragged.dataset.categoryId===row.dataset.categoryId)event.preventDefault()});
+      row.addEventListener("drop",async event=>{
+        event.preventDefault();if(!dragged||dragged===row||dragged.dataset.categoryId!==row.dataset.categoryId)return;
+        const box=row.getBoundingClientRect();tbody.insertBefore(dragged,event.clientY<box.top+box.height/2?row:row.nextSibling);
+        const categoryId=row.dataset.categoryId;
+        const posizioni=[...tbody.querySelectorAll('tr[data-category-id="'+categoryId+'"]')].map(item=>({id:item.dataset.subcategoryId}));
+        const response=await fetch("/api/sottocategorie/posizioni",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id_categoria:categoryId,posizioni})});
+        if(!response.ok){showToast("Errore salvataggio ordine.");await load();return;}showToast("Ordine sottocategorie salvato.");await load();
+      });
+    });
   }
 
   window.editSC = function(id){
