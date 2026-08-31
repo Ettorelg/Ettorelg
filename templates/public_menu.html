@@ -38,10 +38,12 @@
     @media print{
       html,body{background:#fff!important;color:#111!important;font:7.5pt/1.15 Arial,sans-serif!important;-webkit-print-color-adjust:economy;print-color-adjust:economy}
       .language-picker,.print-menu-button,.category-nav,.menu-tools,.intro,.hours,.view-actions,.legal-footer,.product-modal,.product-open-hint{display:none!important}
-      .hero{min-height:0!important;margin:0;background:none!important;overflow:visible;border-bottom:.5pt solid #555}
-      .hero-inner{display:block;width:auto;margin:0;padding:0 0 2mm;color:#111}
-      .hero h1{margin:0;color:#111;font:700 16pt/1 Arial,sans-serif}
-      .hero p:not(.cover-charge),.brand-logo,img{display:none!important}
+      .hero{min-height:0!important;margin:0 0 2mm;background:none!important;overflow:visible;border:0;border-bottom:2pt solid var(--accent)}
+      .hero-inner{display:flex;width:auto;margin:0;padding:0 0 3mm;align-items:center;gap:4mm;color:#111}
+      .brand-logo{display:grid!important;width:18mm;height:18mm;flex:0 0 18mm;border:.6pt solid #bbb;border-radius:3mm;background:#fff;box-shadow:none;color:var(--accent);font-size:15pt}
+      .brand-logo img{display:block!important;width:100%;height:100%;object-fit:contain}
+      .hero h1{margin:0;color:var(--accent);font:700 18pt/1 Arial,sans-serif;letter-spacing:.01em}
+      .hero p:not(.cover-charge),.product img{display:none!important}
       .cover-charge{margin:1mm 0 0!important;padding:.5mm 1.5mm;border:.5pt solid #888!important;border-radius:2mm;color:#111!important;font-size:7pt;line-height:1}
       main{width:auto;margin:0;padding:0}
       .menu-content,.menu-content[hidden]{display:block!important}
