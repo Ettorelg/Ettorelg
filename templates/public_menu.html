@@ -86,7 +86,7 @@
               {% if product.note %}<span class="note">{{ product.note }}</span>{% endif %}
               {% if product.etichette or product.allergeni %}<div class="chips">
                 {% for label in product.etichette %}<span class="chip">{{ label }}</span>{% endfor %}
-                {% for allergen in product.allergeni %}<span class="chip allergen">{{ allergen }}</span>{% endfor %}
+                {% for allergen in product.allergeni %}<span class="chip allergen" title="Allergene: {{ allergen }}" aria-label="Allergene: {{ allergen }}"><span aria-hidden="true">⚠</span> {{ allergen }}</span>{% endfor %}
               </div>{% endif %}
             </div>
             <div class="price">€ {{ product.prezzo }}</div><span class="product-open-hint">Tocca per i dettagli</span>
