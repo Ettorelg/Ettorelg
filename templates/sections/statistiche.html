@@ -16,6 +16,7 @@
 </div>
 <div class="stats-panel"><h3>Lingue utilizzate negli ultimi 30 giorni</h3><div id="statsLanguages" class="muted">Caricamento…</div></div>
 <div class="stats-panel"><h3>Andamento ultimi 14 giorni</h3><div id="statsDays" class="muted">Caricamento…</div></div>
+<div class="stats-panel"><h3>Articoli più aperti</h3><p class="muted">Conteggio delle schede articolo aperte dai clienti.</p><div id="statsProducts" class="muted">Caricamento…</div></div>
 <script>
 (async () => {
   const response = await fetch('/api/statistiche');
@@ -28,5 +29,8 @@
   document.getElementById('statsLanguages').innerHTML=data.lingue.length?data.lingue.map(item=>`<div class="stats-row"><span>${item.lingua.toUpperCase()}</span><div class="bar"><i style="width:${item.visite/maxLang*100}%"></i></div><b>${item.visite}</b></div>`).join(''):'Nessuna visita registrata.';
   const maxDay=Math.max(1,...data.giorni.map(item=>item.visite));
   document.getElementById('statsDays').innerHTML=data.giorni.length?data.giorni.map(item=>`<div class="stats-row"><span>${item.data.slice(5)}</span><div class="bar"><i style="width:${item.visite/maxDay*100}%"></i></div><b>${item.visite}</b></div>`).join(''):'Nessuna visita registrata.';
+  const products=data.articoli_piu_aperti||[];
+  const maxProduct=Math.max(1,...products.map(item=>item.aperture));
+  document.getElementById('statsProducts').innerHTML=products.length?products.map(item=>`<div class="stats-row"><span>${item.nome}</span><div class="bar"><i style="width:${item.aperture/maxProduct*100}%"></i></div><b>${item.aperture}</b></div>`).join(''):'Nessuna apertura articolo registrata.';
 })();
 </script>
