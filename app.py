@@ -474,6 +474,9 @@ def init_db() -> None:
                     )
                 """)
                 cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS piano TEXT NOT NULL DEFAULT 'professional'")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ordine_categorie_personalizzato BOOLEAN NOT NULL DEFAULT FALSE")
+                cur.execute("ALTER TABLE categorie ADD COLUMN IF NOT EXISTS ordine_prodotti_personalizzato BOOLEAN NOT NULL DEFAULT FALSE")
+
                 cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS piano_programmato TEXT")
                 cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS cambio_piano_il DATE")
                 cur.execute("""
@@ -2065,7 +2068,8 @@ def public_menu(slug: str):
                 """
                 SELECT id, nome, indirizzo, citta, cap, provincia, email, telefono, nazione,
                        descrizione_breve, descrizione_estesa, slug, logo_url, copertina_url,
-                       colore_accento, colore_sfondo, costo_coperto
+                       colore_accento, colore_sfondo, costo_coperto,
+                       COALESCE(ordine_categorie_personalizzato, FALSE)
                 FROM negozi WHERE slug = %s
                 """,
                 (slug,),
@@ -2081,6 +2085,7 @@ def public_menu(slug: str):
                 "slug": row[11], "logo_url": row[12] or "", "copertina_url": row[13] or "",
                 "colore_accento": row[14] or "#9d3e27", "colore_sfondo": row[15] or "#f7f3ed",
                 "costo_coperto": f"{float(row[16] or 0):.2f}".replace(".", ","),
+                "ordine_categorie_personalizzato": bool(row[17]),
             }
             cur.execute(
                 "INSERT INTO menu_visite (id_negozio, lingua) VALUES (%s, %s)",
@@ -2092,9 +2097,9 @@ def public_menu(slug: str):
                 """
                 SELECT id, nome FROM categorie
                 WHERE id_negozio = %s AND visibile = TRUE
-                ORDER BY ordine ASC, nome ASC
+                ORDER BY CASE WHEN %s THEN ordine ELSE 0 END ASC, LOWER(nome) ASC
                 """,
-                (shop["id"],),
+                (shop["id"], shop["ordine_categorie_personalizzato"]),
             )
             categories = [{"id": item[0], "nome": item[1], "prodotti": []} for item in cur.fetchall()]
             category_map = {category["id"]: category for category in categories}
@@ -2115,9 +2120,12 @@ def public_menu(slug: str):
                 ) img ON TRUE
                 WHERE p.id_negozio = %s AND p.disponibile = TRUE
                   AND (sc.id IS NULL OR sc.visibile = TRUE)
-                ORDER BY c.ordine ASC, COALESCE(sc.ordine, 0) ASC, p.ordine ASC, LOWER(p.nome) ASC
+                ORDER BY CASE WHEN %s THEN c.ordine ELSE 0 END ASC,
+                         COALESCE(sc.ordine, 0) ASC,
+                         CASE WHEN c.ordine_prodotti_personalizzato THEN p.ordine ELSE 0 END ASC,
+                         LOWER(p.nome) ASC
                 """,
-                (shop["id"],),
+                (shop["id"], shop["ordine_categorie_personalizzato"]),
             )
             for product in cur.fetchall():
                 category = category_map.get(product[5])
@@ -2711,6 +2719,10 @@ def api_prodotti_posizioni():
                         "UPDATE prodotti SET ordine = %s WHERE id = %s AND id_negozio = %s",
                         (posizione, product_id, shop_id),
                     )
+                cur.execute(
+                    "UPDATE categorie SET ordine_prodotti_personalizzato = TRUE WHERE id = %s AND id_negozio = %s",
+                    (id_categoria, shop_id),
+                )
         return jsonify({"ok": True, "updated": len(parsed)})
     except psycopg2.Error as error:
         return jsonify({
@@ -2755,6 +2767,10 @@ def api_prodotti_ordina():
                         "UPDATE prodotti SET ordine = %s WHERE id = %s AND id_negozio = %s",
                         (index * 10, product_id, shop_id),
                     )
+                cur.execute(
+                    "UPDATE categorie SET ordine_prodotti_personalizzato = FALSE WHERE id = %s AND id_negozio = %s",
+                    (id_categoria, shop_id),
+                )
         return jsonify({"ok": True, "updated": len(product_ids)})
     except psycopg2.Error as error:
         return jsonify({
@@ -2890,6 +2906,8 @@ def api_categorie_create():
                     """, (shop_id, nome, ordine_int, visibile))
 
                 new_id = cur.fetchone()[0]
+                if ordine_int is not None:
+                    cur.execute("UPDATE negozi SET ordine_categorie_personalizzato = TRUE WHERE id = %s", (shop_id,))
                 print("DEBUG inserted categoria id:", new_id)
 
         return jsonify({"ok": True, "id": new_id})
@@ -2944,6 +2962,7 @@ def api_categorie_update(categoria_id: int):
                         SET nome=%s, visibile=%s, ordine=%s
                         WHERE id=%s
                     """, (nome, visibile, ordine_int, categoria_id))
+                    cur.execute("UPDATE negozi SET ordine_categorie_personalizzato = TRUE WHERE id = %s", (shop_id,))
 
         return jsonify({"ok": True})
     finally:
