@@ -47,7 +47,8 @@
       .menu-section,.menu-section[hidden]{display:block!important;margin:0;break-after:page;page-break-after:always}
       .menu-section:last-of-type{break-after:auto;page-break-after:auto}
       .menu-section h2{margin:2.5mm 0 1.5mm;padding:1mm 1.5mm;border-bottom:.8pt solid #333;background:#eee!important;font:700 13pt/1.05 Georgia,serif;break-after:avoid;page-break-after:avoid}
-      .products{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 5mm;align-items:start}
+      .products{display:grid;grid-template-columns:1fr;gap:0;align-items:start}
+      .menu-section.print-two-columns .products{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:5mm}
       .product,.product.with-image{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:2.5mm;width:100%;margin:0;padding:1.15mm .7mm;border:0;border-bottom:.35pt solid #bbb;border-radius:0;background:#fff!important;box-shadow:none!important;break-inside:avoid;page-break-inside:avoid;cursor:default}
       .product:hover,.product:focus-visible{transform:none;box-shadow:none;outline:0}
       .product h3{margin:0 0 .3mm;font-size:8.5pt;line-height:1.08}
@@ -141,6 +142,18 @@
     const productModalContent = document.getElementById('productModalContent');
     const closeProductModal = document.getElementById('closeProductModal');
     const productCards = [...document.querySelectorAll('[data-product-open]')];
+
+    function fitPrintColumns(){
+      const printableHeight = 250 * 96 / 25.4;
+      categorySections.forEach(section => {
+        section.classList.remove('print-two-columns');
+        void section.offsetHeight;
+        if (section.scrollHeight > printableHeight) section.classList.add('print-two-columns');
+      });
+    }
+    window.addEventListener('beforeprint', fitPrintColumns);
+    const printMedia = window.matchMedia('print');
+    printMedia.addEventListener?.('change', event => { if (event.matches) fitPrintColumns(); });
 
     function openProduct(card){
       productModalContent.innerHTML = card.innerHTML;
