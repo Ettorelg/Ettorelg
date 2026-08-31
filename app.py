@@ -448,6 +448,18 @@ def init_db() -> None:
                     )
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS menu_visite_negozio_data ON menu_visite (id_negozio, visited_at DESC)")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS prodotto_aperture (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                        id_prodotto INTEGER NOT NULL REFERENCES prodotti(id) ON DELETE CASCADE,
+                        lingua TEXT NOT NULL DEFAULT 'it',
+                        opened_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS prodotto_aperture_negozio_data ON prodotto_aperture (id_negozio, opened_at DESC)")
+                cur.execute("CREATE INDEX IF NOT EXISTS prodotto_aperture_prodotto ON prodotto_aperture (id_prodotto)")
+
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_email_unique ON utenti (LOWER(email)) WHERE email IS NOT NULL")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_google_sub_unique ON utenti (google_sub) WHERE google_sub IS NOT NULL")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_apple_sub_unique ON utenti (apple_sub) WHERE apple_sub IS NOT NULL")
@@ -2028,7 +2040,17 @@ def api_statistiche():
                 GROUP BY DATE(visited_at) ORDER BY DATE(visited_at)
             """, (shop_id,))
             days = [{"data": row[0], "visite": row[1]} for row in cur.fetchall()]
-        return jsonify({"totale": total, "ultimi_7_giorni": last7, "ultimi_30_giorni": last30, "lingue": languages, "giorni": days})
+            cur.execute("""
+                SELECT p.nome, COUNT(*) AS aperture
+                FROM prodotto_aperture pa
+                JOIN prodotti p ON p.id = pa.id_prodotto
+                WHERE pa.id_negozio = %s
+                GROUP BY p.id, p.nome
+                ORDER BY aperture DESC, LOWER(p.nome) ASC
+                LIMIT 10
+            """, (shop_id,))
+            top_products = [{"nome": row[0], "aperture": row[1]} for row in cur.fetchall()]
+        return jsonify({"totale": total, "ultimi_7_giorni": last7, "ultimi_30_giorni": last30, "lingue": languages, "giorni": days, "articoli_piu_aperti": top_products})
     finally:
         conn.close()
 
@@ -2149,6 +2171,36 @@ def public_menu(slug: str):
             languages = [{"codice": "it", "nome": "Italiano"}] + [{"codice": code, "nome": SUPPORTED_MENU_LANGUAGES[code]} for code in enabled_codes]
 
         return render_template("public_menu.html", shop=shop, categories=categories, hours=hours, ui=ui, language=language, languages=languages)
+    finally:
+        conn.close()
+
+
+@app.post("/menu/<slug>/prodotti/<int:product_id>/apri")
+def track_product_open(slug: str, product_id: int):
+    """Registra l'apertura di un articolo del menu pubblico."""
+    requested_language = (request.args.get("lang") or "it").lower()
+    language = requested_language if requested_language in SUPPORTED_MENU_LANGUAGES else "it"
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT n.id
+                    FROM negozi n
+                    JOIN prodotti p ON p.id_negozio = n.id
+                    JOIN categorie c ON c.id = p.id_categoria AND c.visibile = TRUE
+                    LEFT JOIN sottocategorie sc ON sc.id = p.id_sottocategoria
+                    WHERE n.slug = %s AND p.id = %s AND p.disponibile = TRUE
+                      AND (sc.id IS NULL OR sc.visibile = TRUE)
+                """, (slug, product_id))
+                row = cur.fetchone()
+                if not row:
+                    abort(404)
+                cur.execute(
+                    "INSERT INTO prodotto_aperture (id_negozio, id_prodotto, lingua) VALUES (%s, %s, %s)",
+                    (row[0], product_id, language),
+                )
+        return ("", 204)
     finally:
         conn.close()
 
