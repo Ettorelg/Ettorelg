@@ -24,6 +24,7 @@
     .product{display:grid;grid-template-columns:1fr auto;gap:12px;padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:0 5px 18px rgba(70,48,33,.05)}
     .product.with-image{grid-template-columns:118px 1fr auto}.product img{width:118px;height:118px;border-radius:13px;object-fit:cover}.product h3{margin:0 0 5px;font-size:1.06rem}.subcat{display:block;margin-bottom:5px;color:var(--accent);font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
     .product p{margin:0;color:var(--muted);line-height:1.45;font-size:.9rem}.price{white-space:nowrap;font-weight:850;color:var(--accent)}.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}.chip{padding:4px 7px;border-radius:999px;background:#f4ece6;color:#6f3d2f;font-size:.7rem;font-weight:700}.allergen{background:#fff2c9;color:#725713}.note{display:block;margin-top:8px;color:#86786e;font-size:.78rem;font-style:italic}
+    .product{width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease}.product:hover,.product:focus-visible{transform:translateY(-2px);box-shadow:var(--shadow);outline:3px solid color-mix(in srgb,var(--accent) 28%,transparent)}.product-modal[hidden]{display:none}.product-modal{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:20px;background:rgba(25,18,13,.58);backdrop-filter:blur(5px)}.product-dialog{position:relative;width:min(580px,100%);max-height:min(720px,calc(100vh - 40px));overflow:auto;padding:28px;border-radius:22px;background:var(--card);box-shadow:0 24px 70px rgba(0,0,0,.35)}.product-dialog .product{cursor:default;transform:none!important;box-shadow:none!important;border:0;padding:0;grid-template-columns:1fr auto}.product-dialog .product.with-image{grid-template-columns:160px 1fr auto}.product-dialog .product img{width:160px;height:160px}.product-close{position:absolute;top:10px;right:10px;width:38px;height:38px;border:0;border-radius:50%;background:#f2ebe5;color:var(--text);font-size:1.4rem;cursor:pointer}.product-open-hint{display:block;margin-top:8px;color:var(--accent);font-size:.75rem;font-weight:800}.product-dialog .product-open-hint{display:none}@media(max-width:480px){.product-modal{padding:12px}.product-dialog{padding:22px 18px 18px;border-radius:18px}.product-dialog .product.with-image{grid-template-columns:92px 1fr auto}.product-dialog .product img{width:92px;height:92px}.product-dialog .product p{display:block;font-size:.9rem}.product-dialog .product h3{font-size:1.08rem}}
     .empty{padding:40px;text-align:center;border:1px dashed var(--line);border-radius:18px;color:var(--muted)}
     .view-actions{display:flex;justify-content:center;margin:28px 0}.menu-button{padding:13px 22px;border:0;border-radius:999px;background:var(--accent);color:#fff;font:800 1rem system-ui;cursor:pointer;box-shadow:0 10px 24px rgba(157,62,39,.24)}.menu-button.secondary{background:#fff;color:var(--accent);border:1px solid var(--line);box-shadow:none}.menu-content[hidden],.category-nav[hidden],.intro[hidden],.hours[hidden],.view-actions[hidden]{display:none!important}
     .hours{margin-top:48px;padding:22px;border-radius:20px;background:#211d19;color:#fff}.hours h2{margin:0 0 15px}.hours-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 22px}.hours-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.12)}.hours-row span:last-child{color:#eadbd0;text-align:right}
@@ -76,7 +77,7 @@
         <h2>{{ category.nome }}</h2>
         <div class="products">
           {% for product in category.prodotti %}
-          <article class="product{% if product.immagine_url %} with-image{% endif %}">
+          <article class="product{% if product.immagine_url %} with-image{% endif %}" role="button" tabindex="0" aria-label="Apri dettagli di {{ product.nome }}" data-product-open data-track-url="{{ url_for('track_product_open', slug=shop.slug, product_id=product.id, lang=language) }}">
             {% if product.immagine_url %}<img src="{{ product.immagine_url }}" alt="{{ product.nome }}" loading="lazy">{% endif %}
             <div>
               {% if product.sottocategoria %}<span class="subcat">{{ product.sottocategoria }}</span>{% endif %}
@@ -88,7 +89,7 @@
                 {% for allergen in product.allergeni %}<span class="chip allergen">{{ allergen }}</span>{% endfor %}
               </div>{% endif %}
             </div>
-            <div class="price">€ {{ product.prezzo }}</div>
+            <div class="price">€ {{ product.prezzo }}</div><span class="product-open-hint">Tocca per i dettagli</span>
           </article>
           {% endfor %}
         </div>
@@ -96,6 +97,13 @@
       {% endfor %}
     {% else %}<div class="empty">{{ ui.empty }}</div>{% endif %}
       <div class="view-actions"><button class="menu-button secondary" id="hideMenu" type="button">{{ ui.back }}</button></div>
+    </div>
+
+    <div class="product-modal" id="productModal" role="dialog" aria-modal="true" aria-label="Dettagli articolo" hidden>
+      <div class="product-dialog">
+        <button class="product-close" id="closeProductModal" type="button" aria-label="Chiudi dettagli">×</button>
+        <div id="productModalContent"></div>
+      </div>
     </div>
 
     {% if hours %}<section class="hours" id="businessHours"><h2>{{ ui.hours }}</h2><div class="hours-grid">
@@ -111,6 +119,33 @@
     const businessHours = document.getElementById('businessHours');
     const categoryLinks = [...document.querySelectorAll('[data-category-target]')];
     const categorySections = [...document.querySelectorAll('[data-category-section]')];
+    const productModal = document.getElementById('productModal');
+    const productModalContent = document.getElementById('productModalContent');
+    const closeProductModal = document.getElementById('closeProductModal');
+    const productCards = [...document.querySelectorAll('[data-product-open]')];
+
+    function openProduct(card){
+      productModalContent.innerHTML = card.innerHTML;
+      productModal.hidden = false;
+      document.body.style.overflow = 'hidden';
+      fetch(card.dataset.trackUrl, {method: 'POST', credentials: 'same-origin', keepalive: true}).catch(() => {});
+      closeProductModal.focus();
+    }
+    function closeProduct(){
+      productModal.hidden = true;
+      document.body.style.overflow = '';
+    }
+    productCards.forEach(card => {
+      card.addEventListener('click', () => openProduct(card));
+      card.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openProduct(card); }
+      });
+    });
+    closeProductModal.addEventListener('click', closeProduct);
+    productModal.addEventListener('click', event => { if(event.target === productModal) closeProduct(); });
+    document.addEventListener('keydown', event => { if(event.key === 'Escape' && !productModal.hidden) closeProduct(); });
+
+
 
     function activateCategory(targetId){
       categorySections.forEach(section => section.hidden = section.id !== targetId);
