@@ -1186,6 +1186,14 @@ def require_admin():
     return None
 
 
+@app.get("/api/admin/paypal/piano-base")
+def api_admin_paypal_base_plan_status():
+    denied = require_admin()
+    if denied:
+        return denied
+    return jsonify({"configured": bool(paypal_plan_id("base"))})
+
+
 @app.post("/api/admin/paypal/piano-base")
 def api_admin_create_paypal_base_plan():
     denied = require_admin()
