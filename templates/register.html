@@ -107,8 +107,9 @@
                 <p class="plan-help">Hai 14 giorni di accesso completo. Alla scadenza potrai scegliere Base (69 €/anno) oppure Professional (99 €/anno).</p>
             </div>
             <div class="form-group">
-                <label for="username">Username</label>
-                <input id="username" name="username" value="{{ request.form.get('username','') }}" autocomplete="username" required>
+                <label for="business_name">Nome dell’attività</label>
+                <input id="business_name" name="business_name" value="{{ request.form.get('business_name','') }}" autocomplete="organization" required>
+                <p class="plan-help">Verrà usato automaticamente come nome del tuo account.</p>
             </div>
             <div class="form-group">
                 <label for="email">Email</label>
