@@ -131,7 +131,7 @@
         if (!response.ok) return;
         const data = await response.json();
         const license = data.item;
-        if (!license || license.stato !== 'attiva' || license.giorni_rimanenti < 0 || license.giorni_rimanenti > 7) return;
+        if (!license || license.stato !== 'attiva' || license.giorni_rimanenti < 0 || license.giorni_rimanenti > 14) return;
         const days = license.giorni_rimanenti;
         expiryBanner.classList.toggle('urgent', days <= 3);
         expiryBanner.innerHTML = '⚠ <strong>' + (days === 0 ? 'La tua licenza scade oggi.' : 'La tua licenza scade tra ' + days + ' giorni.') + '</strong> Rinnova ora per non interrompere il servizio.<a href="/pagamento?rinnovo=1">Rinnova ora</a>';
