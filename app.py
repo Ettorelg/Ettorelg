@@ -1695,7 +1695,9 @@ def api_admin_license_update(user_id: int):
     data = request.get_json(silent=True) or {}
     status = data.get("stato")
     expiry_raw = data.get("data_scadenza")
-    plan = normalize_license_plan(data.get("piano"))
+    raw_plan = (data.get("piano") or "").strip().lower()
+    is_trial = raw_plan == "trial"
+    plan = "professional" if is_trial else normalize_license_plan(raw_plan)
     if status not in {"attiva", "sospesa"}:
         return jsonify({"error": "Stato licenza non valido."}), 400
     try:
@@ -1712,6 +1714,13 @@ def api_admin_license_update(user_id: int):
                     ON CONFLICT (id_utente) DO UPDATE
                     SET stato=EXCLUDED.stato, data_scadenza=EXCLUDED.data_scadenza, piano=EXCLUDED.piano, updated_at=NOW()
                 """, (user_id, status, expiry, plan))
+                if is_trial:
+                    cur.execute("""
+                        INSERT INTO abbonamenti_paypal (id_utente, plan_id, stato, trial_fino, prossimo_addebito, updated_at)
+                        VALUES (%s, %s, 'prova_locale', %s, %s, NOW())
+                        ON CONFLICT (id_utente) DO UPDATE SET plan_id=EXCLUDED.plan_id, stato='prova_locale',
+                            trial_fino=EXCLUDED.trial_fino, prossimo_addebito=EXCLUDED.prossimo_addebito, updated_at=NOW()
+                    """, (user_id, paypal_plan_id("professional"), expiry, expiry))
         return jsonify({"ok": True})
     finally:
         conn.close()
