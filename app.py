@@ -598,10 +598,10 @@ def login():
     if request.method == "GET":
         return render_template("login.html", google_enabled=google_enabled())
 
-    username = request.form.get("username", "").strip()
+    email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
-    if not username or not password:
-        return render_template("login.html", error="Inserisci username e password.", google_enabled=google_enabled())
+    if not email or not password:
+        return render_template("login.html", error="Inserisci email e password.", google_enabled=google_enabled())
 
     conn = psycopg2.connect(**build_db_config())
     try:
@@ -610,14 +610,14 @@ def login():
                 SELECT u.id, u.username, u.password, u.admin, l.stato, l.data_scadenza
                 FROM utenti u
                 LEFT JOIN licenze_utenti l ON l.id_utente = u.id
-                WHERE LOWER(u.username) = LOWER(%s)
-            """, (username,))
+                WHERE LOWER(u.email) = LOWER(%s)
+            """, (email,))
             row = cur.fetchone()
     finally:
         conn.close()
 
     if not row or not verify_password(password, row[2]):
-        return render_template("login.html", error="Username o password errati.", google_enabled=google_enabled())
+        return render_template("login.html", error="Email o password errati.", google_enabled=google_enabled())
 
     user_id, username_db, _, is_admin, status, expiry = row
     if not is_admin and not license_is_active(status, expiry):
@@ -634,11 +634,11 @@ def register():
     if request.method == "GET":
         return render_template("register.html", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
 
-    username = request.form.get("username", "").strip()
+    business_name = request.form.get("business_name", "").strip()
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
     confirm = request.form.get("password_confirm", "")
-    if not username or not email or not password:
+    if not business_name or not email or not password:
         return render_template("register.html", error="Compila tutti i campi.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
     if password != confirm:
         return render_template("register.html", error="Le password non coincidono.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
@@ -651,7 +651,7 @@ def register():
             with conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO utenti (username, email, password, admin) VALUES (%s, %s, %s, FALSE) RETURNING id",
-                    (username, email, hash_password(password)),
+                    (business_name, email, hash_password(password)),
                 )
                 user_id = cur.fetchone()[0]
                 trial_end = date.today() + timedelta(days=APP_TRIAL_DAYS)
@@ -664,10 +664,10 @@ def register():
                     (user_id, paypal_plan_id("professional"), trial_end, trial_end),
                 )
         session.clear()
-        session.update(user_id=user_id, username=username, is_admin=False)
+        session.update(user_id=user_id, username=business_name, is_admin=False)
         return redirect(url_for("dashboard_user"))
     except psycopg2.IntegrityError:
-        return render_template("register.html", error="Username o email già utilizzati.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
+        return render_template("register.html", error="Email o nome dell’attività già utilizzati.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
     finally:
         conn.close()
 
@@ -1937,6 +1937,9 @@ def api_negozio():
                         [user_id] + [values[field] for field in fields] + [slug],
                     )
                     shop_id = cur.fetchone()[0]
+                # Il nome visualizzato dell'account coincide sempre con l'attività.
+                cur.execute("UPDATE utenti SET username=%s WHERE id=%s", (values["nome"], user_id))
+                session["username"] = values["nome"]
 
         return jsonify({"ok": True, "id": shop_id, "item": values})
     except psycopg2.Error as error:
