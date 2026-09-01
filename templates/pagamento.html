@@ -29,20 +29,20 @@
 <main class="card">
     <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
     <h1>Scegli il tuo piano</h1>
-    <p class="lead">Ciao {{ username }}, la prova gratuita Professional è terminata. Scegli il piano con cui continuare.</p>
-    {% if not license_active and paypal_configured %}<div class="plan-choice"><label for="pendingPlan">Scegli il piano prima di pagare</label><select id="pendingPlan"><option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 69 € / anno</option><option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 99 € / anno</option></select><p class="plan-diff">Base: fino a 50 prodotti, menu in italiano. Professional: prodotti illimitati, traduzioni automatiche e statistiche.</p></div>{% endif %}
+    <p class="lead">Ciao {{ username }},{% if renewal_requested %} rinnova ora il tuo piano: l'anno acquistato verrà aggiunto alla scadenza attuale.{% else %} la prova gratuita Professional è terminata. Scegli il piano con cui continuare.{% endif %}</p>
+    {% if (not license_active or renewal_requested) and paypal_configured %}<div class="plan-choice"><label for="pendingPlan">Scegli il piano prima di pagare</label><select id="pendingPlan"><option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 69 € / anno</option><option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 99 € / anno</option></select><p class="plan-diff">Base: fino a 50 prodotti, menu in italiano. Professional: prodotti illimitati, traduzioni automatiche e statistiche.</p></div>{% endif %}
     <section class="offer">
         <strong>{{ plan_name }}</strong>
         <div>{{ price }} € IVA inclusa ogni anno.</div>
         <ul>
-            <li>Il piano viene attivato dopo la conferma PayPal</li>
+            <li>Addebito annuale immediato, senza un secondo periodo di prova</li>
             <li>Rinnovo automatico annuale tramite PayPal</li>
             <li>Puoi disdire prima del rinnovo</li>
         </ul>
     </section>
 
-    {% if license_active %}
-        <div class="notice success">Il tuo account è attivo{% if trial_until %} fino al {{ trial_until.strftime('%d/%m/%Y') }}{% endif %}.</div>
+    {% if license_active and not renewal_requested %}
+        <div class="notice success">Il tuo account è attivo{% if next_billing %} fino al {{ next_billing.strftime('%d/%m/%Y') }}{% endif %}.</div>
         <a class="btn" href="{{ url_for('dashboard_user') }}">Vai alla dashboard</a>
     {% elif not paypal_configured %}
         <div class="notice">Il pagamento PayPal è in configurazione. Il tuo account è stato creato, ma non è ancora attivo.</div>
@@ -55,7 +55,7 @@
 </main>
 {% include '_legal_footer.html' %}
 
-{% if paypal_configured and not license_active %}
+{% if paypal_configured and (not license_active or renewal_requested) %}
 <script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id|urlencode }}&vault=true&intent=subscription&currency={{ currency }}"></script>
 <script>
 const pendingPlan=document.getElementById('pendingPlan'); let selectedPlan={{ plan|tojson }};
@@ -73,7 +73,7 @@ paypal.Buttons({
     onApprove: async function(data) {
         const response = await fetch('/api/paypal/subscription/activate', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({subscription_id: data.subscriptionID})
+            body: JSON.stringify({subscription_id: data.subscriptionID, renewal: {{ 'true' if renewal_requested else 'false' }}})
         });
         const result = await response.json();
         if (!response.ok) return showError(result.error || 'Impossibile attivare l’abbonamento.');
