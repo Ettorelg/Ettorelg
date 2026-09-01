@@ -1602,10 +1602,12 @@ def api_admin_users_list():
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT u.id, u.username, COALESCE(u.email, ''), u.admin, COALESCE(n.nome, ''),
-                       COALESCE(l.stato, 'sospesa'), l.data_inizio, l.data_scadenza, COALESCE(l.piano, 'professional')
+                       COALESCE(l.stato, 'sospesa'), l.data_inizio, l.data_scadenza, COALESCE(l.piano, 'professional'),
+                       COALESCE(a.stato, '')
                 FROM utenti u
                 LEFT JOIN negozi n ON n.id_utente = u.id
                 LEFT JOIN licenze_utenti l ON l.id_utente = u.id
+                LEFT JOIN abbonamenti_paypal a ON a.id_utente = u.id
                 ORDER BY u.id
             """)
             items = []
@@ -1618,7 +1620,8 @@ def api_admin_users_list():
                               "data_scadenza": expiry.isoformat() if expiry else None,
                               "giorni_rimanenti": days,
                               "in_scadenza": days is not None and 0 <= days <= 30,
-                              "piano": normalize_license_plan(row[8])})
+                              "piano": normalize_license_plan(row[8]),
+                              "in_prova": row[9] == "prova_locale"})
         return jsonify({"items": items, "current_user_id": session["user_id"]})
     finally:
         conn.close()
