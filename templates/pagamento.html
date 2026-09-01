@@ -40,13 +40,13 @@
         <div class="plan-compare">
             <section class="plan-summary" data-plan-card="base">
                 <h3>Base · 69 €/anno</h3>
-                <strong>Per un menu essenziale</strong>
-                <ul><li>Fino a 50 prodotti</li><li>Menu in italiano</li><li>Categorie, immagini e allergeni</li><li>QR Code e stampa A4</li></ul>
+                <strong>Il menu digitale essenziale, subito pronto</strong>
+                <ul><li>Fino a 50 prodotti: perfetto per bar, pizzerie e menu compatti</li><li>Menu in italiano sempre aggiornabile, senza ristampe</li><li>Foto, ingredienti e allergeni chiari per il cliente</li><li>QR Code condivisibile e stampa A4 inclusa</li><li>Un modo semplice per presentarti meglio al tavolo</li></ul>
             </section>
             <section class="plan-summary" data-plan-card="professional">
                 <h3>Professional · 99 €/anno</h3>
-                <strong>Per gestire tutto senza limiti</strong>
-                <ul><li>Prodotti illimitati</li><li>Tutto il piano Base</li><li>Traduzioni automatiche in 5 lingue</li><li>Statistiche di consultazione</li></ul>
+                <strong>Più clienti, più controllo, nessun limite</strong>
+                <ul><li>Prodotti e categorie illimitati, anche per cataloghi ampi</li><li>Tutto ciò che include Base</li><li>Traduzioni automatiche in 5 lingue per clienti e turisti</li><li>Statistiche sui piatti più aperti: scopri cosa attira davvero</li><li>Ideale per valorizzare il menu e far crescere le vendite</li></ul>
             </section>
         </div>
     </div>
@@ -55,9 +55,17 @@
         <strong>{{ plan_name }}</strong>
         <div>{{ price }} € IVA inclusa ogni anno.</div>
         <ul>
+            {% if plan == 'base' %}
+            <li>Menu digitale professionale, pronto da condividere con QR Code</li>
+            <li>Gestisci prezzi, foto, ingredienti e allergeni in autonomia</li>
+            <li>Adatto a chi vuole un menu curato e semplice da mantenere</li>
+            {% else %}
+            <li>Menu senza limiti, pensato per locali con cataloghi completi</li>
+            <li>Traduzioni e statistiche per capire quali piatti interessano di più</li>
+            <li>Uno strumento per migliorare l’esperienza del cliente e valorizzare l’offerta</li>
+            {% endif %}
             <li>Addebito annuale immediato, senza un secondo periodo di prova</li>
-            <li>Rinnovo automatico annuale tramite PayPal</li>
-            <li>Puoi disdire prima del rinnovo</li>
+            <li>Rinnovo automatico annuale tramite PayPal; puoi disdire prima del rinnovo</li>
         </ul>
     </section>
 
