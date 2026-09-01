@@ -212,22 +212,22 @@ def normalize_license_plan(value: str | None) -> str:
 
 
 def paypal_plan_id(plan: str) -> str:
+    """Restituisce il piano corrente; i piani annuali nel DB prevalgono sui vecchi ID d'ambiente."""
     plan = normalize_license_plan(plan)
+    if os.environ.get("DATABASE_URL"):
+        conn = psycopg2.connect(**build_db_config())
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT valore FROM impostazioni_app WHERE chiave=%s", (f"paypal_plan_{plan}_id",))
+                row = cur.fetchone()
+            if row and row[0]:
+                return row[0]
+        except psycopg2.Error:
+            pass
+        finally:
+            conn.close()
     if plan == "base":
-        configured = os.environ.get("PAYPAL_PLAN_BASE_ID", "")
-        if configured:
-            return configured
-        if os.environ.get("DATABASE_URL"):
-            conn = psycopg2.connect(**build_db_config())
-            try:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT valore FROM impostazioni_app WHERE chiave='paypal_plan_base_id'")
-                    row = cur.fetchone()
-                return row[0] if row else ""
-            except psycopg2.Error:
-                return ""
-            finally:
-                conn.close()
+        return os.environ.get("PAYPAL_PLAN_BASE_ID", "")
     return os.environ.get("PAYPAL_PLAN_PRO_ID") or os.environ.get("PAYPAL_PLAN_ID", "")
 
 
@@ -904,13 +904,15 @@ def pagamento():
         return redirect(url_for("login"))
     selected_plan = normalize_license_plan(row[8])
     plan_info = LICENSE_PLANS[selected_plan]
+    license_active = license_is_active(row[6], row[7])
+    renewal_requested = request.args.get("rinnovo") == "1"
     return render_template(
         "pagamento.html", username=row[0], email=row[1], subscription_id=row[2],
         subscription_status=row[3], trial_until=row[4], next_billing=row[5],
-        license_active=license_is_active(row[6], row[7]),
+        license_active=license_active, renewal_requested=renewal_requested,
         paypal_configured=paypal_configured(selected_plan), paypal_client_id=os.environ.get("PAYPAL_CLIENT_ID", ""),
         paypal_plan_id=paypal_plan_id(selected_plan), price=plan_info["price"], plan=selected_plan, plan_name=plan_info["name"],
-        currency=PAYPAL_CURRENCY, trial_days=PAYPAL_TRIAL_DAYS,
+        currency=PAYPAL_CURRENCY, trial_days=0,
     )
 
 
@@ -944,19 +946,26 @@ def paypal_subscription_activate():
     if str(details.get("custom_id", "")) != str(user_id):
         return jsonify({"error": "L'abbonamento non appartiene a questo account."}), 403
 
-    trial_until = parse_paypal_date(details.get("billing_info", {}).get("next_billing_time"), date.today() + timedelta(days=PAYPAL_TRIAL_DAYS))
+    next_billing = parse_paypal_date(details.get("billing_info", {}).get("next_billing_time"), date.today() + timedelta(days=365))
+    renewal_requested = bool((request.get_json(silent=True) or {}).get("renewal"))
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
             with conn.cursor() as cur:
+                cur.execute("SELECT data_scadenza FROM licenze_utenti WHERE id_utente=%s FOR UPDATE", (user_id,))
+                license_row = cur.fetchone()
+                current_expiry = license_row[0] if license_row else None
+                expiry = next_billing
+                if renewal_requested and current_expiry and current_expiry >= date.today():
+                    expiry = current_expiry + timedelta(days=365)
                 cur.execute("""
                     INSERT INTO abbonamenti_paypal (id_utente, subscription_id, plan_id, stato, trial_fino, prossimo_addebito, updated_at)
-                    VALUES (%s, %s, %s, 'prova', %s, %s, NOW())
+                    VALUES (%s, %s, %s, 'attivo', NULL, %s, NOW())
                     ON CONFLICT (id_utente) DO UPDATE SET subscription_id=EXCLUDED.subscription_id,
-                        plan_id=EXCLUDED.plan_id, stato='prova', trial_fino=EXCLUDED.trial_fino,
+                        plan_id=EXCLUDED.plan_id, stato='attivo', trial_fino=NULL,
                         prossimo_addebito=EXCLUDED.prossimo_addebito, updated_at=NOW()
-                """, (user_id, subscription_id, details.get("plan_id"), trial_until, trial_until))
-                cur.execute("UPDATE licenze_utenti SET stato='attiva', data_inizio=CURRENT_DATE, data_scadenza=%s, updated_at=NOW() WHERE id_utente=%s", (trial_until, user_id))
+                """, (user_id, subscription_id, details.get("plan_id"), next_billing))
+                cur.execute("UPDATE licenze_utenti SET stato='attiva', data_inizio=CURRENT_DATE, data_scadenza=%s, updated_at=NOW() WHERE id_utente=%s", (expiry, user_id))
                 cur.execute("SELECT username FROM utenti WHERE id=%s", (user_id,))
                 username = cur.fetchone()[0]
         session.clear()
@@ -1290,6 +1299,59 @@ def api_admin_create_paypal_base_plan():
             except requests.RequestException:
                 pass
         return jsonify({"ok": True, "plan_id": plan_id, "status": plan_data.get("status"), "replaced": bool(existing)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/admin/paypal/piani-annuali")
+def api_admin_create_annual_paypal_plans():
+    """Crea i due piani annuali senza trial; non modifica gli abbonamenti già attivi."""
+    denied = require_admin()
+    if denied:
+        return denied
+    if not os.environ.get("PAYPAL_CLIENT_ID") or not os.environ.get("PAYPAL_CLIENT_SECRET"):
+        return jsonify({"error": "Credenziali PayPal mancanti su Railway."}), 503
+    try:
+        token = paypal_access_token()
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"}
+        source_id = os.environ.get("PAYPAL_PLAN_PRO_ID") or os.environ.get("PAYPAL_PLAN_ID") or paypal_plan_id("professional")
+        source = requests.get(f"{paypal_base_url()}/v1/billing/plans/{source_id}", headers=headers, timeout=25)
+        source.raise_for_status()
+        product_id = source.json()["product_id"]
+        created = {}
+        for plan, info in LICENSE_PLANS.items():
+            response = requests.post(
+                f"{paypal_base_url()}/v1/billing/plans",
+                headers={**headers, "PayPal-Request-Id": f"alpha-menu-{plan}-annual-no-trial-{date.today().isoformat()}"},
+                json={
+                    "product_id": product_id,
+                    "name": f"Alpha Menu {info['name']} annuale",
+                    "description": f"{info['name']} · {info['price']} EUR ogni anno, senza periodo di prova PayPal",
+                    "status": "ACTIVE",
+                    "billing_cycles": [{
+                        "frequency": {"interval_unit": "YEAR", "interval_count": 1},
+                        "tenure_type": "REGULAR", "sequence": 1, "total_cycles": 0,
+                        "pricing_scheme": {"fixed_price": {"value": info["price"], "currency_code": PAYPAL_CURRENCY}},
+                    }],
+                    "payment_preferences": {"auto_bill_outstanding": True, "setup_fee": {"value": "0", "currency_code": PAYPAL_CURRENCY}, "setup_fee_failure_action": "CONTINUE", "payment_failure_threshold": 3},
+                }, timeout=25,
+            )
+            response.raise_for_status()
+            created[plan] = response.json()["id"]
+    except (requests.RequestException, KeyError) as error:
+        detail = "PayPal non ha creato i piani annuali."
+        if isinstance(error, requests.HTTPError) and error.response is not None:
+            try: detail = error.response.json().get("message") or detail
+            except ValueError: pass
+        return jsonify({"error": detail}), 502
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                for plan, plan_id in created.items():
+                    cur.execute("""INSERT INTO impostazioni_app (chiave, valore) VALUES (%s, %s)
+                        ON CONFLICT (chiave) DO UPDATE SET valore=EXCLUDED.valore, updated_at=NOW()""", (f"paypal_plan_{plan}_id", plan_id))
+        return jsonify({"ok": True, "plans": created})
     finally:
         conn.close()
 
