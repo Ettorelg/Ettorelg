@@ -904,12 +904,14 @@ def pagamento():
         return redirect(url_for("login"))
     license_active = license_is_active(row[6], row[7])
     renewal_requested = request.args.get("rinnovo") == "1"
-    selected_plan = normalize_license_plan(session.get("renewal_plan") if renewal_requested else row[8])
+    choice_requested = request.args.get("scelta") == "1"
+    selection_requested = renewal_requested or choice_requested
+    selected_plan = normalize_license_plan(session.get("renewal_plan") if selection_requested else row[8])
     plan_info = LICENSE_PLANS[selected_plan]
     return render_template(
         "pagamento.html", username=row[0], email=row[1], subscription_id=row[2],
         subscription_status=row[3], trial_until=row[4], next_billing=row[5],
-        license_active=license_active, renewal_requested=renewal_requested,
+        license_active=license_active, renewal_requested=renewal_requested, choice_requested=choice_requested, selection_requested=selection_requested,
         paypal_configured=paypal_configured(selected_plan), paypal_client_id=os.environ.get("PAYPAL_CLIENT_ID", ""),
         paypal_plan_id=paypal_plan_id(selected_plan), price=plan_info["price"], plan=selected_plan, plan_name=plan_info["name"],
         currency=PAYPAL_CURRENCY, trial_days=0,
@@ -923,6 +925,7 @@ def paypal_subscription_activate():
         return jsonify({"error": "Sessione di registrazione non valida."}), 401
     payload = request.get_json(silent=True) or {}
     renewal_requested = bool(payload.get("renewal"))
+    selection_requested = renewal_requested or bool(payload.get("choice"))
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
@@ -930,7 +933,7 @@ def paypal_subscription_activate():
             plan_row = cur.fetchone()
     finally:
         conn.close()
-    selected_plan = normalize_license_plan(session.get("renewal_plan") if renewal_requested else (plan_row[0] if plan_row else None))
+    selected_plan = normalize_license_plan(session.get("renewal_plan") if selection_requested else (plan_row[0] if plan_row else None))
     expected_plan_id = paypal_plan_id(selected_plan)
     if not paypal_configured(selected_plan):
         return jsonify({"error": "Il piano PayPal selezionato non è ancora configurato."}), 503
@@ -987,9 +990,9 @@ def paypal_pending_plan():
     plan = normalize_license_plan(raw_plan)
     if not paypal_configured(plan):
         return jsonify({"error": "Il piano selezionato non è disponibile."}), 503
-    renewal_requested = bool((request.get_json(silent=True) or {}).get("rinnovo"))
-    if renewal_requested:
-        # Nel rinnovo il piano diventa effettivo solo dopo la conferma PayPal.
+    selection_requested = bool((request.get_json(silent=True) or {}).get("rinnovo") or (request.get_json(silent=True) or {}).get("scelta"))
+    if selection_requested:
+        # Nel rinnovo o nella scelta post-prova il piano diventa effettivo solo dopo PayPal.
         session["renewal_plan"] = plan
         return jsonify({"ok": True, "plan": plan})
     conn = psycopg2.connect(**build_db_config())
@@ -1369,12 +1372,18 @@ def api_license_current():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT stato, data_inizio, data_scadenza, COALESCE(piano, 'professional'), piano_programmato, cambio_piano_il FROM licenze_utenti WHERE id_utente = %s", (session["user_id"],))
+            cur.execute("""
+                SELECT l.stato, l.data_inizio, l.data_scadenza, COALESCE(l.piano, 'professional'),
+                       l.piano_programmato, l.cambio_piano_il, COALESCE(a.stato, '')
+                FROM licenze_utenti l
+                LEFT JOIN abbonamenti_paypal a ON a.id_utente=l.id_utente
+                WHERE l.id_utente = %s
+            """, (session["user_id"],))
             row = cur.fetchone()
         if not row:
             return jsonify({"item": None})
         remaining = (row[2] - date.today()).days
-        return jsonify({"item": {"stato": row[0], "data_inizio": row[1].isoformat(), "data_scadenza": row[2].isoformat(), "giorni_rimanenti": remaining, "piano": normalize_license_plan(row[3]), "nome_piano": LICENSE_PLANS[normalize_license_plan(row[3])]["name"], "piano_programmato": normalize_license_plan(row[4]) if row[4] else None, "cambio_piano_il": row[5].isoformat() if row[5] else None}})
+        return jsonify({"item": {"stato": row[0], "data_inizio": row[1].isoformat(), "data_scadenza": row[2].isoformat(), "giorni_rimanenti": remaining, "piano": normalize_license_plan(row[3]), "nome_piano": LICENSE_PLANS[normalize_license_plan(row[3])]["name"], "piano_programmato": normalize_license_plan(row[4]) if row[4] else None, "cambio_piano_il": row[5].isoformat() if row[5] else None, "in_prova": row[6] == "prova_locale"}})
     finally:
         conn.close()
 
