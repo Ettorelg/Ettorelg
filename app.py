@@ -200,6 +200,7 @@ def remaining_product_slots(user_id: int, shop_id: int) -> int | None:
 
 PAYPAL_CURRENCY = "EUR"
 PAYPAL_TRIAL_DAYS = 14
+APP_TRIAL_DAYS = 14
 LICENSE_PLANS = {
     "base": {"name": "Base", "price": "69.00", "product_limit": 50},
     "professional": {"name": "Professional", "price": "99.00", "product_limit": None},
@@ -637,12 +638,6 @@ def register():
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
     confirm = request.form.get("password_confirm", "")
-    requested_plan = (request.form.get("plan") or "").strip().lower()
-    if requested_plan not in LICENSE_PLANS:
-        return render_template("register.html", error="Scegli prima il piano Base o Professional.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
-    plan = normalize_license_plan(requested_plan)
-    if plan == "base" and not paypal_configured("base"):
-        return render_template("register.html", error="La licenza Base è in configurazione PayPal. Seleziona Professional.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=False)
     if not username or not email or not password:
         return render_template("register.html", error="Compila tutti i campi.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
     if password != confirm:
@@ -659,14 +654,18 @@ def register():
                     (username, email, hash_password(password)),
                 )
                 user_id = cur.fetchone()[0]
+                trial_end = date.today() + timedelta(days=APP_TRIAL_DAYS)
                 cur.execute(
-                    "INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza, piano) VALUES (%s, 'sospesa', CURRENT_DATE, CURRENT_DATE, %s)",
-                    (user_id, plan),
+                    "INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza, piano) VALUES (%s, 'attiva', CURRENT_DATE, %s, 'professional')",
+                    (user_id, trial_end),
                 )
-                cur.execute("INSERT INTO abbonamenti_paypal (id_utente, plan_id) VALUES (%s, %s)", (user_id, paypal_plan_id(plan)))
+                cur.execute(
+                    "INSERT INTO abbonamenti_paypal (id_utente, plan_id, stato, trial_fino, prossimo_addebito) VALUES (%s, %s, 'prova_locale', %s, %s)",
+                    (user_id, paypal_plan_id("professional"), trial_end, trial_end),
+                )
         session.clear()
-        session.update(pending_user_id=user_id, pending_username=username)
-        return redirect(url_for("pagamento"))
+        session.update(user_id=user_id, username=username, is_admin=False)
+        return redirect(url_for("dashboard_user"))
     except psycopg2.IntegrityError:
         return render_template("register.html", error="Username o email già utilizzati.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
     finally:
@@ -677,11 +676,6 @@ def register():
 def auth_google():
     if not google_enabled():
         return redirect(url_for("login"))
-    raw_plan = (request.args.get("plan") or "").strip().lower()
-    if raw_plan not in LICENSE_PLANS:
-        return redirect(url_for("register", choose_plan="1"))
-    requested_plan = normalize_license_plan(raw_plan)
-    session["pending_plan"] = requested_plan if requested_plan != "base" or paypal_configured("base") else "professional"
     callback = url_for("auth_google_callback", _external=True, _scheme="https")
     return google.authorize_redirect(callback)
 
@@ -721,9 +715,9 @@ def auth_google_callback():
                     user_id = cur.fetchone()[0]
                     is_admin = False
                 if is_new_user:
-                    plan = normalize_license_plan(session.get("pending_plan"))
-                    cur.execute("INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza, piano) VALUES (%s, 'sospesa', CURRENT_DATE, CURRENT_DATE, %s)", (user_id, plan))
-                    cur.execute("INSERT INTO abbonamenti_paypal (id_utente, plan_id) VALUES (%s, %s)", (user_id, paypal_plan_id(plan)))
+                    trial_end = date.today() + timedelta(days=APP_TRIAL_DAYS)
+                    cur.execute("INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza, piano) VALUES (%s, 'attiva', CURRENT_DATE, %s, 'professional')", (user_id, trial_end))
+                    cur.execute("INSERT INTO abbonamenti_paypal (id_utente, plan_id, stato, trial_fino, prossimo_addebito) VALUES (%s, %s, 'prova_locale', %s, %s)", (user_id, paypal_plan_id("professional"), trial_end, trial_end))
                 else:
                     cur.execute("INSERT INTO licenze_utenti (id_utente, data_scadenza) VALUES (%s, %s) ON CONFLICT (id_utente) DO NOTHING", (user_id, annual_expiry()))
                 cur.execute("SELECT stato, data_scadenza FROM licenze_utenti WHERE id_utente = %s", (user_id,))
@@ -742,14 +736,8 @@ def auth_google_callback():
 def auth_apple():
     if not apple_enabled():
         return redirect(url_for("login"))
-    raw_plan = (request.args.get("plan") or "").strip().lower()
-    if raw_plan not in LICENSE_PLANS:
-        return redirect(url_for("register", choose_plan="1"))
-    plan = normalize_license_plan(raw_plan)
-    if plan == "base" and not paypal_configured("base"):
-        plan = "professional"
     nonce = secrets.token_urlsafe(24)
-    state = apple_state_serializer().dumps({"plan": plan, "nonce": nonce})
+    state = apple_state_serializer().dumps({"nonce": nonce})
     callback = url_for("auth_apple_callback", _external=True, _scheme="https")
     params = {
         "client_id": os.environ["APPLE_CLIENT_ID"],
@@ -817,8 +805,6 @@ def auth_apple_callback():
         (name_data.get("firstName") or "").strip(),
         (name_data.get("lastName") or "").strip(),
     ))).strip()
-    plan = normalize_license_plan(state_data.get("plan"))
-
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
@@ -861,16 +847,17 @@ def auth_apple_callback():
                     user_id = cur.fetchone()[0]
                     is_admin = False
                 if is_new_user:
+                    trial_end = date.today() + timedelta(days=APP_TRIAL_DAYS)
                     cur.execute(
                         """
                         INSERT INTO licenze_utenti (id_utente,stato,data_inizio,data_scadenza,piano)
-                        VALUES (%s,'sospesa',CURRENT_DATE,CURRENT_DATE,%s)
+                        VALUES (%s,'attiva',CURRENT_DATE,%s,'professional')
                         """,
-                        (user_id, plan),
+                        (user_id, trial_end),
                     )
                     cur.execute(
-                        "INSERT INTO abbonamenti_paypal (id_utente,plan_id) VALUES (%s,%s)",
-                        (user_id, paypal_plan_id(plan)),
+                        "INSERT INTO abbonamenti_paypal (id_utente,plan_id,stato,trial_fino,prossimo_addebito) VALUES (%s,%s,'prova_locale',%s,%s)",
+                        (user_id, paypal_plan_id("professional"), trial_end, trial_end),
                     )
                 else:
                     cur.execute(
