@@ -29,8 +29,8 @@
 <main class="card">
     <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
     <h1>Scegli il tuo piano</h1>
-    <p class="lead">Ciao {{ username }},{% if renewal_requested %} rinnova ora il tuo piano: l'anno acquistato verrà aggiunto alla scadenza attuale.{% else %} la prova gratuita Professional è terminata. Scegli il piano con cui continuare.{% endif %}</p>
-    {% if (not license_active or renewal_requested) and paypal_configured %}
+    <p class="lead">Ciao {{ username }},{% if choice_requested %} la prova gratuita Professional sta per terminare: scegli il piano con cui continuare.{% elif renewal_requested %} rinnova ora il tuo piano: l'anno acquistato verrà aggiunto alla scadenza attuale.{% else %} la prova gratuita Professional è terminata. Scegli il piano con cui continuare.{% endif %}</p>
+    {% if (not license_active or selection_requested) and paypal_configured %}
     <div class="plan-choice">
         <label for="pendingPlan">Scegli il piano prima di pagare</label>
         <select id="pendingPlan">
@@ -61,7 +61,7 @@
         </ul>
     </section>
 
-    {% if license_active and not renewal_requested %}
+    {% if license_active and not selection_requested %}
         <div class="notice success">Il tuo account è attivo{% if next_billing %} fino al {{ next_billing.strftime('%d/%m/%Y') }}{% endif %}.</div>
         <a class="btn" href="{{ url_for('dashboard_user') }}">Vai alla dashboard</a>
     {% elif not paypal_configured %}
@@ -75,11 +75,11 @@
 </main>
 {% include '_legal_footer.html' %}
 
-{% if paypal_configured and (not license_active or renewal_requested) %}
+{% if paypal_configured and (not license_active or selection_requested) %}
 <script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id|urlencode }}&vault=true&intent=subscription&currency={{ currency }}"></script>
 <script>
 const pendingPlan=document.getElementById('pendingPlan'); let selectedPlan={{ plan|tojson }};
-pendingPlan?.addEventListener('change',async()=>{const r=await fetch('/api/paypal/pending-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({piano:pendingPlan.value,rinnovo:{{ 'true' if renewal_requested else 'false' }})});const d=await r.json();if(!r.ok){alert(d.error||'Impossibile cambiare piano.');pendingPlan.value=selectedPlan;return}selectedPlan=d.plan;location.reload()});
+pendingPlan?.addEventListener('change',async()=>{const r=await fetch('/api/paypal/pending-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({piano:pendingPlan.value,rinnovo:{{ 'true' if renewal_requested else 'false' }},scelta:{{ 'true' if choice_requested else 'false' }})});const d=await r.json();if(!r.ok){alert(d.error||'Impossibile cambiare piano.');pendingPlan.value=selectedPlan;return}selectedPlan=d.plan;location.reload()});
 const errorBox = document.getElementById('payment-error');
 function showError(message) {
     errorBox.textContent = message;
@@ -93,7 +93,7 @@ paypal.Buttons({
     onApprove: async function(data) {
         const response = await fetch('/api/paypal/subscription/activate', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({subscription_id: data.subscriptionID, renewal: {{ 'true' if renewal_requested else 'false' }}})
+            body: JSON.stringify({subscription_id: data.subscriptionID, renewal: {{ 'true' if renewal_requested else 'false' }}, choice: {{ 'true' if choice_requested else 'false' }}})
         });
         const result = await response.json();
         if (!response.ok) return showError(result.error || 'Impossibile attivare l’abbonamento.');
