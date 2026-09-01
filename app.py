@@ -981,9 +981,18 @@ def paypal_pending_plan():
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute("UPDATE licenze_utenti SET piano=%s, updated_at=NOW() WHERE id_utente=%s AND stato='sospesa' RETURNING id_utente", (plan, user_id))
+                cur.execute(
+                    """
+                    UPDATE licenze_utenti
+                    SET piano=%s, updated_at=NOW()
+                    WHERE id_utente=%s
+                      AND (stato='sospesa' OR data_scadenza < CURRENT_DATE)
+                    RETURNING id_utente
+                    """,
+                    (plan, user_id),
+                )
                 if not cur.fetchone():
-                    return jsonify({"error": "La registrazione è già stata attivata."}), 409
+                    return jsonify({"error": "Il piano può essere scelto al termine della prova gratuita."}), 409
                 cur.execute("UPDATE abbonamenti_paypal SET plan_id=%s, updated_at=NOW() WHERE id_utente=%s", (paypal_plan_id(plan), user_id))
         return jsonify({"ok": True, "plan": plan})
     finally:
