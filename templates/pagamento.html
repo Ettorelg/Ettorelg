@@ -28,14 +28,14 @@
 <body>
 <main class="card">
     <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
-    <h1>Attiva il tuo menu digitale</h1>
-    <p class="lead">Ciao {{ username }}, completa l'attivazione della licenza <strong>{{ plan_name }}</strong>.</p>
+    <h1>Scegli il tuo piano</h1>
+    <p class="lead">Ciao {{ username }}, la prova gratuita Professional è terminata. Scegli il piano con cui continuare.</p>
     {% if not license_active and paypal_configured %}<div class="plan-choice"><label for="pendingPlan">Scegli il piano prima di pagare</label><select id="pendingPlan"><option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 69 € / anno</option><option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 99 € / anno</option></select><p class="plan-diff">Base: fino a 50 prodotti, menu in italiano. Professional: prodotti illimitati, traduzioni automatiche e statistiche.</p></div>{% endif %}
     <section class="offer">
-        <strong>14 giorni gratis</strong>
-        <div>Licenza {{ plan_name }}: poi {{ price }} € IVA inclusa ogni anno.</div>
+        <strong>{{ plan_name }}</strong>
+        <div>{{ price }} € IVA inclusa ogni anno.</div>
         <ul>
-            <li>Nessun addebito durante la prova</li>
+            <li>Il piano viene attivato dopo la conferma PayPal</li>
             <li>Rinnovo automatico annuale tramite PayPal</li>
             <li>Puoi disdire prima del rinnovo</li>
         </ul>
