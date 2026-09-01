@@ -21,7 +21,7 @@
         .error { display: none; background: #fdebec; color: #a3212c; padding: 12px; border-radius: 10px; margin-top: 12px; font-size: 14px; }
         .small { color: #68798a; font-size: 12px; line-height: 1.5; text-align: center; margin: 15px 0 0; }
         .btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 9px; background: #004aad; color: #fff; font-weight: 700; text-align: center; text-decoration: none; cursor: pointer; }
-        .plan-choice{margin:0 0 18px;padding:14px;border:1px solid #c9d6e2;border-radius:12px;background:#f7fbff}.plan-choice label{display:block;font-weight:700;color:#003366;margin-bottom:6px}.plan-choice select{width:100%;padding:11px;border:1px solid #c9d6e2;border-radius:8px;font-size:15px}.plan-diff{margin:8px 0 0;color:#52657a;font-size:12px;line-height:1.45}
+        .plan-choice{margin:0 0 18px;padding:14px;border:1px solid #c9d6e2;border-radius:12px;background:#f7fbff}.plan-choice label{display:block;font-weight:700;color:#003366;margin-bottom:6px}.plan-choice select{width:100%;padding:11px;border:1px solid #c9d6e2;border-radius:8px;font-size:15px}.plan-diff{margin:8px 0 0;color:#52657a;font-size:12px;line-height:1.45}.plan-compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 0}.plan-summary{padding:12px;border:1px solid #d3e0ee;border-radius:10px;background:#fff;color:#33475b}.plan-summary.featured{border-color:#2f7be5;background:#eef6ff}.plan-summary h3{margin:0 0 5px;color:#003366;font-size:15px}.plan-summary strong{font-size:13px;color:#0055b8}.plan-summary ul{margin:8px 0 0;padding-left:17px;font-size:12px;line-height:1.55}@media(max-width:520px){.plan-compare{grid-template-columns:1fr}}
         @media (max-width: 520px) { body { padding: 10px; align-items: stretch; justify-content:flex-start; overflow-x:hidden } .card { margin-top: 6px; padding: 22px 17px; border-radius:16px } h1 { font-size: 22px; } .offer{padding:16px}.btn{min-height:46px} }
     </style>
 </head>
@@ -30,7 +30,27 @@
     <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
     <h1>Scegli il tuo piano</h1>
     <p class="lead">Ciao {{ username }},{% if renewal_requested %} rinnova ora il tuo piano: l'anno acquistato verrà aggiunto alla scadenza attuale.{% else %} la prova gratuita Professional è terminata. Scegli il piano con cui continuare.{% endif %}</p>
-    {% if not license_active and paypal_configured %}<div class="plan-choice"><label for="pendingPlan">Scegli il piano prima di pagare</label><select id="pendingPlan"><option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 69 € / anno</option><option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 99 € / anno</option></select><p class="plan-diff">Base: fino a 50 prodotti, menu in italiano. Professional: prodotti illimitati, traduzioni automatiche e statistiche.</p></div>{% endif %}
+    {% if not license_active and paypal_configured %}
+    <div class="plan-choice">
+        <label for="pendingPlan">Scegli il piano prima di pagare</label>
+        <select id="pendingPlan">
+            <option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 69 € / anno</option>
+            <option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 99 € / anno</option>
+        </select>
+        <div class="plan-compare">
+            <section class="plan-summary">
+                <h3>Base · 69 €/anno</h3>
+                <strong>Per un menu essenziale</strong>
+                <ul><li>Fino a 50 prodotti</li><li>Menu in italiano</li><li>Categorie, immagini e allergeni</li><li>QR Code e stampa A4</li></ul>
+            </section>
+            <section class="plan-summary featured">
+                <h3>Professional · 99 €/anno</h3>
+                <strong>Per gestire tutto senza limiti</strong>
+                <ul><li>Prodotti illimitati</li><li>Tutto il piano Base</li><li>Traduzioni automatiche in 5 lingue</li><li>Statistiche di consultazione</li></ul>
+            </section>
+        </div>
+    </div>
+    {% endif %}
     <section class="offer">
         <strong>{{ plan_name }}</strong>
         <div>{{ price }} € IVA inclusa ogni anno.</div>
