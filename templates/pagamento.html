@@ -78,8 +78,20 @@
 {% if paypal_configured and (not license_active or selection_requested) %}
 <script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id|urlencode }}&vault=true&intent=subscription&currency={{ currency }}"></script>
 <script>
-const pendingPlan=document.getElementById('pendingPlan'); let selectedPlan={{ plan|tojson }};
-pendingPlan?.addEventListener('change',async()=>{const r=await fetch('/api/paypal/pending-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({piano:pendingPlan.value,rinnovo:{{ 'true' if renewal_requested else 'false' }},scelta:{{ 'true' if choice_requested else 'false' }})});const d=await r.json();if(!r.ok){alert(d.error||'Impossibile cambiare piano.');pendingPlan.value=selectedPlan;return}selectedPlan=d.plan;location.reload()});
+const pendingPlan=document.getElementById('pendingPlan');
+const isRenewal={{ renewal_requested|tojson }};
+const isChoice={{ choice_requested|tojson }};
+let selectedPlan={{ plan|tojson }};
+pendingPlan?.addEventListener('change',async()=>{
+    const r=await fetch('/api/paypal/pending-plan',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({piano:pendingPlan.value,rinnovo:isRenewal,scelta:isChoice})
+    });
+    const d=await r.json();
+    if(!r.ok){alert(d.error||'Impossibile cambiare piano.');pendingPlan.value=selectedPlan;return}
+    selectedPlan=d.plan;location.reload();
+});
 const errorBox = document.getElementById('payment-error');
 function showError(message) {
     errorBox.textContent = message;
@@ -93,7 +105,7 @@ paypal.Buttons({
     onApprove: async function(data) {
         const response = await fetch('/api/paypal/subscription/activate', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({subscription_id: data.subscriptionID, renewal: {{ 'true' if renewal_requested else 'false' }}, choice: {{ 'true' if choice_requested else 'false' }}})
+            body: JSON.stringify({subscription_id: data.subscriptionID, renewal: isRenewal, choice: isChoice})
         });
         const result = await response.json();
         if (!response.ok) return showError(result.error || 'Impossibile attivare l’abbonamento.');
