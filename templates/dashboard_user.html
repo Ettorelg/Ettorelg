@@ -133,8 +133,9 @@
         const license = data.item;
         if (!license || license.stato !== 'attiva' || license.giorni_rimanenti < 0 || license.giorni_rimanenti > 14) return;
         const days = license.giorni_rimanenti;
+        const isTrial = Boolean(license.in_prova);
         expiryBanner.classList.toggle('urgent', days <= 3);
-        expiryBanner.innerHTML = '⚠ <strong>' + (days === 0 ? 'La tua licenza scade oggi.' : 'La tua licenza scade tra ' + days + ' giorni.') + '</strong> Rinnova ora per non interrompere il servizio.<a href="/pagamento?rinnovo=1">Rinnova ora</a>';
+        expiryBanner.innerHTML = '⚠ <strong>' + (days === 0 ? (isTrial ? 'La tua prova gratuita termina oggi.' : 'La tua licenza scade oggi.') : (isTrial ? 'La tua prova gratuita termina tra ' : 'La tua licenza scade tra ') + days + ' giorni.') + '</strong> ' + (isTrial ? 'Scegli il piano per continuare senza interruzioni.' : 'Rinnova ora per non interrompere il servizio.') + '<a href="' + (isTrial ? '/pagamento?scelta=1' : '/pagamento?rinnovo=1') + '">' + (isTrial ? 'Scegli il tuo piano' : 'Rinnova ora') + '</a>';
         expiryBanner.style.display = 'block';
       } catch (_) {}
     }
