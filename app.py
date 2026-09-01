@@ -902,10 +902,10 @@ def pagamento():
     if not row:
         session.clear()
         return redirect(url_for("login"))
-    selected_plan = normalize_license_plan(row[8])
-    plan_info = LICENSE_PLANS[selected_plan]
     license_active = license_is_active(row[6], row[7])
     renewal_requested = request.args.get("rinnovo") == "1"
+    selected_plan = normalize_license_plan(session.get("renewal_plan") if renewal_requested else row[8])
+    plan_info = LICENSE_PLANS[selected_plan]
     return render_template(
         "pagamento.html", username=row[0], email=row[1], subscription_id=row[2],
         subscription_status=row[3], trial_until=row[4], next_billing=row[5],
@@ -921,6 +921,8 @@ def paypal_subscription_activate():
     user_id = session.get("pending_user_id") or session.get("user_id")
     if not user_id or session.get("is_admin"):
         return jsonify({"error": "Sessione di registrazione non valida."}), 401
+    payload = request.get_json(silent=True) or {}
+    renewal_requested = bool(payload.get("renewal"))
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
@@ -928,11 +930,11 @@ def paypal_subscription_activate():
             plan_row = cur.fetchone()
     finally:
         conn.close()
-    selected_plan = normalize_license_plan(plan_row[0] if plan_row else None)
+    selected_plan = normalize_license_plan(session.get("renewal_plan") if renewal_requested else (plan_row[0] if plan_row else None))
     expected_plan_id = paypal_plan_id(selected_plan)
     if not paypal_configured(selected_plan):
         return jsonify({"error": "Il piano PayPal selezionato non è ancora configurato."}), 503
-    subscription_id = (request.get_json(silent=True) or {}).get("subscription_id", "").strip()
+    subscription_id = (payload.get("subscription_id") or "").strip()
     if not subscription_id:
         return jsonify({"error": "Identificativo abbonamento mancante."}), 400
     try:
@@ -947,7 +949,6 @@ def paypal_subscription_activate():
         return jsonify({"error": "L'abbonamento non appartiene a questo account."}), 403
 
     next_billing = parse_paypal_date(details.get("billing_info", {}).get("next_billing_time"), date.today() + timedelta(days=365))
-    renewal_requested = bool((request.get_json(silent=True) or {}).get("renewal"))
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
@@ -965,7 +966,7 @@ def paypal_subscription_activate():
                         plan_id=EXCLUDED.plan_id, stato='attivo', trial_fino=NULL,
                         prossimo_addebito=EXCLUDED.prossimo_addebito, updated_at=NOW()
                 """, (user_id, subscription_id, details.get("plan_id"), next_billing))
-                cur.execute("UPDATE licenze_utenti SET stato='attiva', data_inizio=CURRENT_DATE, data_scadenza=%s, updated_at=NOW() WHERE id_utente=%s", (expiry, user_id))
+                cur.execute("UPDATE licenze_utenti SET stato='attiva', piano=%s, data_inizio=CURRENT_DATE, data_scadenza=%s, updated_at=NOW() WHERE id_utente=%s", (selected_plan, expiry, user_id))
                 cur.execute("SELECT username FROM utenti WHERE id=%s", (user_id,))
                 username = cur.fetchone()[0]
         session.clear()
@@ -986,6 +987,11 @@ def paypal_pending_plan():
     plan = normalize_license_plan(raw_plan)
     if not paypal_configured(plan):
         return jsonify({"error": "Il piano selezionato non è disponibile."}), 503
+    renewal_requested = bool((request.get_json(silent=True) or {}).get("rinnovo"))
+    if renewal_requested:
+        # Nel rinnovo il piano diventa effettivo solo dopo la conferma PayPal.
+        session["renewal_plan"] = plan
+        return jsonify({"ok": True, "plan": plan})
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
