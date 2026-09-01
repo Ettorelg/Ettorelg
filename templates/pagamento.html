@@ -30,7 +30,7 @@
     <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
     <h1>Scegli il tuo piano</h1>
     <p class="lead">Ciao {{ username }},{% if renewal_requested %} rinnova ora il tuo piano: l'anno acquistato verrà aggiunto alla scadenza attuale.{% else %} la prova gratuita Professional è terminata. Scegli il piano con cui continuare.{% endif %}</p>
-    {% if (not license_active or renewal_requested) and paypal_configured %}<div class="plan-choice"><label for="pendingPlan">Scegli il piano prima di pagare</label><select id="pendingPlan"><option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 69 € / anno</option><option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 99 € / anno</option></select><p class="plan-diff">Base: fino a 50 prodotti, menu in italiano. Professional: prodotti illimitati, traduzioni automatiche e statistiche.</p></div>{% endif %}
+    {% if not license_active and paypal_configured %}<div class="plan-choice"><label for="pendingPlan">Scegli il piano prima di pagare</label><select id="pendingPlan"><option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 69 € / anno</option><option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 99 € / anno</option></select><p class="plan-diff">Base: fino a 50 prodotti, menu in italiano. Professional: prodotti illimitati, traduzioni automatiche e statistiche.</p></div>{% endif %}
     <section class="offer">
         <strong>{{ plan_name }}</strong>
         <div>{{ price }} € IVA inclusa ogni anno.</div>
