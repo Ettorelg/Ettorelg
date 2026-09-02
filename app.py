@@ -3506,6 +3506,10 @@ def api_sottocategorie_create():
     data = request.get_json(silent=True) or {}
     nome = (data.get("nome") or "").strip().upper()
     visibile = bool(data.get("visibile", True))
+    visibile_da = data.get("visibile_da") or None
+    visibile_fino = data.get("visibile_fino") or None
+    ora_inizio = data.get("ora_inizio") or None
+    ora_fine = data.get("ora_fine") or None
     id_categoria = data.get("id_categoria")
 
     if not nome:
@@ -3527,13 +3531,13 @@ def api_sottocategorie_create():
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO sottocategorie (id_categoria, nome, ordine, visibile)
+                    INSERT INTO sottocategorie (id_categoria, nome, ordine, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine)
                     VALUES (%s, %s,
                         (SELECT COALESCE(MAX(ordine), 0) + 10 FROM sottocategorie WHERE id_categoria = %s),
-                        %s
+                        %s, %s, %s, %s, %s
                     )
                     RETURNING id
-                """, (id_categoria, nome, id_categoria, visibile))
+                """, (id_categoria, nome, id_categoria, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine))
                 new_id = cur.fetchone()[0]
         return jsonify({"ok": True, "id": new_id})
     finally:
