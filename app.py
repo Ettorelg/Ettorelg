@@ -1966,6 +1966,7 @@ def api_negozio():
                         UPDATE negozi
                         SET nome=%s, indirizzo=%s, citta=%s, cap=%s, provincia=%s,
                             email=%s, telefono=%s, nazione=%s, descrizione_breve=%s, descrizione_estesa=%s,
+                            whatsapp=%s, sito_web=%s, instagram_url=%s, google_maps_url=%s,
                             colore_accento=%s, colore_sfondo=%s, costo_coperto=%s
                         WHERE id = %s
                         """,
