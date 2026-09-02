@@ -1922,7 +1922,7 @@ def api_negozio():
     fields = (
         "nome", "indirizzo", "citta", "cap", "provincia", "email",
         "telefono", "nazione", "descrizione_breve", "descrizione_estesa",
-        "colore_accento", "colore_sfondo", "costo_coperto",
+        "whatsapp", "sito_web", "instagram_url", "google_maps_url", "colore_accento", "colore_sfondo", "costo_coperto",
     )
     required_fields = ("nome", "indirizzo", "citta", "cap", "provincia", "descrizione_breve", "descrizione_estesa")
     conn = psycopg2.connect(**build_db_config())
@@ -1979,9 +1979,9 @@ def api_negozio():
                         """
                         INSERT INTO negozi (
                             id_utente, nome, indirizzo, citta, cap, provincia, email, telefono,
-                            nazione, descrizione_breve, descrizione_estesa, colore_accento, colore_sfondo, costo_coperto, slug
+                            nazione, descrizione_breve, descrizione_estesa, whatsapp, sito_web, instagram_url, google_maps_url, colore_accento, colore_sfondo, costo_coperto, slug
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                         """,
                         [user_id] + [values[field] for field in fields] + [slug],
