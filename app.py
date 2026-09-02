@@ -2443,7 +2443,11 @@ def api_prodotti_list():
             rows = cur.fetchall()
 
         items = []
+        allergen_updates = []
         for r in rows:
+            detected_allergens = detect_allergens(r[1], r[2])
+            if detected_allergens != (r[13] or []):
+                allergen_updates.append((detected_allergens, r[0]))
             items.append({
                 "id": r[0],
                 "nome": r[1],
@@ -2458,8 +2462,14 @@ def api_prodotti_list():
                 "ordine": r[10],
                 "etichette": r[11] or [],
                 "note": r[12] or "",
-                "allergeni_auto": r[13] or [],
+                "allergeni_auto": detected_allergens,
             })
+        # Aggiorna anche i prodotti già presenti, non solo quelli creati/modificati dopo la novità.
+        if allergen_updates:
+            with conn:
+                with conn.cursor() as cur:
+                    for allergens, product_id in allergen_updates:
+                        cur.execute("UPDATE prodotti SET allergeni_auto=%s WHERE id=%s AND id_negozio=%s", (allergens, product_id, shop_id))
         return jsonify({"items": items})
     finally:
         conn.close()
