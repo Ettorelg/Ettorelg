@@ -494,6 +494,10 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE categorie ADD COLUMN IF NOT EXISTS visibile_fino DATE")
                 cur.execute("ALTER TABLE categorie ADD COLUMN IF NOT EXISTS ora_inizio TIME")
                 cur.execute("ALTER TABLE categorie ADD COLUMN IF NOT EXISTS ora_fine TIME")
+                cur.execute("ALTER TABLE sottocategorie ADD COLUMN IF NOT EXISTS visibile_da DATE")
+                cur.execute("ALTER TABLE sottocategorie ADD COLUMN IF NOT EXISTS visibile_fino DATE")
+                cur.execute("ALTER TABLE sottocategorie ADD COLUMN IF NOT EXISTS ora_inizio TIME")
+                cur.execute("ALTER TABLE sottocategorie ADD COLUMN IF NOT EXISTS ora_fine TIME")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS promozione BOOLEAN NOT NULL DEFAULT FALSE")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS titolo_promozione TEXT")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS promozione_da DATE")
@@ -2273,7 +2277,13 @@ def public_menu(slug: str):
                     ORDER BY ordine ASC, id ASC LIMIT 1
                 ) img ON TRUE
                 WHERE p.id_negozio = %s
-                  AND (sc.id IS NULL OR sc.visibile = TRUE)
+                  AND (sc.id IS NULL OR (
+                    sc.visibile = TRUE
+                    AND (sc.visibile_da IS NULL OR sc.visibile_da <= CURRENT_DATE)
+                    AND (sc.visibile_fino IS NULL OR sc.visibile_fino >= CURRENT_DATE)
+                    AND (sc.ora_inizio IS NULL OR sc.ora_inizio <= CURRENT_TIME)
+                    AND (sc.ora_fine IS NULL OR sc.ora_fine >= CURRENT_TIME)
+                  ))
                 ORDER BY CASE WHEN %s THEN c.ordine ELSE 0 END ASC,
                          COALESCE(sc.ordine, 0) ASC,
                          CASE WHEN c.ordine_prodotti_personalizzato THEN p.ordine ELSE 0 END ASC,
