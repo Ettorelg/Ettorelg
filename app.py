@@ -490,6 +490,28 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS piano TEXT NOT NULL DEFAULT 'professional'")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ordine_categorie_personalizzato BOOLEAN NOT NULL DEFAULT FALSE")
                 cur.execute("ALTER TABLE categorie ADD COLUMN IF NOT EXISTS ordine_prodotti_personalizzato BOOLEAN NOT NULL DEFAULT FALSE")
+                cur.execute("ALTER TABLE categorie ADD COLUMN IF NOT EXISTS visibile_da DATE")
+                cur.execute("ALTER TABLE categorie ADD COLUMN IF NOT EXISTS visibile_fino DATE")
+                cur.execute("ALTER TABLE categorie ADD COLUMN IF NOT EXISTS ora_inizio TIME")
+                cur.execute("ALTER TABLE categorie ADD COLUMN IF NOT EXISTS ora_fine TIME")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS promozione BOOLEAN NOT NULL DEFAULT FALSE")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS titolo_promozione TEXT")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS promozione_da DATE")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS promozione_fino DATE")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS whatsapp TEXT")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS sito_web TEXT")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS instagram_url TEXT")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS google_maps_url TEXT")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS varianti_prodotti (
+                        id SERIAL PRIMARY KEY,
+                        id_prodotto INTEGER NOT NULL REFERENCES prodotti(id) ON DELETE CASCADE,
+                        nome TEXT NOT NULL,
+                        prezzo_extra NUMERIC(10,2) NOT NULL DEFAULT 0,
+                        disponibile BOOLEAN NOT NULL DEFAULT TRUE,
+                        ordine INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
 
                 cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS piano_programmato TEXT")
                 cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS cambio_piano_il DATE")
