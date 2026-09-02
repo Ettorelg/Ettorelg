@@ -2246,6 +2246,10 @@ def public_menu(slug: str):
                 """
                 SELECT id, nome FROM categorie
                 WHERE id_negozio = %s AND visibile = TRUE
+                  AND (visibile_da IS NULL OR visibile_da <= CURRENT_DATE)
+                  AND (visibile_fino IS NULL OR visibile_fino >= CURRENT_DATE)
+                  AND (ora_inizio IS NULL OR ora_inizio <= CURRENT_TIME)
+                  AND (ora_fine IS NULL OR ora_fine >= CURRENT_TIME)
                 ORDER BY CASE WHEN %s THEN ordine ELSE 0 END ASC, LOWER(nome) ASC
                 """,
                 (shop["id"], shop["ordine_categorie_personalizzato"]),
