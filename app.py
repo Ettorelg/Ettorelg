@@ -3169,6 +3169,10 @@ def api_categorie_create():
     nome = (data.get("nome") or "").strip().upper()
     visibile = bool(data.get("visibile", True))
     ordine = data.get("ordine")
+    visibile_da = data.get("visibile_da") or None
+    visibile_fino = data.get("visibile_fino") or None
+    ora_inizio = data.get("ora_inizio") or None
+    ora_fine = data.get("ora_fine") or None
 
     if not nome:
         return jsonify({"error": "nome obbligatorio"}), 400
@@ -3192,19 +3196,19 @@ def api_categorie_create():
             with conn.cursor() as cur:
                 if ordine_int is None:
                     cur.execute("""
-                        INSERT INTO categorie (id_negozio, nome, ordine, visibile)
+                        INSERT INTO categorie (id_negozio, nome, ordine, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine)
                         VALUES (%s, %s,
                             (SELECT COALESCE(MAX(ordine), 0) + 10 FROM categorie WHERE id_negozio = %s),
-                            %s
+                            %s, %s, %s, %s, %s
                         )
                         RETURNING id
-                    """, (shop_id, nome, shop_id, visibile))
+                    """, (shop_id, nome, shop_id, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine))
                 else:
                     cur.execute("""
-                        INSERT INTO categorie (id_negozio, nome, ordine, visibile)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO categorie (id_negozio, nome, ordine, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
-                    """, (shop_id, nome, ordine_int, visibile))
+                    """, (shop_id, nome, ordine_int, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine))
 
                 new_id = cur.fetchone()[0]
                 if ordine_int is not None:
