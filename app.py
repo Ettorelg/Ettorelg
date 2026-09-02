@@ -2648,7 +2648,7 @@ def api_prodotti_create():
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, etichette, allergeni_auto)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                         COALESCE(%s, (SELECT COALESCE(MAX(ordine), 0) + 10 FROM prodotti WHERE id_negozio = %s)),
                         %s, %s
                     )
