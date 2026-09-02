@@ -502,6 +502,10 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS titolo_promozione TEXT")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS promozione_da DATE")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS promozione_fino DATE")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS visibile_da DATE")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS visibile_fino DATE")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS ora_inizio TIME")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS ora_fine TIME")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS whatsapp TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS sito_web TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS instagram_url TEXT")
@@ -2277,6 +2281,10 @@ def public_menu(slug: str):
                     ORDER BY ordine ASC, id ASC LIMIT 1
                 ) img ON TRUE
                 WHERE p.id_negozio = %s
+                  AND (p.visibile_da IS NULL OR p.visibile_da <= CURRENT_DATE)
+                  AND (p.visibile_fino IS NULL OR p.visibile_fino >= CURRENT_DATE)
+                  AND (p.ora_inizio IS NULL OR p.ora_inizio <= CURRENT_TIME)
+                  AND (p.ora_fine IS NULL OR p.ora_fine >= CURRENT_TIME)
                   AND (sc.id IS NULL OR (
                     sc.visibile = TRUE
                     AND (sc.visibile_da IS NULL OR sc.visibile_da <= CURRENT_DATE)
