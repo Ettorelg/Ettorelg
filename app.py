@@ -2595,6 +2595,10 @@ def api_prodotti_create():
     allergeni_auto = detect_allergens(nome, descrizione)
     prezzo_euro = request.form.get("prezzo_euro")
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
+    visibile_da = request.form.get("visibile_da") or None
+    visibile_fino = request.form.get("visibile_fino") or None
+    ora_inizio = request.form.get("ora_inizio") or None
+    ora_fine = request.form.get("ora_fine") or None
     id_categoria = request.form.get("id_categoria") or None
     id_sottocategoria = request.form.get("id_sottocategoria") or None
     ordine = request.form.get("ordine") or None
@@ -2643,13 +2647,13 @@ def api_prodotti_create():
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, ordine, etichette, allergeni_auto)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
+                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, etichette, allergeni_auto)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                         COALESCE(%s, (SELECT COALESCE(MAX(ordine), 0) + 10 FROM prodotti WHERE id_negozio = %s)),
                         %s, %s
                     )
                     RETURNING id
-                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, ordine, shop_id, etichette, allergeni_auto))
+                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, shop_id, etichette, allergeni_auto))
                 new_id = cur.fetchone()[0]
 
                 # Senza un ordine manuale, mantieni l'ordine alfabetico nella categoria.
@@ -2907,6 +2911,10 @@ def api_prodotti_update(prodotto_id: int):
     allergeni_auto = detect_allergens(nome, descrizione)
     prezzo_euro = request.form.get("prezzo_euro")
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
+    visibile_da = request.form.get("visibile_da") or None
+    visibile_fino = request.form.get("visibile_fino") or None
+    ora_inizio = request.form.get("ora_inizio") or None
+    ora_fine = request.form.get("ora_fine") or None
     id_categoria = request.form.get("id_categoria") or None
     id_sottocategoria = request.form.get("id_sottocategoria") or None
     ordine = request.form.get("ordine") or None
@@ -2961,9 +2969,9 @@ def api_prodotti_update(prodotto_id: int):
                 cur.execute("""
                     UPDATE prodotti
                     SET id_categoria=%s, id_sottocategoria=%s, nome=%s, descrizione=%s, note=%s, prezzo_euro=%s, disponibile=%s,
-                        ordine=COALESCE(%s, ordine), etichette=%s, allergeni_auto=%s
+                        visibile_da=%s, visibile_fino=%s, ora_inizio=%s, ora_fine=%s, ordine=COALESCE(%s, ordine), etichette=%s, allergeni_auto=%s
                     WHERE id=%s
-                """, (id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, ordine, etichette, allergeni_auto, prodotto_id))
+                """, (id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, etichette, allergeni_auto, prodotto_id))
 
                 # immagine principale: gestisci remove / sostituzione
                 cur.execute("SELECT id, url FROM immagini_prodotti WHERE id_prodotto=%s AND principale=TRUE LIMIT 1", (prodotto_id,))
