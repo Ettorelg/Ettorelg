@@ -326,6 +326,18 @@ MENU_UI = {
     "es": {"venue": "Nuestro local", "contacts": "Contactos", "show": "VER EL MENÚ", "back": "Volver a la información", "hours": "Horario de apertura", "closed": "Cerrado", "empty": "El menú estará disponible pronto.", "categories": "Categorías del menú", "days": ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]},
 }
 
+for _code, (_call, _whatsapp, _book, _booking_message) in {
+    "it": ("Chiama", "Scrivi su WhatsApp", "Prenota", "Ciao, vorrei prenotare un tavolo."),
+    "en": ("Call", "Message on WhatsApp", "Book", "Hello, I would like to book a table."),
+    "fr": ("Appeler", "Écrire sur WhatsApp", "Réserver", "Bonjour, je voudrais réserver une table."),
+    "de": ("Anrufen", "Über WhatsApp schreiben", "Reservieren", "Hallo, ich möchte einen Tisch reservieren."),
+    "es": ("Llamar", "Escribir por WhatsApp", "Reservar", "Hola, me gustaría reservar una mesa."),
+}.items():
+    MENU_UI[_code]["call"] = _call
+    MENU_UI[_code]["whatsapp"] = _whatsapp
+    MENU_UI[_code]["book"] = _book
+    MENU_UI[_code]["booking_message"] = _booking_message
+
 for _code, (_cover, _print, _sold_out) in {
     "it": ("Coperto", "Stampa menu A4", "Esaurito"),
     "en": ("Cover charge", "Print A4 menu", "Sold out"),
@@ -2227,7 +2239,7 @@ def public_menu(slug: str):
                 SELECT id, nome, indirizzo, citta, cap, provincia, email, telefono, nazione,
                        descrizione_breve, descrizione_estesa, slug, logo_url, copertina_url,
                        colore_accento, colore_sfondo, costo_coperto,
-                       COALESCE(ordine_categorie_personalizzato, FALSE)
+                       COALESCE(ordine_categorie_personalizzato, FALSE), COALESCE(whatsapp, '')
                 FROM negozi WHERE slug = %s
                 """,
                 (slug,),
@@ -2244,6 +2256,7 @@ def public_menu(slug: str):
                 "colore_accento": row[14] or "#9d3e27", "colore_sfondo": row[15] or "#f7f3ed",
                 "costo_coperto": f"{float(row[16] or 0):.2f}".replace(".", ","),
                 "ordine_categorie_personalizzato": bool(row[17]),
+                "whatsapp": row[18] or "",
             }
             cur.execute(
                 "INSERT INTO menu_visite (id_negozio, lingua, sorgente) VALUES (%s, %s, %s)",
@@ -2355,6 +2368,7 @@ def public_menu(slug: str):
                         product["allergeni"] = [translations.get(("prodotto", product["id"], f"allergene_{i}"), value) for i, value in enumerate(product["allergeni"])]
 
             ui = MENU_UI.get(language, MENU_UI["it"])
+            shop["whatsapp_digits"] = re.sub(r"\D", "", shop["whatsapp"] or shop["telefono"])
             hours = [{"nome": ui["days"][day], **saved_hours.get(day, {"aperto": False})} for day in range(7)]
             languages = [{"codice": "it", "nome": "Italiano"}] + [{"codice": code, "nome": SUPPORTED_MENU_LANGUAGES[code]} for code in enabled_codes]
 

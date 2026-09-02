@@ -30,6 +30,7 @@
     .view-actions{display:flex;justify-content:center;margin:28px 0}.menu-button{padding:13px 22px;border:0;border-radius:999px;background:var(--accent);color:#fff;font:800 1rem system-ui;cursor:pointer;box-shadow:0 10px 24px rgba(157,62,39,.24)}.menu-button.secondary{background:#fff;color:var(--accent);border:1px solid var(--line);box-shadow:none}.menu-content[hidden],.category-nav[hidden],.intro[hidden],.hours[hidden],.view-actions[hidden]{display:none!important}
     .hours{max-width:720px;margin:28px auto 0;padding:14px 16px;border-radius:14px;background:#211d19;color:#fff}.hours h2{margin:0 0 9px;font-size:1.05rem}.hours-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 18px}.hours-row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.12);font-size:.8rem}.hours-row span:last-child{color:#eadbd0;text-align:right}
     footer{text-align:center;padding:22px;color:var(--muted);font-size:.8rem}
+    .contact-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:14px 18px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 7px 22px rgba(70,48,33,.08)}.contact-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:11px 18px;border:1px solid color-mix(in srgb,var(--accent) 28%,#fff);border-radius:999px;background:#fff;color:var(--accent);font-size:.9rem;font-weight:850;text-decoration:none;transition:transform .16s ease,box-shadow .16s ease}.contact-action.primary{background:var(--accent);border-color:var(--accent);color:#fff}.contact-action.whatsapp{background:#25d366;border-color:#25d366;color:#082b15}.contact-action:hover,.contact-action:focus-visible{transform:translateY(-2px);box-shadow:0 8px 18px rgba(70,48,33,.16);outline:none}
     @media(max-width:780px){.hero-inner{align-items:center}.brand-logo{width:76px;height:76px;border-radius:18px}.intro{grid-template-columns:1fr}.products{grid-template-columns:1fr}.hours-grid{grid-template-columns:1fr}.menu-tools{position:static;grid-template-columns:1fr;margin:9px auto}}
     @media(max-width:480px){.hero{min-height:225px}.hero-inner{padding:32px 14px 18px;gap:11px}.brand-logo{width:58px;height:58px;border-radius:14px}.hero h1{font-size:1.7rem}.hero p{font-size:.84rem}.category-nav{padding:8px 10px}.category-nav a{min-height:40px;display:flex;align-items:center;padding:8px 13px}.menu-section{margin-top:18px}.menu-section h2{font-size:1.45rem;margin-bottom:10px}.products{gap:8px}.product,.product.with-image{grid-template-columns:60px minmax(0,1fr) auto;align-items:start;padding:9px;gap:9px;border-radius:13px}.product:not(.with-image){grid-template-columns:minmax(0,1fr) auto}.product img{width:60px;height:60px;border-radius:10px}.product.with-image .price{grid-column:3;grid-row:1;justify-self:end}.product h3{margin-bottom:3px;font-size:.95rem}.subcat{margin-bottom:2px;font-size:.65rem}.product p{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:.78rem;line-height:1.3}.price{font-size:.9rem}.chips{gap:3px;margin-top:5px}.chip{padding:3px 5px;font-size:.62rem}.note{margin-top:4px;font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.menu-button{width:100%;min-height:46px}.intro-card{padding:15px}main{padding:16px 10px 48px}}
 
@@ -37,7 +38,7 @@
     @page{size:A4 portrait;margin:7mm}
     @media print{
       html,body{background:#fff!important;color:#111!important;font:7.5pt/1.15 Arial,sans-serif!important;-webkit-print-color-adjust:economy;print-color-adjust:economy}
-      .language-picker,.print-menu-button,.category-nav,.menu-tools,.intro,.hours,.view-actions,.legal-footer,.product-modal,.product-open-hint{display:none!important}
+      .language-picker,.print-menu-button,.category-nav,.menu-tools,.intro,.hours,.view-actions,.legal-footer,.product-modal,.product-open-hint,.contact-actions{display:none!important}
       .hero{min-height:0!important;margin:0 0 2mm;background:none!important;overflow:visible;border:0;border-bottom:2pt solid var(--accent)}
       .hero-inner{display:flex;width:auto;margin:0;padding:0 0 3mm;align-items:center;gap:4mm;color:#111}
       .brand-logo{display:grid!important;width:18mm;height:18mm;flex:0 0 18mm;border:.6pt solid #bbb;border-radius:3mm;background:#fff;box-shadow:none;color:var(--accent);font-size:15pt}
@@ -65,7 +66,7 @@
       .allergen-line{display:block;margin:.5mm 0 0;padding:.4mm 0 0;border-top:.35pt dotted #aaa;color:#444;font-size:5.8pt;line-height:1.12}.allergen-line strong{margin-right:.6mm}
     }
 
-    @media(max-width:480px){.hero-inner{padding-top:58px}.language-picker{top:8px;right:8px}.language-picker select{min-height:36px}.intro-card{overflow-wrap:anywhere}.view-actions{margin:20px 0}.legal-footer{margin-top:0}}
+    @media(max-width:480px){.hero-inner{padding-top:58px}.language-picker{top:8px;right:8px}.language-picker select{min-height:36px}.intro-card{overflow-wrap:anywhere}.view-actions{margin:20px 0}.legal-footer{margin-top:0}.contact-actions{display:grid;grid-template-columns:1fr 1fr;padding:10px;gap:7px}.contact-action{min-height:44px;padding:9px 8px;font-size:.78rem}.contact-action.whatsapp{grid-column:1/-1;grid-row:1}}
   </style>
 </head>
 <body>
@@ -78,6 +79,14 @@
       <div><h1>{{ shop.nome }}</h1>{% if shop.descrizione_breve %}<p>{{ shop.descrizione_breve }}</p>{% endif %}{% if shop.costo_coperto != '0,00' %}<p class="cover-charge">{{ ui.cover }} € {{ shop.costo_coperto }}</p>{% endif %}</div>
     </div>
   </header>
+
+  {% if shop.telefono or shop.whatsapp_digits %}
+  <nav class="contact-actions" aria-label="Azioni di contatto">
+    {% if shop.telefono %}<a class="contact-action" href="tel:{{ shop.telefono }}" aria-label="{{ ui.call }} {{ shop.nome }}"><span aria-hidden="true">☎</span> {{ ui.call }}</a>{% endif %}
+    {% if shop.whatsapp_digits %}<a class="contact-action whatsapp" href="https://wa.me/{{ shop.whatsapp_digits }}" target="_blank" rel="noopener"><span aria-hidden="true">💬</span> {{ ui.whatsapp }}</a>{% endif %}
+    {% if shop.whatsapp_digits %}<a class="contact-action primary" href="https://wa.me/{{ shop.whatsapp_digits }}?text={{ ui.booking_message|urlencode }}" target="_blank" rel="noopener"><span aria-hidden="true">📅</span> {{ ui.book }}</a>{% elif shop.telefono %}<a class="contact-action primary" href="tel:{{ shop.telefono }}"><span aria-hidden="true">📅</span> {{ ui.book }}</a>{% endif %}
+  </nav>
+  {% endif %}
 
   {% if categories %}<nav class="category-nav" id="categoryNav" aria-label="{{ ui.categories }}" hidden>{% for category in categories %}<a href="#categoria-{{ category.id }}" data-category-target="categoria-{{ category.id }}">{{ category.nome }}</a>{% endfor %}</nav>{% endif %}
   <div class="menu-tools" id="menuTools" hidden>
