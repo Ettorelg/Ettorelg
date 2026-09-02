@@ -1,0 +1,45 @@
+<style>
+  .stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  .stat-card,.stats-panel{padding:18px;border:1px solid rgba(255,255,255,.13);border-radius:15px;background:rgba(255,255,255,.04)}
+  .stat-card strong{display:block;margin-top:8px;font-size:2rem;color:#dbe8ff}
+  .stats-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}.stats-panel{margin:0}.stats-panel.full{grid-column:1/-1}
+  .stats-row{display:flex;align-items:center;gap:12px;margin:10px 0}.stats-row>span:first-child{width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar{height:10px;flex:1;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}.bar i{display:block;height:100%;border-radius:inherit;background:#6ea8fe}
+  .day-row{display:grid;grid-template-columns:55px 1fr auto;gap:10px;align-items:center;margin:8px 0}.day-bars{display:grid;gap:3px}.day-bars .qr{background:#8bd5a8}.legend{display:flex;gap:16px;margin-bottom:12px;font-size:12px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;background:#6ea8fe}.legend .qr i{background:#8bd5a8}
+  .muted{opacity:.72}@media(max-width:900px){.stats-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:720px){.stats-grid,.stats-panels{grid-template-columns:1fr}.stats-panel.full{grid-column:auto}}
+</style>
+<h2>Statistiche del menu</h2>
+<p class="muted">Dati aggregati e anonimi del menu pubblico, aggiornati in tempo reale.</p>
+<div class="stats-grid">
+  <div class="stat-card">Visite totali<strong id="statsTotal">—</strong></div>
+  <div class="stat-card">Ultimi 30 giorni<strong id="stats30">—</strong></div>
+  <div class="stat-card">Ultimi 7 giorni<strong id="stats7">—</strong></div>
+  <div class="stat-card">Scansioni QR (30 giorni)<strong id="statsQr">—</strong></div>
+</div>
+<div class="stats-panels">
+  <div class="stats-panel"><h3>Categorie più aperte</h3><p class="muted">Ultimi 30 giorni.</p><div id="statsCategories">Caricamento…</div></div>
+  <div class="stats-panel"><h3>Prodotti più visualizzati</h3><p class="muted">Aperture delle schede negli ultimi 30 giorni.</p><div id="statsProducts">Caricamento…</div></div>
+  <div class="stats-panel"><h3>Lingue utilizzate</h3><p class="muted">Ultimi 30 giorni.</p><div id="statsLanguages">Caricamento…</div></div>
+  <div class="stats-panel"><h3>Andamento ultimi 30 giorni</h3><div class="legend"><span><i></i>Visite</span><span class="qr"><i></i>Da QR</span></div><div id="statsDays">Caricamento…</div></div>
+</div>
+<script>
+(async () => {
+  const escapeHtml=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+  const rows=(items,valueKey,empty)=>{
+    const max=Math.max(1,...items.map(item=>Number(item[valueKey])||0));
+    return items.length?items.map(item=>`<div class="stats-row"><span title="${escapeHtml(item.nome||item.lingua)}">${escapeHtml(item.nome||(item.lingua||'').toUpperCase())}</span><div class="bar"><i style="width:${(Number(item[valueKey])||0)/max*100}%"></i></div><b>${Number(item[valueKey])||0}</b></div>`).join(''):empty;
+  };
+  const response=await fetch('/api/statistiche');
+  if(!response.ok){document.querySelectorAll('[id^="stats"]').forEach(el=>{if(!el.matches('strong'))el.textContent='Statistiche non disponibili.'});return;}
+  const data=await response.json();
+  document.getElementById('statsTotal').textContent=data.totale;
+  document.getElementById('stats30').textContent=data.ultimi_30_giorni;
+  document.getElementById('stats7').textContent=data.ultimi_7_giorni;
+  document.getElementById('statsQr').textContent=data.scansioni_qr_30_giorni||0;
+  document.getElementById('statsLanguages').innerHTML=rows(data.lingue||[],'visite','Nessuna visita registrata.');
+  document.getElementById('statsProducts').innerHTML=rows(data.articoli_piu_aperti||[],'aperture','Nessuna apertura prodotto registrata.');
+  document.getElementById('statsCategories').innerHTML=rows(data.categorie_piu_aperte||[],'aperture','Nessuna apertura categoria registrata.');
+  const days=data.giorni||[];const maxDay=Math.max(1,...days.map(item=>Number(item.visite)||0));
+  document.getElementById('statsDays').innerHTML=days.length?days.map(item=>`<div class="day-row"><span>${escapeHtml(item.data.slice(5))}</span><div class="day-bars"><div class="bar"><i style="width:${item.visite/maxDay*100}%"></i></div><div class="bar"><i class="qr" style="width:${item.qr/maxDay*100}%"></i></div></div><b>${item.visite}</b></div>`).join(''):'Nessuna visita registrata.';
+})();
+</script>

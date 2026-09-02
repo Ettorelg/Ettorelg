@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <link rel="icon" href="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" type="image/svg+xml">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard</title>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#0f1a2e; --text:#e7ecff; --muted:#aab4d6;
+      --border:rgba(255,255,255,.12); --radius:14px; --shadow:0 10px 30px rgba(0,0,0,.35);
+      --sidebar-w:280px; --sidebar-collapsed:78px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+    .app{display:flex;min-height:100vh}
+    .sidebar{position:sticky;top:0;height:100vh;width:var(--sidebar-w);background:var(--panel);
+      border-right:1px solid var(--border);box-shadow:var(--shadow);transition:width .2s ease;overflow-x:hidden;overflow-y:auto;scrollbar-color:rgba(255,255,255,.28) transparent;scrollbar-width:thin}
+    .sidebar.collapsed{width:var(--sidebar-collapsed)}
+    .sidebar.collapsed .sb-top{justify-content:center;padding:14px 10px}
+    .sidebar.collapsed .sb-top .logo{display:none}
+    .sidebar.collapsed .toggle{margin-left:0;background:rgba(110,168,254,.22);border-color:rgba(110,168,254,.5);box-shadow:0 5px 14px rgba(0,0,0,.2)}
+    .sidebar.collapsed .sb-nav{padding:10px 12px}
+    .sidebar.collapsed .nav-item{justify-content:center;padding:12px 8px}
+    .sb-top{display:flex;align-items:center;gap:10px;padding:16px;border-bottom:1px solid var(--border)}
+    .logo{width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,#4666b6,#27345e);flex:0 0 auto;display:grid;place-items:center;overflow:hidden;color:#fff;font-size:12px;font-weight:750;letter-spacing:.04em}
+    .logo img{width:100%;height:100%;object-fit:contain;background:#fff}
+    .titles{min-width:0}
+    .titles strong{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .titles span{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .toggle{margin-left:auto;width:40px;height:40px;border-radius:12px;border:1px solid var(--border);
+      background:rgba(255,255,255,.05);color:var(--text);cursor:pointer}
+    .sb-nav{padding:10px;display:flex;flex-direction:column;gap:6px}
+    .nav-item{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;color:var(--text);
+      text-decoration:none;border:1px solid transparent;background:transparent;cursor:pointer}
+    .nav-item:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.06)}
+    .nav-item.active{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.12)}
+    .nav-item.shop-locked,.nav-item.plan-locked{opacity:.38;cursor:not-allowed;filter:saturate(.35)}
+    .nav-item.shop-locked:hover,.nav-item.plan-locked:hover{background:transparent;border-color:transparent}
+    .nav-item.shop-locked::after,.nav-item.plan-locked::after{content:"🔒";margin-left:auto;font-size:12px}
+    .sidebar.collapsed .nav-item.shop-locked::after,.sidebar.collapsed .nav-item.plan-locked::after{display:none}
+    .icon{width:26px;height:26px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.08);flex:0 0 auto}
+    .label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+    .sidebar.collapsed .label, .sidebar.collapsed .titles{display:none}
+    .main{flex:1;padding:16px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;
+      padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius);background:rgba(255,255,255,.03);box-shadow:var(--shadow)}
+    .topbar h1{margin:0;font-size:16px}
+    .topbar-actions{display:flex;align-items:center;gap:10px}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.04)}
+    .logout-button{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid rgba(255,110,110,.45);border-radius:10px;background:rgba(255,80,80,.12);color:#ffd2d2;text-decoration:none;font-size:14px;font-weight:600}
+    .logout-button:hover{background:rgba(255,80,80,.22);border-color:rgba(255,150,150,.7)}
+    .expiry-banner{display:none;margin-top:14px;padding:15px 17px;border:1px solid rgba(255,190,75,.6);border-radius:var(--radius);background:linear-gradient(90deg,rgba(255,180,60,.2),rgba(255,90,90,.12));color:#fff0c5;font-weight:720;box-shadow:var(--shadow)}.expiry-banner.urgent{border-color:rgba(255,110,110,.75);color:#ffe0e0}.expiry-banner a{display:inline-flex;margin-left:12px;color:#161007;background:#ffc857;border-radius:8px;padding:7px 10px;text-decoration:none;font-weight:900}
+    .content{margin-top:14px;border:1px solid var(--border);border-radius:var(--radius);
+      background:rgba(255,255,255,.03);box-shadow:var(--shadow);padding:16px;min-height: 320px}
+    .loading{opacity:.65}
+    .error{padding:10px;border:1px solid rgba(255,80,80,.4);background:rgba(255,80,80,.12);border-radius:12px}
+
+    @media(max-width:760px){
+      body{overflow-x:hidden}.app{display:block;min-height:100vh}.sidebar,.sidebar.collapsed{position:sticky;top:0;z-index:20;width:100%;height:auto;max-height:none;overflow:visible;border-right:0;border-bottom:1px solid var(--border)}
+      .sb-top{padding:9px 10px}.logo{width:38px;height:38px;border-radius:10px}.titles,.sidebar.collapsed .titles{display:block;flex:1}.titles strong{font-size:13px}.toggle{display:none}
+      .sb-nav{display:flex;flex-direction:row;gap:6px;padding:7px 8px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:x proximity;scrollbar-width:none}.sb-nav::-webkit-scrollbar{display:none}
+      .nav-item{flex:0 0 auto;min-height:42px;padding:8px 10px;gap:7px;scroll-snap-align:start}.icon{width:28px;height:28px;border-radius:8px}.label,.sidebar.collapsed .label{display:block;max-width:118px;font-size:12px}.nav-item.shop-locked::after{font-size:10px}
+      .main{width:100%;padding:9px}.topbar{padding:10px 11px;border-radius:12px;box-shadow:none}.topbar h1{font-size:15px}.topbar-actions{gap:6px}.pill{display:none}.logout-button{min-height:40px;padding:8px 10px;font-size:12px}
+      .content{margin-top:9px;padding:11px;min-height:260px;border-radius:12px;box-shadow:none;overflow:hidden}.content input:not([type=checkbox]):not([type=radio]):not([type=color]),.content select,.content textarea{max-width:100%;font-size:16px}.content button,.content .btn{min-height:42px;touch-action:manipulation}.content img{max-width:100%}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside id="sidebar" class="sidebar">
+      <div class="sb-top">
+        <div class="logo" id="shopLogo">
+          <span id="shopLogoFallback">AM</span>
+          <img id="shopLogoImage" alt="Logo del punto vendita" hidden />
+        </div>
+        <div class="titles">
+          <strong id="shopName">Alpha Menu</strong>
+          <span>{{ username }}</span>
+        </div>
+        <button class="toggle" id="sidebarToggle" type="button" onclick="toggleSidebar()" title="Riduci menu" aria-label="Riduci menu" aria-expanded="true">☰</button>
+      </div>
+
+      <nav class="sb-nav" id="nav">
+        <button class="nav-item active" data-section="home"><div class="icon">🏠</div><div class="label">Home</div></button>
+
+        <button class="nav-item" data-section="prodotti" data-requires-shop="1"><div class="icon">🧾</div><div class="label">Prodotti</div></button>
+        <button class="nav-item" data-section="categorie" data-requires-shop="1"><div class="icon">📁</div><div class="label">Categorie</div></button>
+        <button class="nav-item" data-section="attivita"><div class="icon">🏪</div><div class="label">Negozio e orari</div></button>
+        <button class="nav-item" data-section="menu_online" data-requires-shop="1"><div class="icon">📱</div><div class="label">Menu pubblico</div></button>
+
+        <button class="nav-item" data-section="lingue" data-requires-shop="1"><div class="icon">🌐</div><div class="label">Lingue</div></button>
+        <button class="nav-item" data-section="statistiche" data-requires-shop="1"><div class="icon">📊</div><div class="label">Statistiche</div></button>
+        <button class="nav-item" data-section="licenze"><div class="icon">🔐</div><div class="label">Licenze</div></button>
+        <button class="nav-item" data-section="account"><div class="icon">👤</div><div class="label">Account</div></button>
+      </nav>
+
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <h1 id="pageTitle">Dashboard</h1>
+        <div class="topbar-actions">
+          <div class="pill">Utente: {{ username }}</div>
+          <a class="logout-button" href="/logout" aria-label="Esci dall'account">🚪 Esci</a>
+        </div>
+      </div>
+      <div id="expiryBanner" class="expiry-banner" role="status"></div>
+
+      <div id="content" class="content"></div>
+      {% include '_legal_footer.html' %}
+    </main>
+  </div>
+
+  <script>
+    const sidebar = document.getElementById('sidebar');
+    const nav = document.getElementById('nav');
+    const content = document.getElementById('content');
+    const pageTitle = document.getElementById('pageTitle');
+    const shopName = document.getElementById('shopName');
+    const shopLogoImage = document.getElementById('shopLogoImage');
+    const shopLogoFallback = document.getElementById('shopLogoFallback');
+    let shopConfigured = {{ 'true' if shop_configured else 'false' }};
+    const licensePlan = {{ license_plan|tojson }};
+    const professionalSections = new Set(['lingue', 'statistiche']);
+    const expiryBanner = document.getElementById('expiryBanner');
+    async function showExpiryWarning(){
+      try {
+        const response = await fetch('/api/licenza');
+        if (!response.ok) return;
+        const data = await response.json();
+        const license = data.item;
+        if (!license || license.stato !== 'attiva' || license.giorni_rimanenti < 0 || license.giorni_rimanenti > 14) return;
+        const days = license.giorni_rimanenti;
+        const isTrial = Boolean(license.in_prova);
+        expiryBanner.classList.toggle('urgent', days <= 3);
+        expiryBanner.innerHTML = '⚠ <strong>' + (days === 0 ? (isTrial ? 'La tua prova gratuita termina oggi.' : 'La tua licenza scade oggi.') : (isTrial ? 'La tua prova gratuita termina tra ' : 'La tua licenza scade tra ') + days + ' giorni.') + '</strong> ' + (isTrial ? 'Scegli il piano per continuare senza interruzioni.' : 'Rinnova ora per non interrompere il servizio.') + '<a href="' + (isTrial ? '/pagamento?scelta=1' : '/pagamento?rinnovo=1') + '">' + (isTrial ? 'Scegli il tuo piano' : 'Rinnova ora') + '</a>';
+        expiryBanner.style.display = 'block';
+      } catch (_) {}
+    }
+    showExpiryWarning();
+    const shopRequiredSections = new Set(['prodotti', 'categorie', 'sottocategorie', 'allergeni', 'menu_online', 'qrcode', 'anteprima', 'lingue', 'statistiche']);
+
+    function syncShopLocks(){
+      for (const btn of nav.querySelectorAll('[data-section]')) {
+        const shopLocked = btn.dataset.requiresShop === '1' && !shopConfigured;
+        const planLocked = licensePlan !== 'professional' && professionalSections.has(btn.dataset.section);
+        const locked = shopLocked || planLocked;
+        btn.classList.toggle('shop-locked', shopLocked);
+        btn.classList.toggle('plan-locked', planLocked);
+        btn.disabled = locked;
+        btn.title = shopLocked ? 'Completa prima l’anagrafica del negozio' : planLocked ? 'Disponibile con la licenza Professional' : '';
+        btn.setAttribute('aria-disabled', locked ? 'true' : 'false');
+      }
+    }
+
+    window.loadShopBranding = async function loadShopBranding(){
+      try {
+        const response = await fetch('/api/negozio');
+        if (!response.ok) return;
+        const data = await response.json();
+        const shop = data.item || {};
+        shopConfigured = Boolean(shop.id);
+        syncShopLocks();
+        const name = (shop.nome || 'Alpha Menu').trim();
+        shopName.textContent = name;
+        shopLogoFallback.textContent = name.split(/\s+/).slice(0, 2).map(word => word[0]).join('').toUpperCase() || 'AM';
+
+        if (shop.logo_url) {
+          shopLogoImage.src = shop.logo_url;
+          shopLogoImage.hidden = false;
+          shopLogoFallback.hidden = true;
+        } else {
+          shopLogoImage.hidden = true;
+          shopLogoFallback.hidden = false;
+        }
+      } catch (_) {
+        // Mantiene il fallback se i dati del negozio non sono disponibili.
+      }
+    };
+
+    shopLogoImage.addEventListener('error', () => {
+      shopLogoImage.hidden = true;
+      shopLogoFallback.hidden = false;
+    });
+
+    const titles = {
+      home: "Home",
+      prodotti: "Prodotti",
+      categorie: "Categorie",
+      allergeni: "Gestione allergeni",
+      attivita: "Negozio e orari",
+      menu_online: "QR Code e anteprima",
+      lingue: "Lingue e traduzioni",
+      statistiche: "Statistiche",
+      licenze: "Licenze",
+      account: "Account"
+    };
+
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    function syncSidebarToggle(){
+      const collapsed = sidebar.classList.contains('collapsed');
+      sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+      sidebarToggle.setAttribute('aria-label', collapsed ? 'Espandi menu' : 'Riduci menu');
+      sidebarToggle.title = collapsed ? 'Espandi menu' : 'Riduci menu';
+      sidebarToggle.textContent = collapsed ? '›' : '‹';
+    }
+    function toggleSidebar(){
+      sidebar.classList.toggle('collapsed');
+      syncSidebarToggle();
+      localStorage.setItem('sb_collapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
+    }
+    (function restore(){
+      const collapsed = localStorage.getItem('sb_collapsed') === '1';
+      sidebar.classList.toggle('collapsed', collapsed);
+      syncSidebarToggle();
+    })();
+
+    async function loadSection(section){
+      if (section === "sottocategorie") section = "categorie";
+      if (professionalSections.has(section) && licensePlan !== 'professional') {
+        section = 'licenze';
+      }
+      if (shopRequiredSections.has(section) && !shopConfigured) {
+        section = "attivita";
+      }
+      // UI
+      pageTitle.textContent = titles[section] || "Dashboard";
+      content.classList.add('loading');
+      content.innerHTML = "Caricamento...";
+
+      try{
+        const res = await fetch(`/dashboard_user/section/${section}`, { headers: { "X-Requested-With": "fetch" }});
+        if(!res.ok){
+          if(res.status === 401) { window.location.href = "/login"; return; }
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const html = await res.text();
+        content.innerHTML = html;
+
+        // Le sezioni sono caricate come HTML parziale: esegui i loro script
+        // in un proprio scope, così form e pulsanti restano operativi anche
+        // quando l'utente cambia sezione più volte.
+        for (const script of content.querySelectorAll('script')) {
+          if (script.src) {
+            const loadedScript = document.createElement('script');
+            loadedScript.src = script.src;
+            document.head.appendChild(loadedScript);
+          } else if (script.textContent.trim()) {
+            new Function(script.textContent)();
+          }
+          script.remove();
+        }
+
+        content.classList.remove('loading');
+
+        // highlight menu
+        for (const el of nav.querySelectorAll('.nav-item')) el.classList.remove('active');
+        const activeBtn = nav.querySelector(`[data-section="${section}"]`);
+        if(activeBtn) activeBtn.classList.add('active');
+
+        // url state (bookmark)
+        window.location.hash = section;
+      } catch(e){
+        content.classList.remove('loading');
+        content.innerHTML = `<div class="error">Errore nel caricamento della sezione <b>${section}</b> (${e.message}).</div>`;
+      }
+    }
+
+    // click handler
+    nav.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-section]');
+      if(!btn) return;
+      loadSection(btn.dataset.section);
+    });
+
+    // boot: da hash o home
+    const initial = (window.location.hash || "").replace("#","") || "home";
+    syncShopLocks();
+    window.loadShopBranding().then(() => loadSection(initial));
+  </script>
+</body>
+</html>

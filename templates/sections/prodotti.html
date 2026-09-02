@@ -1,0 +1,886 @@
+<style>
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:6px;min-width:220px;flex:1}
+  label{font-size:12px;opacity:.85}
+  input, select, textarea{
+    padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.05); color: #e7ecff; outline:none;
+  }
+  textarea{min-height:90px;resize:vertical}
+  select option{background:#13203a;color:#e7ecff}
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{
+    border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    color:#e7ecff;border-radius:12px;padding:10px 12px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn:hover{background: rgba(255,255,255,.09);}
+  .btn.primary{background: rgba(110,168,254,.18); border-color: rgba(110,168,254,.35);}
+  .btn.danger{background: rgba(255,80,80,.14); border-color: rgba(255,80,80,.35);}
+  .muted{opacity:.75;font-size:13px}
+  .table{
+    width:100%; border-collapse:separate; border-spacing:0; margin-top:14px;
+    border:1px solid rgba(255,255,255,.12); border-radius:14px; overflow:hidden;
+  }
+  .table th, .table td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.10); vertical-align:top}
+  .table th{font-size:12px; text-transform:uppercase; letter-spacing:.06em; opacity:.75; background: rgba(255,255,255,.03)}
+  .table tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.14);font-size:12px;opacity:.9}
+  .right{white-space:nowrap}
+  .thumb{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.12);object-fit:cover;background:rgba(255,255,255,.04)}
+  .toast{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
+  .hidden{display:none}
+  .category-select{display:flex;gap:8px;align-items:stretch}
+  .category-select select{flex:1;min-width:0}
+  .btn.icon-btn{justify-content:center;min-width:44px;padding:10px;font-size:20px;line-height:1}
+  .modal{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:20px;background:rgba(5,10,19,.7)}
+  .modal.hidden{display:none}
+  .modal-card{width:min(100%,420px);padding:20px;border:1px solid rgba(255,255,255,.16);border-radius:16px;background:#13203a;box-shadow:0 18px 40px rgba(0,0,0,.42)}.modal-card.import-card{width:min(100%,980px);max-height:92vh;overflow:auto}.import-head{display:flex;justify-content:space-between;gap:14px}.import-table-wrap{overflow:auto;max-height:50vh}.import-table input,.import-table textarea{min-width:140px;width:100%}.import-table textarea{min-height:54px}
+  .modal-card h3{margin:0 0 8px}
+  .modal-card p{margin:0 0 16px}
+  .field-error{min-height:18px;color:#ff9b9b;font-size:12px}
+  .invalid{border-color:#ff8585!important}
+  .image-preview{width:96px;height:96px;display:none;object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,.18)}
+  .filters{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:28px}
+  .filters .field{max-width:280px}
+  .tag{display:inline-block;margin:4px 4px 0 0;padding:2px 7px;border-radius:999px;background:rgba(110,168,254,.18);font-size:11px}
+  .tag-options{display:flex;flex-wrap:wrap;gap:8px}
+  .tag-option{display:flex;align-items:center;gap:6px;padding:7px 9px;border:1px solid rgba(255,255,255,.14);border-radius:10px;cursor:pointer;font-size:13px}
+  .tag-option input{width:auto;padding:0;accent-color:#6ea8fe}
+  .products-list-panel{margin-top:36px;padding:22px;border:1px solid rgba(110,168,254,.28);border-radius:18px;background:rgba(110,168,254,.055)}
+  .products-list-heading{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+  .products-list-heading::before,.products-list-heading::after{content:"";height:1px;flex:1;background:rgba(110,168,254,.38)}
+  .products-list-heading h3{margin:0;white-space:nowrap;color:#dbe8ff}
+  .bulk-tools{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:18px 0;padding:14px;border-radius:12px;background:rgba(255,255,255,.04)}
+  .bulk-tools .field{min-width:180px}
+  .bulk-operations{margin-top:32px;padding:14px 18px;border:1px solid rgba(255,255,255,.15);border-radius:14px;background:rgba(255,255,255,.025)}
+  .bulk-operations summary{cursor:pointer;font-weight:650;color:#cfe0ff}
+  .bulk-operations .bulk-tools{margin-bottom:0}
+  .advanced-divider{border:0;border-top:1px solid rgba(255,255,255,.13);margin:18px 0}
+  .custom-sort-list{display:grid;gap:8px;margin-top:12px}
+  .custom-sort-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid rgba(255,255,255,.11);border-radius:10px;background:rgba(255,255,255,.025);cursor:grab;transition:.15s ease}
+  .custom-sort-item span{flex:1}.custom-sort-item.dragging{opacity:.38;transform:scale(.985)}.custom-sort-item.drag-over{border-color:#6ea8fe;background:rgba(110,168,254,.14)}.drag-handle{border:0;background:transparent;color:#9fc2ff;font-size:20px;cursor:grab}.sort-step{width:32px;height:32px;padding:0;justify-content:center}
+  .allergen-preview{margin-top:8px;padding:10px 12px;border:1px solid rgba(255,197,107,.35);border-radius:12px;background:rgba(255,197,107,.08);font-size:13px}
+  .allergen-preview strong{display:block;margin-bottom:4px;color:#ffe0a6}
+  .tool-group-title{margin:18px 0 0;font-size:14px;font-weight:650;color:#dbe8ff}
+  .search-tools{margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,255,255,.16)}
+  .products-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
+  .products-head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+  .btn.compact{padding:7px 9px;font-size:12px;align-self:center}
+  .products-head h2{margin:0 0 7px;font-size:1.65rem;color:#f3f6ff}.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8fb9ff;font-weight:800}
+  #productForm{padding:22px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.022));box-shadow:0 14px 34px rgba(0,0,0,.16)}
+  .form-section-label{display:flex;align-items:center;gap:10px;margin:22px 0 12px;color:#dbe8ff;font-size:13px;font-weight:850;letter-spacing:.05em;text-transform:uppercase}.form-section-label:first-of-type{margin-top:0}.form-section-label::after{content:"";height:1px;flex:1;background:rgba(110,168,254,.25)}
+  #productForm>.field{margin-top:13px}
+  @media(max-width:760px){
+    .products-head{display:block}.products-head .btn{margin-top:12px}.row{display:grid;grid-template-columns:1fr}.field{min-width:0!important;max-width:none!important}#productForm{padding:15px}.actions .btn{flex:1;justify-content:center}.tag-option{flex:1;min-width:135px}.products-list-panel{padding:15px;margin-top:24px}.products-list-heading::before,.products-list-heading::after{display:none}
+    #table{border:0;background:transparent}#table thead{display:none}#table tbody{display:grid;gap:12px}#table tr{display:grid;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.035)}#table td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border:0}#table td:nth-child(2)::before{content:"Categoria";color:#9eabca;font-size:12px}#table td:nth-child(3)::before{content:"Prezzo";color:#9eabca;font-size:12px}#table td:nth-child(4)::before{content:"Stato";color:#9eabca;font-size:12px}#table td.right{white-space:normal;display:flex}#table td.right .btn{flex:1;justify-content:center}
+  }
+</style>
+
+<div class="products-head"><div><span class="eyebrow">Catalogo del menu</span><h2>Prodotti inseriti</h2><p class="muted">Consulta, cerca e modifica i prodotti già presenti nel menu.</p></div><div class="products-head-actions"><button class="btn primary" type="button" id="newProductBtn">＋ Nuovo prodotto</button><button class="btn" type="button" onclick="loadSection('allergeni')" title="Apri la gestione allergeni">⚠️ Gestisci allergeni</button><button class="btn compact" type="button" id="importCsvBtn" title="Importa prodotti da un file CSV">⬆ Importa CSV</button><button class="btn compact" type="button" id="importDocumentBtn" title="Importa prodotti da PDF o fotografia">📄 Importa PDF/Foto</button><input id="csvImport" class="hidden" type="file" accept=".csv,text/csv" aria-label="Seleziona file CSV da importare"></div></div>
+
+<div class="toast hidden" id="toast"></div>
+
+<div class="modal hidden" id="documentImportModal" role="dialog" aria-modal="true" aria-labelledby="documentImportTitle">
+  <div class="modal-card import-card">
+    <div class="import-head"><div><h3 id="documentImportTitle">Importa menu da PDF o fotografia</h3><p class="muted">Il riconoscimento avviene nel browser. Controlla e correggi l’anteprima prima di importare.</p></div><button class="btn" type="button" id="closeDocumentImport">Chiudi</button></div>
+    <div class="row"><div class="field"><label for="documentImportFile">Documento</label><input id="documentImportFile" type="file" accept=".pdf,application/pdf,image/png,image/jpeg,image/webp"></div><button class="btn primary" type="button" id="analyzeDocument">Analizza documento</button></div>
+    <div class="toast hidden" id="documentImportProgress"></div>
+    <div id="documentPreview" class="hidden">
+      <p class="muted">Puoi modificare categoria, prodotto, descrizione e prezzo. Elimina le righe riconosciute male.</p>
+      <div class="import-table-wrap"><table class="table import-table"><thead><tr><th>Categoria</th><th>Prodotto</th><th>Descrizione</th><th>Prezzo</th><th></th></tr></thead><tbody id="documentPreviewRows"></tbody></table></div>
+      <div class="actions"><button class="btn primary" type="button" id="confirmDocumentImport">Importa prodotti confermati</button><span class="muted" id="documentPreviewCount"></span></div>
+    </div>
+  </div>
+</div>
+
+<form id="productForm" class="hidden" aria-label="Inserimento o modifica prodotto">
+  <input type="hidden" id="id" />
+
+  <div class="form-section-label">1 · Informazioni principali</div>
+  <div class="row">
+    <div class="field">
+      <label>Nome *</label>
+      <input id="nome" required placeholder="Es. Pizza Margherita" />
+    </div>
+
+    <div class="field">
+      <label>Prezzo (€) *</label>
+      <input id="prezzo_euro" type="number" min="0" step="0.01" required inputmode="decimal" placeholder="Es. 7.50" />
+    </div>
+
+    <div class="field" style="max-width:240px">
+      <label>Disponibile</label>
+      <select id="disponibile">
+        <option value="true">Sì</option>
+        <option value="false">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin:10px 0"><button class="btn" type="button" id="toggleProductSchedule">🕒 Programma visibilità (opzionale)</button></div>
+  <div id="productScheduleFields" class="row hidden" style="margin:0 0 12px;padding:12px;border:1px dashed rgba(110,168,254,.45);border-radius:12px">
+    <div class="field"><label>Dal giorno</label><input id="visibile_da" type="date"></div><div class="field"><label>Al giorno</label><input id="visibile_fino" type="date"></div><div class="field"><label>Dalle ore</label><input id="ora_inizio" type="time"></div><div class="field"><label>Alle ore</label><input id="ora_fine" type="time"></div>
+  </div>
+  <div class="form-section-label">2 · Posizione nel menu e immagine</div>
+  <div class="row">
+    <div class="field">
+      <label>Categoria</label>
+      <div class="category-select">
+        <select id="id_categoria" required>
+          <option value="">—</option>
+        </select>
+        <button class="btn icon-btn" type="button" id="addCategoryBtn" aria-label="Crea una nuova categoria" title="Crea una nuova categoria">+</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Sottocategoria</label>
+      <div class="category-select">
+        <select id="id_sottocategoria" disabled>
+          <option value="">—</option>
+        </select>
+        <button class="btn icon-btn" type="button" id="addSubcategoryBtn" aria-label="Crea una nuova sottocategoria" title="Crea una nuova sottocategoria">+</button>
+      </div>
+      <div class="field-error" id="categoryError"></div>
+    </div>
+
+    <div class="field">
+      <label>Immagine (PNG/JPG/WEBP)</label>
+      <input id="immagine" type="file" accept="image/png,image/jpeg,image/webp" />
+      <img id="imagePreview" class="image-preview" alt="Anteprima immagine selezionata" />
+      <div class="muted">Facoltativa. In modifica puoi caricare una nuova immagine per sostituire.</div>
+    </div>
+  </div>
+
+  <div class="form-section-label">3 · Descrizione e caratteristiche</div>
+  <div class="field">
+    <label>Ingredienti</label>
+    <textarea id="descrizione" placeholder="Es. pomodoro, mozzarella, basilico"></textarea>
+  </div>
+
+  <div class="allergen-preview" id="allergenPreview">
+    <strong>Allergeni rilevati automaticamente</strong>
+    <span id="detectedAllergens" class="muted">Inserisci gli ingredienti per effettuare il controllo.</span>
+  </div>
+
+  <div class="field">
+    <label>Note</label>
+    <textarea id="note" placeholder="Es. disponibile anche senza glutine"></textarea>
+  </div>
+
+  <div class="field">
+    <label>Etichette</label>
+    <div class="tag-options" id="etichette">
+      <label class="tag-option"><input type="checkbox" value="Novità"> Novità</label>
+      <label class="tag-option"><input type="checkbox" value="Consigliato"> Consigliato</label>
+      <label class="tag-option"><input type="checkbox" value="Piccante"> Piccante</label>
+      <label class="tag-option"><input type="checkbox" value="Vegetariano"> Vegetariano</label>
+      <label class="tag-option"><input type="checkbox" value="Vegano"> Vegano</label>
+      <label class="tag-option"><input type="checkbox" value="Senza glutine"> Senza glutine</label>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:10px">
+    <button class="btn primary" type="submit" id="saveBtn">Salva prodotto</button>
+    <button class="btn" type="submit" id="saveAndNewBtn">Salva e crea un altro</button>
+    <button class="btn" type="button" id="resetBtn">Annulla</button>
+    <span class="muted" id="modeHint">Modalità: creazione</span>
+  </div>
+</form>
+
+<details class="bulk-operations">
+  <summary>Opzioni avanzate</summary>
+  <p class="muted">Attiva o disattiva tutti i prodotti di una categoria o sottocategoria.</p>
+  <div class="bulk-tools">
+    <div class="field"><label for="bulkCategory">Categoria</label><select id="bulkCategory"><option value="">Seleziona categoria</option></select></div>
+    <div class="field"><label for="bulkSubcategory">Sottocategoria</label><select id="bulkSubcategory" disabled><option value="">Tutte le sottocategorie</option></select></div>
+    <div class="field"><label for="bulkAvailability">Azione</label><select id="bulkAvailability"><option value="true">Attiva prodotti</option><option value="false">Disattiva prodotti</option></select></div>
+    <button class="btn" type="button" id="applyBulkAvailability">Applica</button>
+  </div>
+  <hr class="advanced-divider" />
+  <h4 class="tool-group-title">Ordina prodotti per categoria</h4>
+  <p class="muted">L’ordinamento predefinito è alfabetico (A–Z). Puoi anche assegnare una posizione a ogni prodotto.</p>
+  <div class="bulk-tools">
+    <div class="field"><label for="sortCategory">Categoria</label><select id="sortCategory"><option value="">Seleziona categoria</option></select></div>
+    <div class="field"><label for="sortMode">Ordinamento</label><select id="sortMode"><option value="alphabetical">Alfabetico (A–Z)</option><option value="custom">Personalizzato</option></select></div>
+    <button class="btn" type="button" id="applyCategorySort">Applica ordinamento</button>
+  </div>
+  <div id="customSortPanel" class="hidden">
+    <p class="muted">Trascina i prodotti usando la maniglia ⋮⋮. Su telefono puoi usare le frecce.</p>
+    <div class="custom-sort-list" id="customSortList"></div>
+    <div class="actions" style="margin-top:12px"><button class="btn primary" type="button" id="saveCustomSort">Salva ordine personalizzato</button></div>
+  </div>
+</details>
+
+<section class="products-list-panel" aria-labelledby="productsListTitle">
+  <div class="products-list-heading"><h3 id="productsListTitle">Prodotti inseriti</h3></div>
+  <p class="muted">Cerca, filtra e modifica i prodotti del tuo menù.</p>
+
+  <div class="search-tools">
+    <h4 class="tool-group-title">Ricerca e filtri</h4>
+<div class="filters">
+  <div class="field"><label for="searchProducts">Cerca prodotto</label><input id="searchProducts" placeholder="Nome o descrizione" /></div>
+  <div class="field"><label for="filterCategory">Filtra per categoria</label><select id="filterCategory"><option value="">Tutte le categorie</option></select></div>
+  <div class="field"><label for="filterAvailability">Disponibilità</label><select id="filterAvailability"><option value="">Tutti</option><option value="true">Disponibili</option><option value="false">Non disponibili</option></select></div>
+</div>
+
+<div class="modal hidden" id="categoryModal" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle">
+  <form class="modal-card" id="categoryModalForm">
+    <h3 id="categoryModalTitle">Nuova categoria</h3>
+    <p class="muted">La categoria verrà aggiunta subito al menu di questo negozio.</p>
+    <div class="field">
+      <label for="newCategoryName">Nome categoria *</label>
+      <input id="newCategoryName" required placeholder="Es. Pizze" maxlength="100" />
+    </div>
+    <div class="actions" style="margin-top:16px">
+      <button class="btn primary" type="submit">Crea categoria</button>
+      <button class="btn" type="button" id="cancelCategoryBtn">Annulla</button>
+    </div>
+  </form>
+</div>
+
+<div class="modal hidden" id="subcategoryModal" role="dialog" aria-modal="true" aria-labelledby="subcategoryModalTitle">
+  <form class="modal-card" id="subcategoryModalForm">
+    <h3 id="subcategoryModalTitle">Nuova sottocategoria</h3>
+    <p class="muted">La sottocategoria verrà inserita nella categoria selezionata.</p>
+    <div class="field">
+      <label for="newSubcategoryName">Nome sottocategoria *</label>
+      <input id="newSubcategoryName" required placeholder="Es. Pizze classiche" maxlength="100" />
+    </div>
+    <div class="actions" style="margin-top:16px">
+      <button class="btn primary" type="submit">Crea sottocategoria</button>
+      <button class="btn" type="button" id="cancelSubcategoryBtn">Annulla</button>
+    </div>
+  </form>
+</div>
+  </div>
+
+<table class="table" id="table">
+  <thead>
+    <tr>
+      <th>Prodotto</th>
+      <th>Categoria</th>
+      <th>Prezzo</th>
+      <th>Stato</th>
+      <th class="right">Azioni</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+</section>
+
+<script>
+  // Questo script gira quando la sezione viene inserita nel DOM.
+  // Non dipende da librerie.
+
+  const toast = document.getElementById("toast");
+  const tbody = document.getElementById("tbody");
+  const form = document.getElementById("productForm");
+  const modeHint = document.getElementById("modeHint");
+
+  const f = (id) => document.getElementById(id);
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.remove("hidden");
+    setTimeout(() => toast.classList.add("hidden"), 2500);
+  }
+
+  function toNumberOrNull(v){
+    if(v === "" || v === null || v === undefined) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  let products = [];
+  let categories = [];
+  const allergenKeywords = {
+    "Glutine": ["farina", "frumento", "grano", "orzo", "segale", "avena", "farro", "pane", "pasta", "pizza"],
+    "Crostacei": ["gamber", "scampo", "aragosta", "astice", "granchio"],
+    "Uova": ["uovo", "uova", "maionese"], "Pesce": ["pesce", "tonno", "salmone", "acciuga", "merluzzo"],
+    "Arachidi": ["arachide"], "Soia": ["soia", "tofu", "edamame"],
+    "Latte": ["latte", "lattosio", "mozzarella", "formaggio", "burro", "panna", "yogurt"],
+    "Frutta a guscio": ["mandorla", "nocciola", "noce", "noci", "pistacchio", "anacardo", "pecan", "macadamia"],
+    "Sedano": ["sedano"], "Senape": ["senape"], "Semi di sesamo": ["sesamo"],
+    "Solfiti": ["solfiti", "solfato", "vino"], "Lupini": ["lupino"],
+    "Molluschi": ["cozza", "vongola", "calamaro", "polpo", "ostrica"]
+  };
+
+  function renderDetectedAllergens(allergens){
+    const target = f("detectedAllergens");
+    target.innerHTML = allergens.length
+      ? allergens.map(allergen => `<span class="tag" style="background:rgba(255,197,107,.18)">⚠ ${escapeHtml(allergen)}</span>`).join("")
+      : "Nessun allergene rilevato dagli ingredienti inseriti.";
+  }
+
+  function detectAllergensInIngredients(){
+    const ingredients = f("descrizione").value.toLowerCase();
+    const allergens = Object.entries(allergenKeywords)
+      .filter(([, keywords]) => keywords.some(keyword => ingredients.includes(keyword)))
+      .map(([allergen]) => allergen);
+    renderDetectedAllergens(allergens);
+  }
+
+  async function loadCategories(){
+    const res = await fetch("/api/categorie");
+    if(!res.ok) throw new Error("Errore categorie");
+    const data = await res.json();
+    categories = data.items || [];
+
+    const sel = f("id_categoria");
+    sel.innerHTML = `<option value="">Seleziona una categoria</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
+    const filter = f("filterCategory");
+    if (filter) filter.innerHTML = `<option value="">Tutte le categorie</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
+    const bulkCategory = f("bulkCategory");
+    if (bulkCategory) bulkCategory.innerHTML = `<option value="">Seleziona categoria</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
+    const sortCategory = f("sortCategory");
+    if (sortCategory) sortCategory.innerHTML = `<option value="">Seleziona categoria</option>` + categories.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join("");
+  }
+
+  async function loadSubcategories(categoriaId, preselect=null){
+    const scSel = f("id_sottocategoria");
+    if(!categoriaId){
+      scSel.innerHTML = `<option value="">—</option>`;
+      scSel.disabled = true;
+      return;
+    }
+    const res = await fetch(`/api/sottocategorie?categoria_id=${encodeURIComponent(categoriaId)}`);
+    if(!res.ok) throw new Error("Errore sottocategorie");
+    const data = await res.json();
+    const items = data.items || [];
+    scSel.disabled = false;
+    scSel.innerHTML = `<option value="">—</option>` + items.map(s => `<option value="${s.id}">${escapeHtml(s.nome)}</option>`).join("");
+    if(preselect) scSel.value = String(preselect);
+  }
+
+  async function loadProducts(){
+    const res = await fetch("/api/prodotti");
+    if(!res.ok) throw new Error("Errore prodotti");
+    const data = await res.json();
+    products = data.items || [];
+    renderTable();
+  }
+
+  function renderTable(){
+    const search = (f("searchProducts")?.value || "").trim().toLowerCase();
+    const categoryId = f("filterCategory")?.value || "";
+    const availability = f("filterAvailability")?.value || "";
+    const visibleProducts = products.filter(p =>
+      (!search || (p.nome + " " + (p.descrizione || "")).toLowerCase().includes(search)) &&
+      (!categoryId || String(p.id_categoria) === categoryId) &&
+      (!availability || String(p.disponibile) === availability)
+    );
+    tbody.innerHTML = visibleProducts.map(p => {
+      const cat = p.categoria_nome || "—";
+      const sub = p.sottocategoria_nome ? ` / ${p.sottocategoria_nome}` : "";
+      const badge = p.disponibile ? `<span class="badge">Disponibile</span>` : `<span class="badge" style="opacity:.6">Non disponibile</span>`;
+      const thumb = p.immagine_url ? `<img class="thumb" src="${escapeAttr(p.immagine_url)}" alt="">` : `<div class="thumb"></div>`;
+
+      return `
+        <tr>
+          <td>
+            <div style="display:flex; gap:10px; align-items:flex-start">
+              ${thumb}
+              <div>
+                <div style="font-weight:650">${escapeHtml(p.nome)}</div>
+                <div class="muted">${escapeHtml(p.descrizione || "")}</div>
+                ${p.note ? `<div class="muted">Nota: ${escapeHtml(p.note)}</div>` : ""}
+                <div>${(p.etichette || []).map(tag => '<span class="tag">' + escapeHtml(tag) + '</span>').join("")}</div>
+                <div>${(p.allergeni_auto || []).map(allergen => '<span class="tag" style="background:rgba(255,197,107,.16)">⚠ '+ escapeHtml(allergen) + '</span>').join("")}</div>
+              </div>
+            </div>
+          </td>
+          <td>${escapeHtml(cat)}${escapeHtml(sub)}</td>
+          <td class="right">€ ${escapeHtml(p.prezzo_euro)}</td>
+          <td>${badge}</td>
+          <td class="right">
+            <button class="btn" type="button" onclick="toggleAvailability(${p.id})">${p.disponibile ? "⏸ Esaurito" : "▶ Disponibile"}</button>
+            <button class="btn" type="button" onclick="duplicateProduct(${p.id})">Duplica</button>
+            <button class="btn" type="button" onclick="editProduct(${p.id})">Modifica</button>
+            <button class="btn danger" type="button" onclick="deleteProduct(${p.id})">Elimina</button>
+          </td>
+        </tr>
+      `;
+    }).join("") || `<tr><td colspan="5"><div class="empty-products"><strong>Nessun prodotto trovato</strong><div class="muted">Usa il pulsante “Nuovo prodotto” per aggiungere il primo articolo.</div></div></td></tr>`;
+  }
+
+  function openProductForm(){
+    form.classList.remove("hidden");
+    form.scrollIntoView({behavior:"smooth", block:"start"});
+  }
+
+  function closeProductForm(){
+    resetForm();
+    form.classList.add("hidden");
+    document.getElementById("productsListTitle")?.scrollIntoView({behavior:"smooth", block:"start"});
+  }
+
+  function resetForm(keepCategory = false){
+      const categoryId = keepCategory ? f("id_categoria").value : "";
+      f("id").value = "";
+      f("nome").value = "";
+      f("prezzo_euro").value = "";
+      f("descrizione").value = "";
+      f("note").value = "";
+      renderDetectedAllergens([]);
+      f("etichette").querySelectorAll("input[type=checkbox]").forEach(input => input.checked = false);
+      f("categoryError").textContent = "";
+      f("id_categoria").classList.remove("invalid");
+      f("imagePreview").style.display = "none";
+      f("imagePreview").removeAttribute("src");
+      f("disponibile").value = "true";
+      f("id_categoria").value = categoryId;
+      f("id_sottocategoria").innerHTML = `<option value="">—</option>`;
+      f("id_sottocategoria").disabled = !categoryId;
+      if (categoryId) loadSubcategories(categoryId, null);
+      modeHint.textContent = "Modalità: creazione";
+      f("saveBtn").textContent = "Salva prodotto";
+    const fileInput = document.getElementById("immagine");
+    if (fileInput) fileInput.value = "";
+    const removeCb = document.getElementById("remove_image");
+    if (removeCb) removeCb.checked = false;
+
+    }
+  
+    window.editProduct = async function(id){
+      const p = products.find(x => x.id === id);
+      if(!p) return;
+      openProductForm();
+  
+      f("id").value = p.id;
+      f("nome").value = p.nome;
+      f("prezzo_euro").value = p.prezzo_euro;
+      f("descrizione").value = p.descrizione || "";
+      f("note").value = p.note || "";
+      renderDetectedAllergens(p.allergeni_auto || []);
+      const productLabels = new Set(p.etichette || []);
+      f("etichette").querySelectorAll("input[type=checkbox]").forEach(input => input.checked = productLabels.has(input.value));
+      f("categoryError").textContent = "";
+      f("id_categoria").classList.remove("invalid");
+      if (p.immagine_url) { f("imagePreview").src = p.immagine_url; f("imagePreview").style.display = "block"; }
+      else { f("imagePreview").style.display = "none"; f("imagePreview").removeAttribute("src"); }
+      f("disponibile").value = p.disponibile ? "true" : "false";
+      f("id_categoria").value = p.id_categoria ? String(p.id_categoria) : "";
+      await loadSubcategories(p.id_categoria, p.id_sottocategoria);
+  
+      modeHint.textContent = "Modalità: modifica";
+      f("saveBtn").textContent = "Aggiorna prodotto";
+      showToast("Modifica prodotto: aggiorna i campi e salva.");
+      form.scrollIntoView({behavior:"smooth", block:"start"});
+      const removeCb = document.getElementById("remove_image");
+      if (removeCb) removeCb.checked = false;
+      const fileInput = document.getElementById("immagine");
+      if (fileInput) fileInput.value = "";
+
+    }
+  
+    window.toggleAvailability = async function(id){
+      const product = products.find(item => item.id === id);
+      if(!product) return;
+      const res = await fetch(`/api/prodotti/${id}/disponibilita`, {
+        method: "PATCH", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({disponibile: !product.disponibile})
+      });
+      if(!res.ok){ showToast("Errore aggiornamento disponibilità"); return; }
+      await loadProducts();
+      showToast(product.disponibile ? "Prodotto segnato come esaurito." : "Prodotto nuovamente disponibile.");
+    }
+
+    window.duplicateProduct = async function(id){
+      const res = await fetch(`/api/prodotti/${id}/duplica`, {method:"POST"});
+      if(!res.ok){ showToast("Errore duplicazione prodotto"); return; }
+      await loadProducts();
+      showToast("Prodotto duplicato.");
+    }
+
+    window.deleteProduct = async function(id){
+      const p = products.find(x => x.id === id);
+      if(!p) return;
+      if(!confirm(`Eliminare "${p.nome}"?`)) return;
+  
+      const res = await fetch(`/api/prodotti/${id}`, { method: "DELETE" });
+      if(!res.ok) { showToast("Errore eliminazione"); return; }
+      await loadProducts();
+      showToast("Prodotto eliminato.");
+      if(String(f("id").value) === String(id)) resetForm();
+    }
+  
+    f("id_categoria").addEventListener("change", async () => {
+      const catId = toNumberOrNull(f("id_categoria").value);
+      f("categoryError").textContent = "";
+      f("id_categoria").classList.remove("invalid");
+      await loadSubcategories(catId, null);
+    });
+
+    async function loadBulkSubcategories(categoriaId){
+      const select = f("bulkSubcategory");
+      select.innerHTML = `<option value="">Tutte le sottocategorie</option>`;
+      select.disabled = !categoriaId;
+      if (!categoriaId) return;
+      const res = await fetch(`/api/sottocategorie?categoria_id=${encodeURIComponent(categoriaId)}`);
+      if (!res.ok) { showToast("Errore caricamento sottocategorie"); return; }
+      const data = await res.json();
+      select.innerHTML += (data.items || []).map(item => `<option value="${item.id}">${escapeHtml(item.nome)}</option>`).join("");
+    }
+
+    function selectedLabels(){
+      return [...f("etichette").querySelectorAll("input[type=checkbox]:checked")].map(input => input.value);
+    }
+
+    f("descrizione").addEventListener("input", detectAllergensInIngredients);
+
+    f("immagine").addEventListener("change", () => {
+      const file = f("immagine").files?.[0];
+      if (!file) return;
+      const preview = f("imagePreview");
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = "block";
+    });
+    f("importCsvBtn").addEventListener("click", () => f("csvImport").click());
+    f("csvImport").addEventListener("change", async () => {
+      const file = f("csvImport").files?.[0];
+      if(!file) return;
+      const body = new FormData(); body.append("file", file);
+      const res = await fetch("/api/prodotti/importa-csv", {method:"POST", body});
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok){ showToast(data.error || "Errore importazione CSV"); return; }
+      await Promise.all([loadCategories(), loadProducts()]);
+      f("csvImport").value = "";
+      showToast(`${data.importati} prodotti importati.`);
+    });
+    function loadExternalScript(src){
+      return new Promise((resolve,reject)=>{
+        const existing=document.querySelector('script[data-src="'+src+'"]');
+        if(existing){if(existing.dataset.loaded)resolve();else existing.addEventListener("load",resolve,{once:true});return;}
+        const script=document.createElement("script");script.src=src;script.dataset.src=src;script.onload=()=>{script.dataset.loaded="true";resolve();};script.onerror=()=>reject(new Error("Libreria non disponibile"));document.head.appendChild(script);
+      });
+    }
+    function setDocumentProgress(message){
+      const progress=f("documentImportProgress");progress.textContent=message;progress.classList.remove("hidden");
+    }
+    async function recognizeImage(source){
+      await loadExternalScript("https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js");
+      const result=await Tesseract.recognize(source,"ita+eng",{logger:event=>{if(event.status==="recognizing text")setDocumentProgress("Riconoscimento testo: "+Math.round((event.progress||0)*100)+"%");}});
+      return result.data.text||"";
+    }
+    async function extractPdf(file){
+      setDocumentProgress("Lettura del PDF…");
+      const pdfjs=await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs");
+      pdfjs.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+      const documentPdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
+      let text="";
+      for(let pageNumber=1;pageNumber<=Math.min(documentPdf.numPages,20);pageNumber++){
+        const page=await documentPdf.getPage(pageNumber);const content=await page.getTextContent();
+        text+=content.items.map(item=>item.str+(item.hasEOL?"\n":" ")).join("")+"\n";
+      }
+      if(text.replace(/\s/g,"").length>40)return text;
+      text="";
+      for(let pageNumber=1;pageNumber<=Math.min(documentPdf.numPages,5);pageNumber++){
+        setDocumentProgress("OCR pagina "+pageNumber+" di "+Math.min(documentPdf.numPages,5)+"…");
+        const page=await documentPdf.getPage(pageNumber);const viewport=page.getViewport({scale:2});const canvas=document.createElement("canvas");
+        canvas.width=viewport.width;canvas.height=viewport.height;await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+        text+=await recognizeImage(canvas)+"\n";
+      }
+      return text;
+    }
+    function renderDocumentPreview(items){
+      const rows=f("documentPreviewRows");rows.innerHTML=items.map((item,index)=>'<tr data-import-row><td><input data-field="categoria" value="'+escapeAttr(item.categoria||"MENU IMPORTATO")+'"></td><td><input data-field="nome" value="'+escapeAttr(item.nome||"")+'"></td><td><textarea data-field="descrizione">'+escapeHtml(item.descrizione||"")+'</textarea></td><td><input data-field="prezzo" type="number" min="0" step="0.01" value="'+escapeAttr(item.prezzo||"0")+'"></td><td><button class="btn danger" type="button" data-remove-import="'+index+'">×</button></td></tr>').join("");
+      rows.querySelectorAll("[data-remove-import]").forEach(button=>button.addEventListener("click",()=>{button.closest("tr").remove();updateDocumentCount();}));
+      f("documentPreview").classList.remove("hidden");updateDocumentCount();
+    }
+    function updateDocumentCount(){f("documentPreviewCount").textContent=f("documentPreviewRows").querySelectorAll("[data-import-row]").length+" prodotti pronti";}
+    function collectDocumentItems(){return [...f("documentPreviewRows").querySelectorAll("[data-import-row]")].map(row=>Object.fromEntries([...row.querySelectorAll("[data-field]")].map(input=>[input.dataset.field,input.value.trim()]))).filter(item=>item.nome&&item.categoria);}
+    f("importDocumentBtn").addEventListener("click",()=>{f("documentImportModal").classList.remove("hidden");f("documentImportFile").value="";f("documentPreview").classList.add("hidden");f("documentImportProgress").classList.add("hidden");});
+    f("closeDocumentImport").addEventListener("click",()=>f("documentImportModal").classList.add("hidden"));
+    f("documentImportModal").addEventListener("click",event=>{if(event.target===f("documentImportModal"))f("documentImportModal").classList.add("hidden");});
+    f("analyzeDocument").addEventListener("click",async()=>{
+      const file=f("documentImportFile").files?.[0];if(!file){showToast("Seleziona un PDF o una fotografia.");return;}
+      try{
+        f("analyzeDocument").disabled=true;setDocumentProgress("Preparazione del documento…");
+        const text=file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf")?await extractPdf(file):await recognizeImage(file);
+        setDocumentProgress("Riconoscimento di categorie e prodotti…");
+        const response=await fetch("/api/prodotti/importa-documento/anteprima",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({testo:text})});
+        const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"Documento non riconosciuto");
+        renderDocumentPreview(data.items||[]);setDocumentProgress(data.riconosciuti+" prodotti riconosciuti. Controlla l’anteprima.");
+      }catch(error){setDocumentProgress(error.message||"Errore durante l’analisi.");}finally{f("analyzeDocument").disabled=false;}
+    });
+    f("confirmDocumentImport").addEventListener("click",async()=>{
+      const items=collectDocumentItems();if(!items.length){showToast("Nessun prodotto valido da importare.");return;}
+      const response=await fetch("/api/prodotti/importa-documento",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items})});
+      const data=await response.json().catch(()=>({}));if(!response.ok){showToast(data.error||"Errore importazione");return;}
+      await Promise.all([loadCategories(),loadProducts()]);f("documentImportModal").classList.add("hidden");showToast(data.importati+" prodotti importati dal documento.");
+    });
+        ["searchProducts", "filterCategory", "filterAvailability"].forEach(id => f(id).addEventListener("input", renderTable));
+    f("filterCategory").addEventListener("change", renderTable);
+    f("filterAvailability").addEventListener("change", renderTable);
+    f("bulkCategory").addEventListener("change", () => loadBulkSubcategories(f("bulkCategory").value));
+    function renderCustomSortProducts(){
+      const categoryId = f("sortCategory").value;
+      const list = f("customSortList");
+      const selected = products.filter(product => String(product.id_categoria) === categoryId)
+        .sort((a, b) => Number(a.ordine) - Number(b.ordine) || a.nome.localeCompare(b.nome));
+      list.innerHTML = selected.map(product =>
+        `<div class="custom-sort-item" draggable="true" data-product-id="${product.id}"><button class="drag-handle" type="button" aria-label="Trascina ${escapeAttr(product.nome)}">⋮⋮</button><span>${escapeHtml(product.nome)}</span><button class="btn sort-step" type="button" data-move="up" aria-label="Sposta su">↑</button><button class="btn sort-step" type="button" data-move="down" aria-label="Sposta giù">↓</button></div>`
+      ).join("");
+      enableProductDragging();
+    }
+
+    function enableProductDragging(){
+      const list = f("customSortList");
+      let dragged = null;
+      list.querySelectorAll(".custom-sort-item").forEach(item => {
+        item.addEventListener("dragstart", () => { dragged = item; item.classList.add("dragging"); });
+        item.addEventListener("dragend", () => { item.classList.remove("dragging"); list.querySelectorAll(".drag-over").forEach(el => el.classList.remove("drag-over")); dragged = null; });
+        item.addEventListener("dragover", event => { event.preventDefault(); if (item !== dragged) item.classList.add("drag-over"); });
+        item.addEventListener("dragleave", () => item.classList.remove("drag-over"));
+        item.addEventListener("drop", event => {
+          event.preventDefault(); item.classList.remove("drag-over");
+          if (!dragged || dragged === item) return;
+          const box = item.getBoundingClientRect();
+          list.insertBefore(dragged, event.clientY < box.top + box.height / 2 ? item : item.nextSibling);
+        });
+      });
+      list.querySelectorAll("[data-move]").forEach(button => button.addEventListener("click", () => {
+        const item = button.closest(".custom-sort-item");
+        if (button.dataset.move === "up" && item.previousElementSibling) list.insertBefore(item, item.previousElementSibling);
+        if (button.dataset.move === "down" && item.nextElementSibling) list.insertBefore(item.nextElementSibling, item);
+      }));
+    }
+
+    function updateSortMode(){
+      const isCustom = f("sortMode").value === "custom";
+      f("customSortPanel").classList.toggle("hidden", !isCustom);
+      if (isCustom && f("sortCategory").value) renderCustomSortProducts();
+    }
+
+    f("sortMode").addEventListener("change", updateSortMode);
+    f("sortCategory").addEventListener("change", updateSortMode);
+    f("applyCategorySort").addEventListener("click", async () => {
+      const id_categoria = f("sortCategory").value;
+      if (!id_categoria) { showToast("Seleziona una categoria da ordinare."); return; }
+      if (f("sortMode").value === "custom") { renderCustomSortProducts(); updateSortMode(); return; }
+      const res = await fetch("/api/prodotti/ordina", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_categoria })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || err.error || "Errore ordinamento prodotti");
+        return;
+      }
+      const data = await res.json();
+      await loadProducts();
+      showToast(`${data.updated} prodotti ordinati alfabeticamente.`);
+    });
+    f("saveCustomSort").addEventListener("click", async () => {
+      const id_categoria = f("sortCategory").value;
+      const posizioni = [...f("customSortList").querySelectorAll(".custom-sort-item")].map((item, index) => ({ id: item.dataset.productId, posizione: index + 1 }));
+      if (!id_categoria || !posizioni.length) { showToast("Seleziona una categoria con prodotti."); return; }
+      const res = await fetch("/api/prodotti/posizioni", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_categoria, posizioni })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || err.error || "Errore ordine personalizzato");
+        return;
+      }
+      const data = await res.json();
+      await loadProducts();
+      renderCustomSortProducts();
+      showToast(`${data.updated} posizioni aggiornate.`);
+    });
+
+    f("applyBulkAvailability").addEventListener("click", async () => {
+      const id_categoria = f("bulkCategory").value;
+      const id_sottocategoria = f("bulkSubcategory").value;
+      if (!id_categoria) { showToast("Seleziona una categoria."); return; }
+      const disponibile = f("bulkAvailability").value === "true";
+      const res = await fetch("/api/prodotti/disponibilita", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_categoria, id_sottocategoria, disponibile })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || err.error || "Errore aggiornamento prodotti");
+        return;
+      }
+      const data = await res.json();
+      await loadProducts();
+      showToast(`${data.updated} prodotti ${disponibile ? "attivati" : "disattivati"}.`);
+    });
+
+    const categoryModal = f("categoryModal");
+    const categoryModalForm = f("categoryModalForm");
+    const subcategoryModal = f("subcategoryModal");
+    const subcategoryModalForm = f("subcategoryModalForm");
+
+    f("addCategoryBtn").addEventListener("click", () => {
+      categoryModal.classList.remove("hidden");
+      f("newCategoryName").focus();
+    });
+
+    f("cancelCategoryBtn").addEventListener("click", () => {
+      categoryModal.classList.add("hidden");
+      categoryModalForm.reset();
+    });
+
+    categoryModal.addEventListener("click", (event) => {
+      if (event.target === categoryModal) {
+        categoryModal.classList.add("hidden");
+        categoryModalForm.reset();
+      }
+    });
+
+    f("addSubcategoryBtn").addEventListener("click", () => {
+      if (!f("id_categoria").value) {
+        showToast("Seleziona prima una categoria.");
+        return;
+      }
+      subcategoryModal.classList.remove("hidden");
+      f("newSubcategoryName").focus();
+    });
+
+    f("cancelSubcategoryBtn").addEventListener("click", () => {
+      subcategoryModal.classList.add("hidden");
+      subcategoryModalForm.reset();
+    });
+
+    subcategoryModal.addEventListener("click", (event) => {
+      if (event.target === subcategoryModal) {
+        subcategoryModal.classList.add("hidden");
+        subcategoryModalForm.reset();
+      }
+    });
+
+    subcategoryModalForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const nome = f("newSubcategoryName").value.trim();
+      const id_categoria = Number(f("id_categoria").value);
+      if (!nome || !id_categoria) return;
+
+      const res = await fetch("/api/sottocategorie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, id_categoria, visibile: true })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || err.error || "Errore creazione sottocategoria");
+        return;
+      }
+
+      const data = await res.json();
+      await loadSubcategories(id_categoria, data.id);
+      subcategoryModal.classList.add("hidden");
+      subcategoryModalForm.reset();
+      showToast("Sottocategoria creata e selezionata.");
+    });
+
+    categoryModalForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const nome = f("newCategoryName").value.trim();
+      if (!nome) return;
+
+      const res = await fetch("/api/categorie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, visibile: true })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || err.error || "Errore creazione categoria");
+        return;
+      }
+
+      const data = await res.json();
+      await loadCategories();
+      f("id_categoria").value = String(data.id);
+      await loadSubcategories(data.id, null);
+      categoryModal.classList.add("hidden");
+      categoryModalForm.reset();
+      showToast("Categoria creata e selezionata.");
+    });
+  
+    f("newProductBtn").addEventListener("click", () => { resetForm(); openProductForm(); });
+    f("resetBtn").addEventListener("click", closeProductForm);
+  
+    form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+  
+    const id = f("id").value ? Number(f("id").value) : null;
+    const saveAndNew = ev.submitter?.id === "saveAndNewBtn";
+    if (!f("id_categoria").value) {
+      f("categoryError").textContent = "Seleziona una categoria per il prodotto.";
+      f("id_categoria").classList.add("invalid");
+      f("id_categoria").focus();
+      return;
+    }
+  
+    const fd = new FormData();
+    fd.append("nome", f("nome").value.trim());
+    fd.append("prezzo_euro", f("prezzo_euro").value.trim());
+    fd.append("descrizione", f("descrizione").value.trim());
+    fd.append("note", f("note").value.trim());
+    fd.append("disponibile", f("disponibile").value === "true" ? "true" : "false");
+    fd.append("visibile_da", f("visibile_da").value); fd.append("visibile_fino", f("visibile_fino").value); fd.append("ora_inizio", f("ora_inizio").value); fd.append("ora_fine", f("ora_fine").value);
+    fd.append("id_categoria", f("id_categoria").value || "");
+    fd.append("id_sottocategoria", f("id_sottocategoria").value || "");
+    fd.append("etichette", selectedLabels().join(","));
+  
+    const fileInput = document.getElementById("immagine");
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+      fd.append("immagine", fileInput.files[0]);
+    }
+  
+    const removeCb = document.getElementById("remove_image");
+    if (removeCb) fd.append("remove_image", removeCb.checked ? "true" : "false");
+  
+    let res;
+    if(!id){
+      res = await fetch("/api/prodotti", { method: "POST", body: fd });
+    }else{
+      res = await fetch(`/api/prodotti/${id}`, { method: "PUT", body: fd });
+    }
+  
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      showToast(err.detail || err.error || "Errore salvataggio");
+      return;
+    }
+  
+    const saved = await res.json();
+    await loadProducts();
+    showToast(id ? "Prodotto aggiornato." : "Prodotto creato.");
+
+    if (saveAndNew) {
+      resetForm(true);
+      f("nome").focus();
+    } else {
+      closeProductForm();
+    }
+    if (fileInput) fileInput.value = "";
+    if (removeCb) removeCb.checked = false;
+  });
+
+
+  function escapeHtml(s){
+    return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+  }
+  function escapeAttr(s){
+    return escapeHtml(s).replaceAll("'","&#39;");
+  }
+
+  document.getElementById("toggleProductSchedule").addEventListener("click",()=>f("productScheduleFields").classList.toggle("hidden"));
+    // bootstrap
+  (async function init(){
+    resetForm();
+    await loadCategories();
+    await loadProducts();
+  })();
+</script>
+

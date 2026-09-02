@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="{{ language }}">
+<head>
+  <link rel="icon" href="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" type="image/svg+xml">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="{{ shop.descrizione_breve or ('Menu di ' ~ shop.nome) }}">
+  <title>{{ shop.nome }} · Menu</title>
+  <style>
+    :root{--bg:{{ shop.colore_sfondo or '#f7f3ed' }};--card:#fff;--text:#211d19;--muted:#70675f;--accent:{{ shop.colore_accento or '#9d3e27' }};--line:#e8ded4;--shadow:0 14px 40px rgba(70,48,33,.12)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+    .language-picker{position:absolute;top:10px;right:10px;z-index:4;margin:0;padding:2px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(20,13,9,.62);box-shadow:0 3px 12px rgba(0,0,0,.16);backdrop-filter:blur(7px)}.language-picker select{max-width:104px;border:0;border-radius:999px;padding:6px 22px 6px 8px;background:transparent;color:#fff;font-size:.72rem;font-weight:750;cursor:pointer;outline:none}.language-picker option{color:#211d19;background:#fff}
+    .hero{position:relative;min-height:310px;display:flex;align-items:flex-end;background:#382c25 center/cover no-repeat;overflow:hidden}
+    .hero.has-cover{background-image:linear-gradient(180deg,rgba(20,13,9,.12),rgba(20,13,9,.82)),url('{{ shop.copertina_url }}')}
+    .hero:not(.has-cover){background-image:linear-gradient(135deg,#7d3020,#221813)}
+    .hero-inner{width:min(1120px,100%);margin:auto;padding:56px 22px 30px;display:flex;align-items:flex-end;gap:18px;color:#fff}
+    .brand-logo{width:92px;height:92px;flex:0 0 auto;border-radius:22px;display:grid;place-items:center;overflow:hidden;background:#fff;box-shadow:0 10px 35px rgba(0,0,0,.28);color:#7d3020;font-size:28px;font-weight:800}
+    .brand-logo img{width:100%;height:100%;object-fit:contain}.hero h1{margin:0;font-size:clamp(2rem,6vw,3.8rem);line-height:1}.hero p{margin:10px 0 0;color:#f2e7df;max-width:700px}
+    .category-nav{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:12px max(18px,calc((100% - 1120px)/2));background:rgba(247,243,237,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);scrollbar-width:none}
+    .category-nav a{flex:0 0 auto;padding:10px 15px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:.9rem;font-weight:750;transition:.18s ease}.category-nav a.active{background:var(--accent);border-color:var(--accent);color:#fff}.menu-section[hidden]{display:none}
+    .menu-tools{position:sticky;top:65px;z-index:4;display:grid;grid-template-columns:minmax(220px,1fr) repeat(2,minmax(150px,220px));gap:9px;width:min(1120px,calc(100% - 24px));margin:12px auto;padding:10px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.94);box-shadow:0 8px 24px rgba(70,48,33,.08);backdrop-filter:blur(10px)}.menu-tools[hidden]{display:none}.menu-tools input,.menu-tools select{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--text);font:600 .86rem system-ui}.filter-hidden{display:none!important}.filter-empty{grid-column:1/-1;padding:24px;text-align:center;color:var(--muted)}
+    main{width:min(1120px,100%);margin:auto;padding:28px 20px 70px}.intro{display:grid;grid-template-columns:1.4fr .6fr;gap:24px;margin-bottom:32px}.intro-card{padding:20px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.72)}
+    .intro-card h2{margin:0 0 8px}.intro-card p{margin:0;color:var(--muted);line-height:1.65;white-space:pre-line}.contacts{display:grid;gap:8px}.contacts a,.contacts span{color:var(--muted);text-decoration:none;overflow-wrap:anywhere}
+    .menu-section{scroll-margin-top:76px;margin-top:34px}.menu-section h2{margin:0 0 15px;font-family:Georgia,serif;font-size:2rem}.products{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .product{display:grid;grid-template-columns:1fr auto;gap:12px;padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:0 5px 18px rgba(70,48,33,.05)}
+    .product.with-image{grid-template-columns:118px 1fr auto}.product img{width:118px;height:118px;border-radius:13px;object-fit:cover}.product h3{margin:0 0 5px;font-size:1.06rem}.subcat{display:block;margin-bottom:5px;color:var(--accent);font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}.products>.product .subcat{display:none}.print-subcategory-separator{grid-column:1/-1;margin:12px 0 0;padding:11px 14px;border-left:5px solid var(--accent);border-radius:10px;background:color-mix(in srgb,var(--accent) 10%,#fff);color:var(--accent);font-size:.82rem;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.product-dialog .subcat{display:block}
+    .product p{margin:0;color:var(--muted);line-height:1.45;font-size:.9rem}.price{white-space:nowrap;font-weight:850;color:var(--accent)}.product.sold-out{opacity:.58;filter:saturate(.45)}.sold-out-badge{display:block;margin-top:6px;padding:3px 6px;border:1px solid currentColor;border-radius:999px;font-size:.62rem;text-align:center;text-transform:uppercase;letter-spacing:.04em}.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}.chip{padding:4px 7px;border-radius:999px;background:#f4ece6;color:#6f3d2f;font-size:.7rem;font-weight:700}.allergen{background:#fff2c9;color:#725713}.allergen-line{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);color:#725713;font-size:.76rem}.allergen-line strong{margin-right:2px}.note{display:block;margin-top:8px;color:#86786e;font-size:.78rem;font-style:italic}
+    .product{width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease}.product:hover,.product:focus-visible{transform:translateY(-2px);box-shadow:var(--shadow);outline:3px solid color-mix(in srgb,var(--accent) 28%,transparent)}.product-modal[hidden]{display:none}.product-modal{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:20px;background:rgba(25,18,13,.58);backdrop-filter:blur(5px)}.product-dialog{position:relative;width:min(580px,100%);max-height:min(720px,calc(100vh - 40px));overflow:auto;padding:28px;border-radius:22px;background:var(--card);box-shadow:0 24px 70px rgba(0,0,0,.35)}.product-dialog .product{cursor:default;transform:none!important;box-shadow:none!important;border:0;padding:0;grid-template-columns:1fr auto}.product-dialog .product.with-image{grid-template-columns:160px 1fr auto}.product-dialog .product img{width:160px;height:160px}.product-close{position:absolute;top:10px;right:10px;width:38px;height:38px;border:0;border-radius:50%;background:#f2ebe5;color:var(--text);font-size:1.4rem;cursor:pointer}.product-open-hint{display:block;margin-top:8px;color:var(--accent);font-size:.75rem;font-weight:800}.product-dialog .product-open-hint{display:none}@media(max-width:480px){.product-modal{padding:12px}.product-dialog{padding:22px 18px 18px;border-radius:18px}.product-dialog .product.with-image{grid-template-columns:92px 1fr auto}.product-dialog .product img{width:92px;height:92px}.product-dialog .product p{display:block;font-size:.9rem}.product-dialog .product h3{font-size:1.08rem}}
+    .empty{padding:40px;text-align:center;border:1px dashed var(--line);border-radius:18px;color:var(--muted)}
+    .view-actions{display:flex;justify-content:center;margin:28px 0}.menu-button{padding:13px 22px;border:0;border-radius:999px;background:var(--accent);color:#fff;font:800 1rem system-ui;cursor:pointer;box-shadow:0 10px 24px rgba(157,62,39,.24)}.menu-button.secondary{background:#fff;color:var(--accent);border:1px solid var(--line);box-shadow:none}.menu-content[hidden],.category-nav[hidden],.intro[hidden],.hours[hidden],.view-actions[hidden]{display:none!important}
+    .hours{max-width:720px;margin:28px auto 0;padding:14px 16px;border-radius:14px;background:#211d19;color:#fff}.hours h2{margin:0 0 9px;font-size:1.05rem}.hours-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 18px}.hours-row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.12);font-size:.8rem}.hours-row span:last-child{color:#eadbd0;text-align:right}
+    footer{text-align:center;padding:22px;color:var(--muted);font-size:.8rem}
+    .contact-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:14px 18px;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 7px 22px rgba(70,48,33,.08)}.contact-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:11px 18px;border:1px solid color-mix(in srgb,var(--accent) 28%,#fff);border-radius:999px;background:#fff;color:var(--accent);font-size:.9rem;font-weight:850;text-decoration:none;transition:transform .16s ease,box-shadow .16s ease}.contact-action.primary{background:var(--accent);border-color:var(--accent);color:#fff}.contact-action.whatsapp{background:#25d366;border-color:#25d366;color:#082b15}.contact-action:hover,.contact-action:focus-visible{transform:translateY(-2px);box-shadow:0 8px 18px rgba(70,48,33,.16);outline:none}
+    @media(max-width:780px){.hero-inner{align-items:center}.brand-logo{width:76px;height:76px;border-radius:18px}.intro{grid-template-columns:1fr}.products{grid-template-columns:1fr}.hours-grid{grid-template-columns:1fr}.menu-tools{position:static;grid-template-columns:1fr;margin:9px auto}}
+    @media(max-width:480px){.hero{min-height:225px}.hero-inner{padding:32px 14px 18px;gap:11px}.brand-logo{width:58px;height:58px;border-radius:14px}.hero h1{font-size:1.7rem}.hero p{font-size:.84rem}.category-nav{padding:8px 10px}.category-nav a{min-height:40px;display:flex;align-items:center;padding:8px 13px}.menu-section{margin-top:18px}.menu-section h2{font-size:1.45rem;margin-bottom:10px}.products{gap:8px}.product,.product.with-image{grid-template-columns:60px minmax(0,1fr) auto;align-items:start;padding:9px;gap:9px;border-radius:13px}.product:not(.with-image){grid-template-columns:minmax(0,1fr) auto}.product img{width:60px;height:60px;border-radius:10px}.product.with-image .price{grid-column:3;grid-row:1;justify-self:end}.product h3{margin-bottom:3px;font-size:.95rem}.subcat{margin-bottom:2px;font-size:.65rem}.product p{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:.78rem;line-height:1.3}.price{font-size:.9rem}.chips{gap:3px;margin-top:5px}.chip{padding:3px 5px;font-size:.62rem}.note{margin-top:4px;font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.menu-button{width:100%;min-height:46px}.intro-card{padding:15px}main{padding:16px 10px 48px}}
+
+    .cover-charge{display:inline-block!important;margin-top:10px!important;padding:6px 10px;border:1px solid rgba(255,255,255,.42);border-radius:999px;color:#fff!important;font-weight:800}
+    @page{size:A4 portrait;margin:7mm}
+    @media print{
+      html,body{background:#fff!important;color:#111!important;font:7.5pt/1.15 Arial,sans-serif!important;-webkit-print-color-adjust:economy;print-color-adjust:economy}
+      .language-picker,.print-menu-button,.category-nav,.menu-tools,.intro,.hours,.view-actions,.legal-footer,.product-modal,.product-open-hint,.contact-actions{display:none!important}
+      .hero{min-height:0!important;margin:0 0 2mm;background:none!important;overflow:visible;border:0;border-bottom:2pt solid var(--accent)}
+      .hero-inner{display:flex;width:auto;margin:0;padding:0 0 3mm;align-items:center;gap:4mm;color:#111}
+      .brand-logo{display:grid!important;width:18mm;height:18mm;flex:0 0 18mm;border:.6pt solid #bbb;border-radius:3mm;background:#fff;box-shadow:none;color:var(--accent);font-size:15pt}
+      .brand-logo img{display:block!important;width:100%;height:100%;object-fit:contain}
+      .hero h1{margin:0;color:var(--accent);font:700 18pt/1 Arial,sans-serif;letter-spacing:.01em}
+      .hero p:not(.cover-charge),.product img{display:none!important}
+      .cover-charge{margin:1mm 0 0!important;padding:.5mm 1.5mm;border:.5pt solid #888!important;border-radius:2mm;color:#111!important;font-size:7pt;line-height:1}
+      main{width:auto;margin:0;padding:0}
+      .menu-content,.menu-content[hidden]{display:block!important}
+      .menu-section,.menu-section[hidden]{display:block!important;margin:0;break-after:page;page-break-after:always}
+      .menu-section:last-of-type{break-after:auto;page-break-after:auto}
+      .menu-section h2{margin:2.5mm 0 1.5mm;padding:1mm 1.5mm;border-bottom:.8pt solid #333;background:#eee!important;font:700 13pt/1.05 Georgia,serif;break-after:avoid;page-break-after:avoid}
+      .products{display:grid;grid-template-columns:1fr;gap:0;align-items:start}
+      .menu-section.print-two-columns .products{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:5mm}
+      .product .subcat{display:none}
+      .print-subcategory-separator{display:block;grid-column:1/-1;margin:1.5mm 0 .5mm;padding:.8mm 1mm;border-top:1pt solid #555;border-right:0;border-bottom:.35pt solid #aaa;border-left:0;border-radius:0;background:#f1f1f1!important;color:#111;font:700 8pt/1.05 Arial,sans-serif;text-transform:uppercase;letter-spacing:.04em;break-after:avoid;page-break-after:avoid}
+      .product,.product.with-image{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:2.5mm;width:100%;margin:0;padding:1.15mm .7mm;border:0;border-bottom:.35pt solid #bbb;border-radius:0;background:#fff!important;box-shadow:none!important;break-inside:avoid;page-break-inside:avoid;cursor:default}
+      .product:hover,.product:focus-visible{transform:none;box-shadow:none;outline:0}
+      .product h3{margin:0 0 .3mm;font-size:8.5pt;line-height:1.08}
+      .subcat{margin:0 0 .3mm;font-size:5.8pt;line-height:1.05;letter-spacing:.03em}
+      .product p{margin:0;color:#333;font-size:6.7pt;line-height:1.15}
+      .price{color:#111;font-size:8pt;line-height:1.08}
+      .chips{display:inline;margin:0}.chip{display:inline;padding:0;border:0;background:none!important;color:#333;font-size:5.8pt;font-weight:600}.chip+.chip::before{content:", ";color:#555}
+      .note{display:block;margin:.4mm 0 0;color:#555;font-size:6pt;line-height:1.1}
+      .allergen-line{display:block;margin:.5mm 0 0;padding:.4mm 0 0;border-top:.35pt dotted #aaa;color:#444;font-size:5.8pt;line-height:1.12}.allergen-line strong{margin-right:.6mm}
+    }
+
+    @media(max-width:480px){.hero-inner{padding-top:58px}.language-picker{top:8px;right:8px}.language-picker select{min-height:36px}.intro-card{overflow-wrap:anywhere}.view-actions{margin:20px 0}.legal-footer{margin-top:0}.contact-actions{display:grid;grid-template-columns:1fr 1fr;padding:10px;gap:7px}.contact-action{min-height:44px;padding:9px 8px;font-size:.78rem}.contact-action.whatsapp{grid-column:1/-1;grid-row:1}}
+  </style>
+</head>
+<body>
+  <header class="hero{% if shop.copertina_url %} has-cover{% endif %}">
+    {% if languages|length > 1 %}{% set flags = {'it': '🇮🇹', 'en': '🇬🇧', 'fr': '🇫🇷', 'de': '🇩🇪', 'es': '🇪🇸'} %}<form class="language-picker"><select aria-label="Lingua del menu" title="Cambia lingua" onchange="location.href=this.value">{% for item in languages %}<option value="{{ url_for('public_menu', slug=shop.slug, lang=item.codice) }}"{% if item.codice == language %} selected{% endif %}>{{ flags.get(item.codice, '🌐') }} {{ item.nome }}</option>{% endfor %}</select></form>{% endif %}
+    <div class="hero-inner">
+      <div class="brand-logo">
+        {% if shop.logo_url %}<img src="{{ shop.logo_url }}" alt="Logo {{ shop.nome }}">{% else %}{{ shop.nome[:2]|upper }}{% endif %}
+      </div>
+      <div><h1>{{ shop.nome }}</h1>{% if shop.descrizione_breve %}<p>{{ shop.descrizione_breve }}</p>{% endif %}{% if shop.costo_coperto != '0,00' %}<p class="cover-charge">{{ ui.cover }} € {{ shop.costo_coperto }}</p>{% endif %}</div>
+    </div>
+  </header>
+
+  {% if shop.telefono or shop.whatsapp_digits or shop.prenotazione_url %}
+  <nav class="contact-actions" aria-label="Azioni di contatto">
+    {% if shop.telefono %}<a class="contact-action" href="tel:{{ shop.telefono }}" aria-label="{{ ui.call }} {{ shop.nome }}"><span aria-hidden="true">☎</span> {{ ui.call }}</a>{% endif %}
+    {% if shop.whatsapp_digits %}<a class="contact-action whatsapp" href="https://wa.me/{{ shop.whatsapp_digits }}" target="_blank" rel="noopener"><span aria-hidden="true">💬</span> {{ ui.whatsapp }}</a>{% endif %}
+    {% if shop.prenotazione_url %}<a class="contact-action primary" href="{{ shop.prenotazione_url }}" target="_blank" rel="noopener"><span aria-hidden="true">📅</span> {{ ui.book }}</a>{% elif shop.whatsapp_digits %}<a class="contact-action primary" href="https://wa.me/{{ shop.whatsapp_digits }}?text={{ ui.booking_message|urlencode }}" target="_blank" rel="noopener"><span aria-hidden="true">📅</span> {{ ui.book }}</a>{% elif shop.telefono %}<a class="contact-action primary" href="tel:{{ shop.telefono }}"><span aria-hidden="true">📅</span> {{ ui.book }}</a>{% endif %}
+  </nav>
+  {% endif %}
+
+  {% if categories %}<nav class="category-nav" id="categoryNav" aria-label="{{ ui.categories }}" hidden>{% for category in categories %}<a href="#categoria-{{ category.id }}" data-category-target="categoria-{{ category.id }}">{{ category.nome }}</a>{% endfor %}</nav>{% endif %}
+  <div class="menu-tools" id="menuTools" hidden>
+    <input id="menuSearch" type="search" placeholder="Cerca un prodotto o ingrediente&hellip;" aria-label="Cerca nel menu">
+    <select id="labelFilter" aria-label="Filtra per caratteristica"><option value="">Tutte le caratteristiche</option><option>Vegetariano</option><option>Vegano</option><option>Senza glutine</option><option>Piccante</option><option>Novit&agrave;</option><option>Consigliato</option></select>
+    <select id="allergenFilter" aria-label="Escludi un allergene"><option value="">Non escludere allergeni</option>{% for allergen in ['Glutine','Crostacei','Uova','Pesce','Arachidi','Soia','Latte','Frutta a guscio','Sedano','Senape','Semi di sesamo','Solfiti','Lupini','Molluschi'] %}<option value="{{ allergen|lower }}">Senza {{ allergen }}</option>{% endfor %}</select>
+  </div>
+
+  <main>
+    {% if shop.descrizione_estesa or shop.indirizzo or shop.telefono or shop.email %}
+    <section class="intro" id="companyInfo">
+      <div class="intro-card"><h2>{{ ui.venue }}</h2><p>{{ shop.descrizione_estesa or shop.descrizione_breve }}</p></div>
+      <div class="intro-card contacts"><h2>{{ ui.contacts }}</h2>
+        {% if shop.indirizzo %}<span>📍 {{ shop.indirizzo }}, {{ shop.cap }} {{ shop.citta }}{% if shop.provincia %} ({{ shop.provincia }}){% endif %}</span>{% endif %}
+        {% if shop.telefono %}<a href="tel:{{ shop.telefono }}">☎ {{ shop.telefono }}</a>{% endif %}
+        {% if shop.email %}<a href="mailto:{{ shop.email }}">✉ {{ shop.email }}</a>{% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    <div class="view-actions"><button class="menu-button" id="showMenu" type="button">{{ ui.show }}</button></div>
+    <div class="menu-content" id="menuContent" hidden>
+    {% if categories %}
+      {% for category in categories %}
+      <section class="menu-section" id="categoria-{{ category.id }}" data-category-section data-track-url="{{ url_for('track_category_open', slug=shop.slug, category_id=category.id, lang=language) }}" hidden>
+        <h2>{{ category.nome }}</h2>
+        <div class="products">
+          {% set subcategory_state = namespace(current='') %}
+          {% for product in category.prodotti %}
+          {% set product_subcategory = product.sottocategoria or '' %}
+          {% if product_subcategory and product_subcategory != subcategory_state.current %}<div class="print-subcategory-separator">{{ product_subcategory }}</div>{% endif %}
+          {% set subcategory_state.current = product_subcategory %}
+          <article class="product{% if product.immagine_url %} with-image{% endif %}{% if not product.disponibile %} sold-out{% endif %}" role="button" tabindex="0" aria-label="Apri dettagli di {{ product.nome }}" data-product-open data-track-url="{{ url_for('track_product_open', slug=shop.slug, product_id=product.id, lang=language) }}" data-search="{{ (product.nome ~ ' ' ~ product.descrizione ~ ' ' ~ product.note)|lower|e }}" data-labels="{{ product.etichette|join('|')|lower|e }}" data-allergens="{{ product.allergeni|join('|')|lower|e }}" data-available="{{ 'true' if product.disponibile else 'false' }}">
+            {% if product.immagine_url %}<img src="{{ product.immagine_url }}" alt="{{ product.nome }}" loading="lazy">{% endif %}
+            <div>
+              {% if product.sottocategoria %}<span class="subcat">{{ product.sottocategoria }}</span>{% endif %}
+              <h3>{{ product.nome }}</h3>
+              {% if product.descrizione %}<p>{{ product.descrizione }}</p>{% endif %}
+              {% if product.note %}<span class="note">{{ product.note }}</span>{% endif %}
+              {% if product.etichette %}<div class="chips">
+                {% for label in product.etichette %}<span class="chip">{{ label }}</span>{% endfor %}
+              </div>{% endif %}
+              {% if product.allergeni %}<div class="allergen-line" aria-label="Allergeni: {{ product.allergeni|join(', ') }}"><strong><span aria-hidden="true">⚠</span> Allergeni:</strong>{% for allergen in product.allergeni %}<span class="chip allergen">{{ allergen }}</span>{% endfor %}</div>{% endif %}
+            </div>
+            <div class="price">€ {{ product.prezzo }}{% if not product.disponibile %}<span class="sold-out-badge">{{ ui.sold_out }}</span>{% endif %}</div><span class="product-open-hint">Tocca per i dettagli</span>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+    {% else %}<div class="empty">{{ ui.empty }}</div>{% endif %}
+      <div class="view-actions"><button class="menu-button secondary" id="hideMenu" type="button">{{ ui.back }}</button></div>
+    </div>
+
+    <div class="product-modal" id="productModal" role="dialog" aria-modal="true" aria-label="Dettagli articolo" hidden>
+      <div class="product-dialog">
+        <button class="product-close" id="closeProductModal" type="button" aria-label="Chiudi dettagli">×</button>
+        <div id="productModalContent"></div>
+      </div>
+    </div>
+
+    {% if hours %}<section class="hours" id="businessHours"><h2>{{ ui.hours }}</h2><div class="hours-grid">
+      {% for day in hours %}<div class="hours-row"><strong>{{ day.nome }}</strong><span>{% if day.aperto %}{{ day.apertura }}–{{ day.chiusura }}{% if day.apertura_2 and day.chiusura_2 %}<br>{{ day.apertura_2 }}–{{ day.chiusura_2 }}{% endif %}{% else %}{{ ui.closed }}{% endif %}</span></div>{% endfor %}
+    </div></section>{% endif %}
+  </main>
+  <script>
+    const menuContent = document.getElementById('menuContent');
+    const categoryNav = document.getElementById('categoryNav');
+    const showMenu = document.getElementById('showMenu');
+    const hideMenu = document.getElementById('hideMenu');
+    const companyInfo = document.getElementById('companyInfo');
+    const businessHours = document.getElementById('businessHours');
+    const categoryLinks = [...document.querySelectorAll('[data-category-target]')];
+    const categorySections = [...document.querySelectorAll('[data-category-section]')];
+    const productModal = document.getElementById('productModal');
+    const productModalContent = document.getElementById('productModalContent');
+    const closeProductModal = document.getElementById('closeProductModal');
+    const productCards = [...document.querySelectorAll('[data-product-open]')];
+    const menuTools = document.getElementById('menuTools');
+    const menuSearch = document.getElementById('menuSearch');
+    const labelFilter = document.getElementById('labelFilter');
+    const allergenFilter = document.getElementById('allergenFilter');
+    let activeCategoryId = categorySections[0]?.id || '';
+
+    function updateSubcategorySeparators(section){
+      const children = [...section.querySelector('.products').children];
+      children.forEach((item, index) => {
+        if (!item.classList.contains('print-subcategory-separator')) return;
+        let hasVisibleProduct = false;
+        for (let next = index + 1; next < children.length && !children[next].classList.contains('print-subcategory-separator'); next++) {
+          if (children[next].classList.contains('product') && !children[next].classList.contains('filter-hidden')) hasVisibleProduct = true;
+        }
+        item.classList.toggle('filter-hidden', !hasVisibleProduct);
+      });
+    }
+
+    function filterMenu(){
+      const query = menuSearch.value.trim().toLowerCase();
+      const label = labelFilter.value.toLowerCase();
+      const excludedAllergen = allergenFilter.value.toLowerCase();
+      const filtering = Boolean(query || label || excludedAllergen);
+      categorySections.forEach(section => {
+        let matches = 0;
+        section.querySelectorAll('[data-product-open]').forEach(card => {
+          const visible = (!query || card.dataset.search.includes(query)) && (!label || card.dataset.labels.split('|').includes(label)) && (!excludedAllergen || !card.dataset.allergens.split('|').includes(excludedAllergen));
+          card.classList.toggle('filter-hidden', filtering && !visible);
+          if (!filtering || visible) matches++;
+        });
+        updateSubcategorySeparators(section);
+        section.hidden = filtering ? matches === 0 : section.id !== activeCategoryId;
+      });
+    }
+    [menuSearch,labelFilter,allergenFilter].forEach(control => control.addEventListener('input', filterMenu));
+
+    function fitPrintColumns(){
+      const printableHeight = 250 * 96 / 25.4;
+      categorySections.forEach(section => {
+        section.classList.remove('print-two-columns');
+        void section.offsetHeight;
+        if (section.scrollHeight > printableHeight) section.classList.add('print-two-columns');
+      });
+    }
+    window.addEventListener('beforeprint', fitPrintColumns);
+    const printMedia = window.matchMedia('print');
+    printMedia.addEventListener?.('change', event => { if (event.matches) fitPrintColumns(); });
+
+    function openProduct(card){
+      productModalContent.innerHTML = card.innerHTML;
+      productModal.hidden = false;
+      document.body.style.overflow = 'hidden';
+      if (card.dataset.available === 'true') fetch(card.dataset.trackUrl, {method: 'POST', credentials: 'same-origin', keepalive: true}).catch(() => {});
+      closeProductModal.focus();
+    }
+    function closeProduct(){
+      productModal.hidden = true;
+      document.body.style.overflow = '';
+    }
+    productCards.forEach(card => {
+      card.addEventListener('click', () => openProduct(card));
+      card.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openProduct(card); }
+      });
+    });
+    closeProductModal.addEventListener('click', closeProduct);
+    productModal.addEventListener('click', event => { if(event.target === productModal) closeProduct(); });
+    document.addEventListener('keydown', event => { if(event.key === 'Escape' && !productModal.hidden) closeProduct(); });
+
+
+
+    function activateCategory(targetId){
+      activeCategoryId = targetId;
+      const activeSection = document.getElementById(targetId);
+      if (activeSection?.dataset.trackUrl) fetch(activeSection.dataset.trackUrl, {method: 'POST', credentials: 'same-origin', keepalive: true}).catch(() => {});
+      if (menuSearch) menuSearch.value = '';
+      if (labelFilter) labelFilter.value = '';
+      if (allergenFilter) allergenFilter.value = '';
+      productCards.forEach(card => card.classList.remove('filter-hidden'));
+      categorySections.forEach(section => { updateSubcategorySeparators(section); section.hidden = section.id !== targetId; });
+      categoryLinks.forEach(link => link.classList.toggle('active', link.dataset.categoryTarget === targetId));
+      document.getElementById(targetId)?.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+
+    categoryLinks.forEach(link => link.addEventListener('click', event => {
+      event.preventDefault();
+      activateCategory(link.dataset.categoryTarget);
+    }));
+
+    showMenu.addEventListener('click', () => {
+      menuContent.hidden = false;
+      if (categoryNav) categoryNav.hidden = false;
+      if (menuTools) menuTools.hidden = false;
+      showMenu.parentElement.hidden = true;
+      if (companyInfo) companyInfo.hidden = true;
+      if (businessHours) businessHours.hidden = true;
+      if (categoryLinks[0]) activateCategory(categoryLinks[0].dataset.categoryTarget);
+      else menuContent.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
+    hideMenu.addEventListener('click', () => {
+      menuContent.hidden = true;
+      if (categoryNav) categoryNav.hidden = true;
+      if (menuTools) menuTools.hidden = true;
+      categorySections.forEach(section => section.hidden = true);
+      categoryLinks.forEach(link => link.classList.remove('active'));
+      showMenu.parentElement.hidden = false;
+      if (companyInfo) companyInfo.hidden = false;
+      if (businessHours) businessHours.hidden = false;
+      document.querySelector('.intro')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
+  </script>
+  {% include '_legal_footer.html' %}
+</body>
+</html>

@@ -1,0 +1,138 @@
+<style>
+  .store-card{max-width:980px;padding:22px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:rgba(255,255,255,.035)}
+  .store-card h2{margin:0 0 8px}.store-card p{color:#aab4d6;line-height:1.5}
+  .store-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}
+  .store-field{display:flex;flex-direction:column;gap:7px}.store-field.full{grid-column:1/-1}
+  .store-field label{font-size:.85rem;font-weight:650}
+  .store-field input,.store-field textarea{padding:11px 12px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:rgba(255,255,255,.05);color:#e7ecff;font:inherit}
+  .store-field textarea{min-height:94px;resize:vertical}
+  .store-actions{display:flex;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap}
+  .store-save{border:1px solid rgba(110,168,254,.4);border-radius:12px;padding:10px 14px;background:rgba(110,168,254,.18);color:#e7ecff;font:600 .9rem system-ui;cursor:pointer}
+  .store-message{color:#aab4d6;font-size:.88rem}.store-error{border-color:#ff8a8a!important}
+  .store-branding{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}
+  .store-image-field{padding:14px;border:1px dashed rgba(255,255,255,.22);border-radius:14px;background:rgba(255,255,255,.025)}
+  .store-image-field label{display:block;margin-bottom:9px;font-size:.85rem;font-weight:650}
+  .store-image-field input{width:100%;color:#aab4d6}
+  .store-preview{display:flex;align-items:center;justify-content:center;height:150px;margin-bottom:10px;overflow:hidden;border-radius:12px;background:rgba(0,0,0,.22);color:#7f8aaa;font-size:.85rem}
+  .store-preview img{width:100%;height:100%;object-fit:cover}.store-preview.logo img{object-fit:contain;padding:12px;box-sizing:border-box}
+  .store-help{display:block;margin-top:8px;color:#7f8aaa;font-size:.78rem}
+  @media(max-width:640px){.store-grid,.store-branding{grid-template-columns:1fr}}
+</style>
+
+<section class="store-card">
+  <h2>Dati del punto vendita</h2>
+  <p>Inserisci le informazioni principali che saranno utilizzate nel tuo menù e nella pagina del locale.</p>
+
+  <form id="storeForm">
+    <div class="store-branding">
+      <div class="store-image-field">
+        <label for="logo">Logo del negozio</label>
+        <div class="store-preview logo" id="logoPreview"><span>Nessun logo caricato</span></div>
+        <input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp" />
+        <small class="store-help">PNG, JPG o WEBP. Consigliato: immagine quadrata.</small>
+      </div>
+      <div class="store-image-field">
+        <label for="copertina">Copertina del negozio</label>
+        <div class="store-preview" id="copertinaPreview"><span>Nessuna copertina caricata</span></div>
+        <input id="copertina" name="copertina" type="file" accept="image/png,image/jpeg,image/webp" />
+        <small class="store-help">PNG, JPG o WEBP. Consigliato: formato orizzontale.</small>
+      </div>
+    </div>
+    <div class="store-grid">
+      <div class="store-field"><label for="nome">Nome Punto Vendita *</label><input id="nome" data-store-field required maxlength="120" /></div>
+      <div class="store-field"><label for="indirizzo">Indirizzo *</label><input id="indirizzo" data-store-field required maxlength="160" /></div>
+      <div class="store-field"><label for="citta">Città *</label><input id="citta" data-store-field required maxlength="100" /></div>
+      <div class="store-field"><label for="cap">CAP *</label><input id="cap" data-store-field required maxlength="12" inputmode="numeric" /></div>
+      <div class="store-field"><label for="provincia">Provincia *</label><input id="provincia" data-store-field required maxlength="80" /></div>
+      <div class="store-field"><label for="nazione">Nazione</label><input id="nazione" data-store-field maxlength="80" placeholder="Es. Italia" /></div>
+      <div class="store-field"><label for="email">Email</label><input id="email" data-store-field type="email" maxlength="160" /></div>
+      <div class="store-field"><label for="telefono">Telefono</label><input id="telefono" data-store-field type="tel" maxlength="40" /></div>
+      <div class="store-field"><label for="whatsapp">WhatsApp</label><input id="whatsapp" data-store-field type="tel" maxlength="40" placeholder="Es. +39 333 1234567" /><small class="store-help">Se vuoto, i pulsanti WhatsApp useranno il numero di telefono.</small></div>
+      <div class="store-field full"><label for="prenotazione_url">Link prenotazioni</label><input id="prenotazione_url" data-store-field type="url" maxlength="500" placeholder="https://www.thefork.it/..." /><small class="store-help">Incolla il link TheFork, Quandoo, OpenTable o di un altro servizio.</small></div>
+      <div class="store-field"><label for="costo_coperto">Costo del coperto (€)</label><input id="costo_coperto" data-store-field type="number" min="0" step="0.01" inputmode="decimal" placeholder="Es. 2,50" /><small class="store-help">Inserisci 0 se il coperto non è previsto.</small></div>
+      <div class="store-field"><label for="colore_accento">Colore principale</label><input id="colore_accento" data-store-field type="color" value="#9d3e27" /></div>
+      <div class="store-field"><label for="colore_sfondo">Colore di sfondo</label><input id="colore_sfondo" data-store-field type="color" value="#f7f3ed" /></div>
+      <div class="store-field full"><label for="descrizione_breve">Descrizione Breve *</label><textarea id="descrizione_breve" data-store-field required maxlength="300" placeholder="Una breve presentazione del locale."></textarea></div>
+      <div class="store-field full"><label for="descrizione_estesa">Descrizione Estesa *</label><textarea id="descrizione_estesa" data-store-field required maxlength="3000" placeholder="Racconta la storia, la proposta e l'atmosfera del tuo punto vendita."></textarea></div>
+    </div>
+    <div class="store-actions">
+      <button class="store-save" type="submit">Salva informazioni</button>
+      <span class="store-message" id="storeMessage" role="status"></span>
+    </div>
+  </form>
+</section>
+
+<script>
+  const storeForm = document.getElementById("storeForm");
+  const storeMessage = document.getElementById("storeMessage");
+  const storeFields = [...document.querySelectorAll("[data-store-field]")];
+  const logoInput = document.getElementById("logo");
+  const coverInput = document.getElementById("copertina");
+
+  function showImage(previewId, url, emptyText){
+    const preview = document.getElementById(previewId);
+    preview.replaceChildren();
+    if (!url) {
+      const label = document.createElement("span");
+      label.textContent = emptyText;
+      preview.appendChild(label);
+      return;
+    }
+    const image = document.createElement("img");
+    image.src = url;
+    image.alt = emptyText.replace("Nessun ", "Anteprima ");
+    preview.appendChild(image);
+  }
+
+  logoInput.addEventListener("change", () => showImage("logoPreview", logoInput.files[0] ? URL.createObjectURL(logoInput.files[0]) : "", "Nessun logo caricato"));
+  coverInput.addEventListener("change", () => showImage("copertinaPreview", coverInput.files[0] ? URL.createObjectURL(coverInput.files[0]) : "", "Nessuna copertina caricata"));
+
+  async function loadStore(){
+    const res = await fetch("/api/negozio");
+    if (!res.ok) { storeMessage.textContent = "Impossibile caricare i dati del punto vendita."; return; }
+    const data = await res.json();
+    if (data.item) {
+      storeFields.forEach(field => field.value = data.item[field.id] || (field.type === "color" ? field.value : ""));
+      showImage("logoPreview", data.item.logo_url, "Nessun logo caricato");
+      showImage("copertinaPreview", data.item.copertina_url, "Nessuna copertina caricata");
+      storeMessage.textContent = "Informazioni caricate.";
+    }
+  }
+
+  storeForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    storeFields.forEach(field => field.classList.remove("store-error"));
+    const payload = Object.fromEntries(storeFields.map(field => [field.id, field.value.trim()]));
+    const res = await fetch("/api/negozio", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      const images = new FormData();
+      if (logoInput.files[0]) images.append("logo", logoInput.files[0]);
+      if (coverInput.files[0]) images.append("copertina", coverInput.files[0]);
+
+      if ([...images.keys()].length) {
+        storeMessage.textContent = "Caricamento immagini in corso…";
+        const imageRes = await fetch("/api/negozio/immagini", { method: "POST", body: images });
+        const imageData = await imageRes.json().catch(() => ({}));
+        if (!imageRes.ok) {
+          storeMessage.textContent = imageData.error || "Errore nel caricamento delle immagini.";
+          return;
+        }
+        if (imageData.logo) showImage("logoPreview", imageData.logo, "Nessun logo caricato");
+        if (imageData.copertina) showImage("copertinaPreview", imageData.copertina, "Nessuna copertina caricata");
+        logoInput.value = "";
+        coverInput.value = "";
+      }
+
+      storeMessage.textContent = "Informazioni e immagini del punto vendita salvate.";
+      window.loadShopBranding?.();
+      return;
+    }
+    (data.fields || []).forEach(id => document.getElementById(id)?.classList.add("store-error"));
+    storeMessage.textContent = data.detail || data.error || "Errore nel salvataggio.";
+  });
+
+  loadStore();
+</script>

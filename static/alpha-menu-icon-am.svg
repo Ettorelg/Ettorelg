@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Alpha Menu AM icon">
+  <defs>
+    <clipPath id="clipA"><path d="M180 700 340 300h78l160 400h-86l-34-92H300l-34 92zm149-170h100l-50-139z"/></clipPath>
+    <clipPath id="clipM"><path d="M480 700V300h85l99 170 99-170h85v400h-82V438L664 610 562 438v262z"/></clipPath>
+    <pattern id="redStripes" width="1024" height="58" patternUnits="userSpaceOnUse"><rect width="1024" height="38" fill="#ed1c24"/></pattern>
+    <pattern id="blueStripes" width="1024" height="58" patternUnits="userSpaceOnUse"><rect width="1024" height="38" fill="#17479e"/></pattern>
+  </defs>
+  <path d="M500 170H292C157 170 70 282 70 512s87 342 222 342h208" fill="none" stroke="#ed1c24" stroke-width="42"/>
+  <path d="M524 170h208c135 0 222 112 222 342s-87 342-222 342H524" fill="none" stroke="#17479e" stroke-width="42"/>
+  <rect x="150" y="270" width="440" height="470" fill="url(#redStripes)" clip-path="url(#clipA)"/>
+  <rect x="450" y="270" width="430" height="470" fill="url(#blueStripes)" clip-path="url(#clipM)"/>
+</svg>
+

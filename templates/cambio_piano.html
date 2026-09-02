@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <link rel="icon" href="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" type="image/svg+xml">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cambio piano · Alpha Menu</title>
+  <style>
+    :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:#0b1220;color:#e7ecff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}.card{width:min(560px,100%);padding:28px;border:1px solid rgba(255,255,255,.13);border-radius:20px;background:#0f1a2e;box-shadow:0 20px 55px rgba(0,0,0,.38)}h1{margin:0 0 10px;font-size:1.65rem}.muted{color:#aab4d6;line-height:1.55}.summary{margin:22px 0;padding:18px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}.summary strong{display:block;font-size:1.25rem;margin-top:5px}.notice{padding:13px;border-radius:12px;background:rgba(46,201,184,.09);border:1px solid rgba(46,201,184,.3);color:#d9fff7;line-height:1.45}.error{background:rgba(255,80,80,.12);border-color:rgba(255,80,80,.35);color:#ffd2d2}.back{display:inline-block;margin-top:18px;color:#b9c8ff;text-decoration:none}.status{margin-top:14px;min-height:24px;color:#aab4d6}.status.bad{color:#ffb6bd}@media(max-width:560px){.card{padding:20px;border-radius:16px}}
+  </style>
+</head>
+<body>
+  <main class="card">
+    {% if error %}
+      <h1>Cambio piano non disponibile</h1><p class="notice error">{{ error }}</p>
+    {% else %}
+      <h1>Passa a {{ target_name }}</h1>
+      <p class="muted">Piano attuale: <strong>{{ current_name }}</strong>. Conferma il cambio accedendo al tuo conto PayPal.</p>
+      <div class="summary"><span>Nuovo piano annuale</span><strong>{{ target_name }} · {{ target_price }} € IVA inclusa</strong></div>
+      {% if target_plan == 'base' %}
+        <p class="notice">Il piano Professional rimane disponibile fino al prossimo rinnovo{% if next_billing %}, previsto per il {{ next_billing }}{% endif %}. Da quella data sarà applicato il piano Base.</p>
+      {% else %}
+        <p class="notice">Dopo la conferma PayPal, le funzioni Professional saranno abilitate immediatamente. PayPal applicherà il nuovo prezzo secondo il ciclo di fatturazione visualizzato nella conferma.</p>
+      {% endif %}
+      <div id="paypal-button-container" style="margin-top:20px"></div>
+      <div id="status" class="status" aria-live="polite"></div>
+      <script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id|urlencode }}&currency={{ currency }}&vault=true&intent=subscription"></script>
+      <script>
+        const statusBox=document.getElementById('status');
+        paypal.Buttons({
+          createSubscription(data,actions){return actions.subscription.revise({{ subscription_id|tojson }},{plan_id:{{ target_plan_id|tojson }}})},
+          async onApprove(){
+            statusBox.textContent='Verifica del nuovo piano…';
+            const response=await fetch('/api/paypal/subscription/change/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({piano:{{ target_plan|tojson }}})});
+            const result=await response.json();
+            if(!response.ok){throw new Error(result.error||'Cambio piano non confermato.')}
+            statusBox.textContent=result.message;
+            setTimeout(()=>location.href=result.redirect,1200);
+          },
+          onCancel(){statusBox.textContent='Operazione annullata: il piano non è stato modificato.'},
+          onError(error){statusBox.classList.add('bad');statusBox.textContent='PayPal non ha completato il cambio piano. Riprova più tardi.';console.error(error)}
+        }).render('#paypal-button-container');
+      </script>
+    {% endif %}
+    <a class="back" href="/dashboard_user#licenze">← Torna alle licenze</a>
+  </main>
+</body>
+</html>
+

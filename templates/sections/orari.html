@@ -1,0 +1,121 @@
+<style>
+  .hours-card{max-width:1080px;padding:22px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:rgba(255,255,255,.035)}
+  .hours-card h2{margin:0 0 8px}.hours-card>p{color:#aab4d6;line-height:1.5}
+  .hours-list{display:grid;gap:12px;margin-top:20px}
+  .hours-row{display:grid;grid-template-columns:minmax(120px,.7fr) 105px minmax(0,2.5fr);align-items:start;gap:14px;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.025)}
+  .hours-day{font-weight:700;padding-top:10px}.hours-toggle{display:flex;align-items:center;gap:8px;padding-top:9px;color:#aab4d6;font-size:.88rem}
+  .hours-toggle input,.shift-toggle input{width:18px;height:18px;accent-color:#6ea8fe}
+  .hours-slots{display:grid;grid-template-columns:repeat(2,minmax(210px,1fr));gap:10px}
+  .hours-slot{padding:10px;border:1px solid rgba(255,255,255,.1);border-radius:11px;background:rgba(255,255,255,.025)}
+  .hours-slot-title{min-height:22px;margin-bottom:8px;color:#aab4d6;font-size:.8rem;font-weight:700}
+  .shift-toggle{display:flex;align-items:center;gap:7px;color:#aab4d6;font-size:.8rem}
+  .hours-slot-times{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .hours-time{display:flex;flex-direction:column;gap:6px}.hours-time label{font-size:.75rem;color:#7f8aaa}
+  .hours-time input{width:100%;padding:9px 10px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.05);color:#e7ecff;font:inherit;color-scheme:dark}
+  .hours-time input:disabled,.shift-toggle input:disabled{opacity:.4;cursor:not-allowed}
+  .hours-actions{display:flex;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap}
+  .hours-save{border:1px solid rgba(110,168,254,.4);border-radius:12px;padding:10px 14px;background:rgba(110,168,254,.18);color:#e7ecff;font:600 .9rem system-ui;cursor:pointer}
+  .hours-message{color:#aab4d6;font-size:.88rem}.hours-note{margin-top:12px;color:#7f8aaa;font-size:.8rem}
+  @media(max-width:880px){.hours-row{grid-template-columns:1fr 1fr}.hours-day{grid-column:1}.hours-toggle{grid-column:2;justify-self:end}.hours-slots{grid-column:1/-1}}
+  @media(max-width:580px){.hours-slots{grid-template-columns:1fr}.hours-slot-times{grid-template-columns:1fr 1fr}}
+</style>
+
+<section class="hours-card">
+  <h2>Orari di apertura</h2>
+  <p>Imposta uno o due turni di apertura per ogni giorno. Disattiva “Aperto” nei giorni di chiusura.</p>
+
+  <form id="hoursForm">
+    <div class="hours-list" id="hoursList"></div>
+    <p class="hours-note">Il secondo turno è facoltativo. Se una chiusura è precedente all'apertura, viene considerata nel giorno successivo.</p>
+    <div class="hours-actions">
+      <button class="hours-save" type="submit">Salva orari</button>
+      <span class="hours-message" id="hoursMessage" role="status"></span>
+    </div>
+  </form>
+</section>
+
+<script>
+  const dayNames = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
+  const hoursForm = document.getElementById("hoursForm");
+  const hoursList = document.getElementById("hoursList");
+  const hoursMessage = document.getElementById("hoursMessage");
+
+  function renderHours(items){
+    hoursList.replaceChildren();
+    items.forEach((item, day) => {
+      const row = document.createElement("div");
+      row.className = "hours-row";
+      row.dataset.day = day;
+      row.innerHTML = `
+        <div class="hours-day">${dayNames[day]}</div>
+        <label class="hours-toggle"><input class="day-open" type="checkbox" ${item.aperto ? "checked" : ""}> Aperto</label>
+        <div class="hours-slots">
+          <div class="hours-slot">
+            <div class="hours-slot-title">Primo turno</div>
+            <div class="hours-slot-times">
+              <div class="hours-time"><label>Apertura</label><input class="day-opening" type="time" value="${item.apertura || "09:00"}"></div>
+              <div class="hours-time"><label>Chiusura</label><input class="day-closing" type="time" value="${item.chiusura || "13:00"}"></div>
+            </div>
+          </div>
+          <div class="hours-slot">
+            <div class="hours-slot-title"><label class="shift-toggle"><input class="second-shift" type="checkbox" ${item.secondo_turno ? "checked" : ""}> Secondo turno</label></div>
+            <div class="hours-slot-times">
+              <div class="hours-time"><label>Apertura</label><input class="day-opening-2" type="time" value="${item.apertura_2 || "14:00"}"></div>
+              <div class="hours-time"><label>Chiusura</label><input class="day-closing-2" type="time" value="${item.chiusura_2 || "18:00"}"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      const openToggle = row.querySelector(".day-open");
+      const secondToggle = row.querySelector(".second-shift");
+      const firstTimes = row.querySelectorAll(".day-opening,.day-closing");
+      const secondTimes = row.querySelectorAll(".day-opening-2,.day-closing-2");
+      const updateState = () => {
+        firstTimes.forEach(input => input.disabled = !openToggle.checked);
+        secondToggle.disabled = !openToggle.checked;
+        secondTimes.forEach(input => input.disabled = !openToggle.checked || !secondToggle.checked);
+      };
+      openToggle.addEventListener("change", updateState);
+      secondToggle.addEventListener("change", updateState);
+      updateState();
+      hoursList.appendChild(row);
+    });
+  }
+
+  async function loadHours(){
+    hoursMessage.textContent = "Caricamento…";
+    const response = await fetch("/api/orari");
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      hoursMessage.textContent = data.error || "Impossibile caricare gli orari.";
+      return;
+    }
+    renderHours(data.items || []);
+    hoursMessage.textContent = "Orari caricati.";
+  }
+
+  hoursForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const items = [...hoursList.querySelectorAll(".hours-row")].map(row => ({
+      giorno: Number(row.dataset.day),
+      aperto: row.querySelector(".day-open").checked,
+      apertura: row.querySelector(".day-opening").value,
+      chiusura: row.querySelector(".day-closing").value,
+      secondo_turno: row.querySelector(".second-shift").checked,
+      apertura_2: row.querySelector(".day-opening-2").value,
+      chiusura_2: row.querySelector(".day-closing-2").value,
+    }));
+    hoursMessage.textContent = "Salvataggio…";
+    const response = await fetch("/api/orari", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({items}),
+    });
+    const data = await response.json().catch(() => ({}));
+    hoursMessage.textContent = response.ok
+      ? "Orari settimanali salvati."
+      : (data.detail || data.error || "Errore nel salvataggio degli orari.");
+  });
+
+  loadHours();
+</script>

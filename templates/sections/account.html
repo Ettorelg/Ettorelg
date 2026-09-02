@@ -1,0 +1,81 @@
+<style>
+.account-wrap{max-width:900px;color:#e7ecff}.account-card{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:22px;box-shadow:0 12px 30px rgba(0,0,0,.24);margin-bottom:18px}.account-head{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}.account-head h2,.account-card h3{margin:0;color:#f2f5ff}.account-sub{color:#aab4d6;margin:7px 0 0}.account-badges{display:flex;gap:8px;flex-wrap:wrap}.account-badge{background:rgba(110,168,254,.16);color:#cfe0ff;border:1px solid rgba(110,168,254,.3);border-radius:999px;padding:7px 11px;font-size:.78rem;font-weight:800}.account-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}.account-field{display:grid;gap:7px}.account-field.full{grid-column:1/-1}.account-field label{font-weight:750;color:#dbe5ff;font-size:.9rem}.account-field input{width:100%;padding:12px 13px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:rgba(255,255,255,.055);color:#e7ecff;font:inherit}.account-field input:focus{outline:0;border-color:#6ea8fe;box-shadow:0 0 0 3px rgba(110,168,254,.15)}.account-actions{display:flex;align-items:center;gap:12px;margin-top:20px;flex-wrap:wrap}.account-btn{border:1px solid rgba(110,168,254,.38);border-radius:10px;padding:12px 18px;background:rgba(110,168,254,.2);color:#e7ecff;font-weight:800;cursor:pointer}.account-logout{color:#ffadad;font-weight:700;text-decoration:none}.account-note{font-size:.84rem;color:#aab4d6;margin:8px 0 0}.account-message{display:none;padding:11px 13px;border-radius:10px;margin:15px 0 0}.account-message.ok{display:block;background:rgba(67,209,124,.13);color:#8ff0b6;border:1px solid rgba(67,209,124,.3)}.account-message.error{display:block;background:rgba(255,80,80,.12);color:#ffb6bd;border:1px solid rgba(255,80,80,.3)}@media(max-width:650px){.account-grid{grid-template-columns:1fr}.account-field.full{grid-column:auto}.account-card{padding:17px}}
+</style>
+<div class="account-wrap">
+  <section class="account-card">
+    <div class="account-head">
+      <div><h2>Il mio account</h2><p class="account-sub">Aggiorna i dati di accesso e le informazioni personali.</p></div>
+      <div class="account-badges"><span class="account-badge" id="accountRole">UTENTE</span><span class="account-badge" id="googleStatus">GOOGLE NON COLLEGATO</span></div>
+    </div>
+    <div id="accountMessage" class="account-message"></div>
+    <form id="accountForm">
+      <div class="account-grid">
+        <div class="account-field"><label for="accountUsername">Username</label><input id="accountUsername" maxlength="80" autocomplete="username" required></div>
+        <div class="account-field"><label for="accountEmail">Email</label><input id="accountEmail" type="email" maxlength="254" autocomplete="email" required></div>
+      </div>
+      <h3 style="margin-top:26px">Cambia password</h3>
+      <p class="account-note" id="passwordHelp">Lascia i campi vuoti se non vuoi modificare la password.</p>
+      <div class="account-grid">
+        <div class="account-field full" id="currentPasswordField"><label for="currentPassword">Password attuale</label><input id="currentPassword" type="password" autocomplete="current-password"></div>
+        <div class="account-field"><label for="newPassword">Nuova password</label><input id="newPassword" type="password" minlength="8" autocomplete="new-password"></div>
+        <div class="account-field"><label for="confirmPassword">Conferma nuova password</label><input id="confirmPassword" type="password" minlength="8" autocomplete="new-password"></div>
+      </div>
+      <div class="account-actions"><button class="account-btn" type="submit">Salva modifiche</button><a class="account-logout" href="/logout">Esci dall’account</a></div>
+    </form>
+  </section>
+  <section class="account-card" id="subscriptionCard" style="display:none">
+    <h3>Abbonamento</h3>
+    <p class="account-sub" id="subscriptionSummary"></p>
+    <div class="account-actions"><button class="account-btn" id="cancelSubscription" type="button" style="display:none;border-color:rgba(255,173,173,.45);background:rgba(255,80,80,.13)">Disattiva il rinnovo automatico</button></div>
+    <div id="subscriptionMessage" class="account-message"></div>
+  </section>
+</div>
+<script>
+(()=>{
+ const form=document.getElementById('accountForm'), msg=document.getElementById('accountMessage');
+ const show=(text,error=false)=>{msg.textContent=text;msg.className='account-message '+(error?'error':'ok')};
+ async function loadAccount(){
+   try{
+     const r=await fetch('/api/account'),d=await r.json();if(!r.ok)throw new Error(d.error||'Impossibile caricare l’account.');
+     const x=d.item;accountUsername.value=x.username||'';accountEmail.value=x.email||'';
+     accountRole.textContent=x.admin?'AMMINISTRATORE':'UTENTE';
+     googleStatus.textContent=x.google_collegato?'GOOGLE COLLEGATO':'GOOGLE NON COLLEGATO';
+     if(!x.password_impostata){currentPasswordField.style.display='none';passwordHelp.textContent='Account creato con Google: puoi impostare una password per accedere anche manualmente.'}
+   }catch(e){show(e.message,true)}
+ }
+ async function loadSubscription(){
+   try{
+     const r=await fetch('/api/paypal/subscription'),d=await r.json();if(!r.ok||!d.item)return;
+     const x=d.item;subscriptionCard.style.display='block';
+     const next=x.prossimo_addebito?new Date(x.prossimo_addebito+'T12:00:00').toLocaleDateString('it-IT'):'';
+     subscriptionSummary.textContent=x.stato==='prova'?`Prova gratuita attiva. Primo addebito di 99 € il ${next}.`:
+       x.stato==='cancellato'?`Rinnovo automatico disattivato. Accesso disponibile fino al ${next}.`:
+       `Stato: ${x.stato.toUpperCase()}${next?`. Prossimo rinnovo: ${next}.`:''}`;
+     cancelSubscription.style.display=x.puo_disdire?'inline-block':'none';
+   }catch(e){}
+ }
+ cancelSubscription.addEventListener('click',async()=>{
+   if(!confirm('Confermi la disdetta? Non ci saranno altri rinnovi automatici.'))return;
+   cancelSubscription.disabled=true;
+   try{const r=await fetch('/api/paypal/subscription/cancel',{method:'POST'}),d=await r.json();if(!r.ok)throw new Error(d.error||'Disdetta non riuscita.');
+     subscriptionMessage.textContent=d.message;subscriptionMessage.className='account-message ok';await loadSubscription();
+   }catch(e){subscriptionMessage.textContent=e.message;subscriptionMessage.className='account-message error'}finally{cancelSubscription.disabled=false}
+ });
+ form.addEventListener('submit',async e=>{
+   e.preventDefault();
+   if(newPassword.value!==confirmPassword.value){show('Le nuove password non coincidono.',true);return}
+   const button=form.querySelector('button[type=submit]');button.disabled=true;button.textContent='Salvataggio…';
+   try{
+     const r=await fetch('/api/account',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+       username:accountUsername.value.trim(),email:accountEmail.value.trim(),password_attuale:currentPassword.value,
+       nuova_password:newPassword.value,conferma_password:confirmPassword.value
+     })});
+     const d=await r.json();if(!r.ok)throw new Error(d.error||'Aggiornamento non riuscito.');
+     currentPassword.value=newPassword.value=confirmPassword.value='';show(d.message||'Account aggiornato.');await loadAccount();
+   }catch(err){show(err.message,true)}
+   finally{button.disabled=false;button.textContent='Salva modifiche'}
+ });
+ loadAccount();loadSubscription();
+})();
+</script>
+

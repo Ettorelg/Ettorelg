@@ -1,0 +1,30 @@
+<style>
+  .preview-card{padding:20px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:rgba(255,255,255,.035)}
+  .preview-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px;flex-wrap:wrap}.preview-head h2{margin:0}.preview-head p{margin:6px 0 0;color:#aab4d6}
+  .preview-actions{display:flex;gap:9px;flex-wrap:wrap}.preview-open,.preview-print{padding:9px 13px;border:1px solid rgba(110,168,254,.4);border-radius:11px;background:rgba(110,168,254,.18);color:#e7ecff;text-decoration:none;font:700 .9rem system-ui;cursor:pointer}.preview-print{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.18)}
+  .preview-frame{width:100%;height:720px;border:0;border-radius:14px;background:#fff}.preview-message{color:#aab4d6}
+  @media(max-width:700px){.preview-frame{height:640px}}
+</style>
+<section class="preview-card">
+  <div class="preview-head"><div><h2>Anteprima menù pubblico</h2><p>Questa è la pagina che vedranno i clienti tramite il QR code.</p></div><div class="preview-actions"><a class="preview-open" id="openPublicMenu" href="#" target="_blank" rel="noopener" hidden>Apri pagina pubblica ↗</a><button class="preview-print" id="printPublicMenu" type="button" hidden>🖨 Stampa menu A4</button></div></div>
+  <p class="preview-message" id="previewMessage">Caricamento anteprima…</p>
+  <iframe class="preview-frame" id="publicMenuFrame" title="Anteprima del menu pubblico" hidden></iframe>
+</section>
+<script>
+  (async () => {
+    const message = document.getElementById("previewMessage");
+    const frame = document.getElementById("publicMenuFrame");
+    const openLink = document.getElementById("openPublicMenu");
+    const printButton = document.getElementById("printPublicMenu");
+    printButton.addEventListener("click", () => { frame.contentWindow.focus(); frame.contentWindow.print(); });
+    frame.addEventListener("load", () => { printButton.hidden = false; }, { once: true });
+    const response = await fetch("/api/menu-pubblico");
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) { message.textContent = data.error || "Impossibile generare l'anteprima."; return; }
+    frame.src = data.menu_url;
+    frame.hidden = false;
+    openLink.href = data.menu_url;
+    openLink.hidden = false;
+    message.hidden = true;
+  })();
+</script>

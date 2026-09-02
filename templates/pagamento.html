@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" type="image/svg+xml">
+    <title>Attiva il tuo account - Menu Online</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Inter, Arial, sans-serif; margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; color: #15304b; background: url('/static/background.png') center/cover fixed; }
+        body::before { content: ''; position: fixed; inset: 0; background: rgba(0,0,0,.48); backdrop-filter: blur(2px); z-index: -1; }
+        .card { width: 100%; max-width: 520px; background: #fff; border-radius: 20px; padding: 32px; box-shadow: 0 18px 55px rgba(0,0,0,.25); }
+        .logo { display: block; width: 120px; max-width: 42%; margin: 0 auto 16px; }
+        h1 { margin: 0; text-align: center; font-size: 25px; color: #003366; }
+        .lead { text-align: center; color: #5b6d7f; line-height: 1.5; margin: 9px 0 23px; }
+        .offer { padding: 20px; border: 1px solid #d8e4ef; border-radius: 15px; background: #f7fbff; margin-bottom: 20px; }
+        .offer strong { display: block; font-size: 24px; color: #004aad; margin-bottom: 6px; }
+        .offer ul { margin: 12px 0 0; padding-left: 20px; line-height: 1.65; }
+        .notice { padding: 12px; border-radius: 10px; background: #fff8df; color: #704f00; font-size: 14px; margin-bottom: 16px; }
+        .success { background: #eaf8ef; color: #176b38; }
+        .error { display: none; background: #fdebec; color: #a3212c; padding: 12px; border-radius: 10px; margin-top: 12px; font-size: 14px; }
+        .small { color: #68798a; font-size: 12px; line-height: 1.5; text-align: center; margin: 15px 0 0; }
+        .btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 9px; background: #004aad; color: #fff; font-weight: 700; text-align: center; text-decoration: none; cursor: pointer; }
+        .plan-choice{margin:0 0 18px;padding:14px;border:1px solid #c9d6e2;border-radius:12px;background:#f7fbff}.plan-choice label{display:block;font-weight:700;color:#003366;margin-bottom:6px}.plan-choice select{width:100%;padding:11px;border:1px solid #c9d6e2;border-radius:8px;font-size:15px}.plan-diff{margin:8px 0 0;color:#52657a;font-size:12px;line-height:1.45}.plan-compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 0}.plan-summary{padding:12px;border:1px solid #d3e0ee;border-radius:10px;background:#fff;color:#33475b;transition:.18s}.plan-summary.selected{border:2px solid #2f7be5;background:#eef6ff;box-shadow:0 0 0 2px rgba(47,123,229,.12)}.plan-summary h3{margin:0 0 5px;color:#003366;font-size:15px}.plan-summary strong{font-size:13px;color:#0055b8}.plan-summary ul{margin:8px 0 0;padding-left:17px;font-size:12px;line-height:1.55}@media(max-width:520px){.plan-compare{grid-template-columns:1fr}}
+        @media (max-width: 520px) { body { padding: 10px; align-items: stretch; justify-content:flex-start; overflow-x:hidden } .card { margin-top: 6px; padding: 22px 17px; border-radius:16px } h1 { font-size: 22px; } .offer{padding:16px}.btn{min-height:46px} }
+    </style>
+</head>
+<body>
+<main class="card">
+    <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
+    <h1>Scegli il tuo piano</h1>
+    <p class="lead">Ciao {{ username }},{% if choice_requested %} la prova gratuita Professional sta per terminare: scegli il piano con cui continuare.{% elif renewal_requested %} rinnova ora il tuo piano: l'anno acquistato verrà aggiunto alla scadenza attuale.{% else %} la prova gratuita Professional è terminata. Scegli il piano con cui continuare.{% endif %}</p>
+    {% if (not license_active or selection_requested) and paypal_configured %}
+    <div class="plan-choice">
+        <label for="pendingPlan">Scegli il piano prima di pagare</label>
+        <select id="pendingPlan">
+            <option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 69 € / anno</option>
+            <option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 99 € / anno</option>
+        </select>
+        <div class="plan-compare">
+            <section class="plan-summary" data-plan-card="base">
+                <h3>Base · 69 €/anno</h3>
+                <strong>Un menu digitale completo e facile da gestire</strong>
+                <ul>
+                    <li>Fino a 50 prodotti, categorie e sottocategorie</li>
+                    <li>Menu in italiano aggiornabile in pochi secondi, senza ristampe</li>
+                    <li>Foto prodotto, prezzo, ingredienti, note ed etichette</li>
+                    <li>Allergeni rilevati automaticamente e mostrati in evidenza</li>
+                    <li>Attivazione/disattivazione dei piatti e ordinamento del menu</li>
+                    <li>Anagrafica locale, descrizione, contatti, logo, copertina e orari</li>
+                    <li>Personalizzazione colori, costo coperto e anteprima del menu</li>
+                    <li>Link pubblico, QR Code scaricabile e stampa A4</li>
+                </ul>
+            </section>
+            <section class="plan-summary" data-plan-card="professional">
+                <h3>Professional · 99 €/anno</h3>
+                <strong>Tutto per valorizzare il locale e capire i clienti</strong>
+                <ul>
+                    <li>Tutte le funzioni Base, senza limiti di prodotti</li>
+                    <li>Categorie, sottocategorie e cataloghi completi senza restrizioni</li>
+                    <li>Traduzioni automatiche del menu in 5 lingue</li>
+                    <li>Statistiche di visualizzazione e classifica dei piatti più aperti</li>
+                    <li>Analisi utile per mettere in evidenza ciò che incuriosisce di più</li>
+                    <li>Immagini, allergeni, ingredienti e disponibilità gestiti centralmente</li>
+                    <li>Esperienza più chiara per turisti, clienti internazionali e tavoli</li>
+                    <li>Ideale per ristoranti, hotel e locali con menu ricco o stagionale</li>
+                </ul>
+            </section>
+        </div>
+    </div>
+    {% endif %}
+    <section class="offer">
+        <strong>{{ plan_name }}</strong>
+        <div>{{ price }} € IVA inclusa ogni anno.</div>
+        <ul>
+            {% if plan == 'base' %}
+            <li>Menu digitale professionale, pronto da condividere con QR Code</li>
+            <li>Gestisci prezzi, foto, ingredienti e allergeni in autonomia</li>
+            <li>Adatto a chi vuole un menu curato e semplice da mantenere</li>
+            {% else %}
+            <li>Menu senza limiti, pensato per locali con cataloghi completi</li>
+            <li>Traduzioni e statistiche per capire quali piatti interessano di più</li>
+            <li>Uno strumento per migliorare l’esperienza del cliente e valorizzare l’offerta</li>
+            {% endif %}
+            <li>Addebito annuale immediato, senza un secondo periodo di prova</li>
+            <li>Rinnovo automatico annuale tramite PayPal; puoi disdire prima del rinnovo</li>
+        </ul>
+    </section>
+
+    {% if license_active and not selection_requested %}
+        <div class="notice success">Il tuo account è attivo{% if next_billing %} fino al {{ next_billing.strftime('%d/%m/%Y') }}{% endif %}.</div>
+        <a class="btn" href="{{ url_for('dashboard_user') }}">Vai alla dashboard</a>
+    {% elif not paypal_configured %}
+        <div class="notice">Il pagamento PayPal è in configurazione. Il tuo account è stato creato, ma non è ancora attivo.</div>
+        <a class="btn" href="{{ url_for('login') }}">Torna all'accesso</a>
+    {% else %}
+        <div id="paypal-button-container"></div>
+        <div id="payment-error" class="error"></div>
+        <p class="small">Autorizzando PayPal accetti l'addebito annuale di {{ price }} € dopo la prova gratuita. Puoi annullare il rinnovo dalla gestione del tuo account.</p>
+    {% endif %}
+</main>
+{% include '_legal_footer.html' %}
+
+{% if paypal_configured and (not license_active or selection_requested) %}
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id|urlencode }}&vault=true&intent=subscription&currency={{ currency }}"></script>
+<script>
+const pendingPlan=document.getElementById('pendingPlan');
+const isRenewal={{ renewal_requested|tojson }};
+const isChoice={{ choice_requested|tojson }};
+let selectedPlan={{ plan|tojson }};
+function syncPlanSelection(){document.querySelectorAll('[data-plan-card]').forEach(card=>card.classList.toggle('selected',card.dataset.planCard===selectedPlan));}
+syncPlanSelection();
+pendingPlan?.addEventListener('change',async()=>{
+    const r=await fetch('/api/paypal/pending-plan',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({piano:pendingPlan.value,rinnovo:isRenewal,scelta:isChoice})
+    });
+    const d=await r.json();
+    if(!r.ok){alert(d.error||'Impossibile cambiare piano.');pendingPlan.value=selectedPlan;syncPlanSelection();return}
+    selectedPlan=d.plan;syncPlanSelection();location.reload();
+});
+const errorBox = document.getElementById('payment-error');
+function showError(message) {
+    errorBox.textContent = message;
+    errorBox.style.display = 'block';
+}
+paypal.Buttons({
+    style: { shape: 'rect', color: 'gold', layout: 'vertical', label: 'subscribe' },
+    createSubscription: function(data, actions) {
+        return actions.subscription.create({ plan_id: {{ paypal_plan_id|tojson }}, custom_id: {{ (session.get('pending_user_id') or session.get('user_id'))|string|tojson }} });
+    },
+    onApprove: async function(data) {
+        const response = await fetch('/api/paypal/subscription/activate', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({subscription_id: data.subscriptionID, renewal: isRenewal, choice: isChoice})
+        });
+        const result = await response.json();
+        if (!response.ok) return showError(result.error || 'Impossibile attivare l’abbonamento.');
+        window.location.href = result.redirect;
+    },
+    onCancel: function() { showError('Operazione annullata. Non è stato effettuato alcun addebito.'); },
+    onError: function() { showError('Si è verificato un errore PayPal. Riprova tra qualche minuto.'); }
+}).render('#paypal-button-container');
+</script>
+{% endif %}
+</body>
+</html>
+
