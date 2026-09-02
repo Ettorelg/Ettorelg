@@ -119,6 +119,10 @@
     </div>
   </div>
 
+  <div class="actions" style="margin:10px 0"><button class="btn" type="button" id="toggleProductSchedule">🕒 Programma visibilità (opzionale)</button></div>
+  <div id="productScheduleFields" class="row hidden" style="margin:0 0 12px;padding:12px;border:1px dashed rgba(110,168,254,.45);border-radius:12px">
+    <div class="field"><label>Dal giorno</label><input id="visibile_da" type="date"></div><div class="field"><label>Al giorno</label><input id="visibile_fino" type="date"></div><div class="field"><label>Dalle ore</label><input id="ora_inizio" type="time"></div><div class="field"><label>Alle ore</label><input id="ora_fine" type="time"></div>
+  </div>
   <div class="form-section-label">2 · Posizione nel menu e immagine</div>
   <div class="row">
     <div class="field">
@@ -823,6 +827,7 @@
     fd.append("descrizione", f("descrizione").value.trim());
     fd.append("note", f("note").value.trim());
     fd.append("disponibile", f("disponibile").value === "true" ? "true" : "false");
+    fd.append("visibile_da", f("visibile_da").value); fd.append("visibile_fino", f("visibile_fino").value); fd.append("ora_inizio", f("ora_inizio").value); fd.append("ora_fine", f("ora_fine").value);
     fd.append("id_categoria", f("id_categoria").value || "");
     fd.append("id_sottocategoria", f("id_sottocategoria").value || "");
     fd.append("etichette", selectedLabels().join(","));
@@ -870,7 +875,8 @@
     return escapeHtml(s).replaceAll("'","&#39;");
   }
 
-  // bootstrap
+  document.getElementById("toggleProductSchedule").addEventListener("click",()=>f("productScheduleFields").classList.toggle("hidden"));
+    // bootstrap
   (async function init(){
     resetForm();
     await loadCategories();
