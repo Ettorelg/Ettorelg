@@ -58,12 +58,15 @@
     </div>
 
     <div class="field" style="max-width:180px"><label>Visibile</label><select id="visibile"><option value="true">Sì</option><option value="false">No</option></select></div>
+  </div>
+  <div class="actions" style="margin-top:10px"><button class="btn" type="button" id="toggleSchedule">🕒 Programma visibilità (opzionale)</button></div>
+  <div id="scheduleFields" class="row hidden" style="margin-top:10px;padding:12px;border:1px dashed rgba(110,168,254,.45);border-radius:12px">
     <div class="field" style="max-width:180px"><label>Dal giorno</label><input id="visibile_da" type="date"></div>
     <div class="field" style="max-width:180px"><label>Al giorno</label><input id="visibile_fino" type="date"></div>
     <div class="field" style="max-width:150px"><label>Dalle ore</label><input id="ora_inizio" type="time"></div>
     <div class="field" style="max-width:150px"><label>Alle ore</label><input id="ora_fine" type="time"></div>
+    <div class="field" style="justify-content:end;min-width:130px;flex:0"><button class="btn" type="button" id="clearSchedule">Rimuovi fascia</button></div>
   </div>
-  <p class="muted" style="margin:8px 0 0">Opzionale: programma categoria per data e/o orario. Fuori dall’intervallo non comparirà nel menu pubblico.</p>
 
   <div class="actions" style="margin-top:10px">
     <button class="btn primary" type="submit" id="saveBtn">Salva categoria</button>
@@ -101,7 +104,7 @@
   function resetForm(){
     f("id").value = "";
     f("nome").value = "";
-    f("visibile").value = "true"; f("visibile_da").value = ""; f("visibile_fino").value = ""; f("ora_inizio").value = ""; f("ora_fine").value = "";
+    f("visibile").value = "true"; f("visibile_da").value = ""; f("visibile_fino").value = ""; f("ora_inizio").value = ""; f("ora_fine").value = ""; f("scheduleFields").classList.add("hidden");
     modeHint.textContent = "Modalità: creazione";
     f("saveBtn").textContent = "Salva categoria";
   }
@@ -152,7 +155,7 @@
     if(!c) return;
     f("id").value = c.id;
     f("nome").value = c.nome;
-    f("visibile").value = c.visibile ? "true" : "false"; f("visibile_da").value=c.visibile_da||""; f("visibile_fino").value=c.visibile_fino||""; f("ora_inizio").value=c.ora_inizio||""; f("ora_fine").value=c.ora_fine||"";
+    f("visibile").value = c.visibile ? "true" : "false"; f("visibile_da").value=c.visibile_da||""; f("visibile_fino").value=c.visibile_fino||""; f("ora_inizio").value=c.ora_inizio||""; f("ora_fine").value=c.ora_fine||""; if(c.visibile_da||c.visibile_fino||c.ora_inizio||c.ora_fine) f("scheduleFields").classList.remove("hidden");
     modeHint.textContent = "Modalità: modifica";
     f("saveBtn").textContent = "Aggiorna categoria";
     showToast("Modifica categoria: aggiorna e salva.");
@@ -209,6 +212,8 @@
     if(!id) resetForm();
   });
 
+  document.getElementById("toggleSchedule").addEventListener("click",()=>f("scheduleFields").classList.toggle("hidden"));
+  document.getElementById("clearSchedule").addEventListener("click",()=>{f("visibile_da").value="";f("visibile_fino").value="";f("ora_inizio").value="";f("ora_fine").value="";f("scheduleFields").classList.add("hidden")});
   document.getElementById("resetBtn").addEventListener("click", resetForm);
 
   function esc(s){
