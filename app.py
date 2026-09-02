@@ -519,6 +519,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS ora_inizio TIME")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS ora_fine TIME")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS whatsapp TEXT")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS prenotazione_url TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS sito_web TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS instagram_url TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS google_maps_url TEXT")
@@ -1942,7 +1943,7 @@ def api_negozio():
     fields = (
         "nome", "indirizzo", "citta", "cap", "provincia", "email",
         "telefono", "nazione", "descrizione_breve", "descrizione_estesa",
-        "whatsapp", "sito_web", "instagram_url", "google_maps_url", "colore_accento", "colore_sfondo", "costo_coperto",
+        "whatsapp", "prenotazione_url", "sito_web", "instagram_url", "google_maps_url", "colore_accento", "colore_sfondo", "costo_coperto",
     )
     required_fields = ("nome", "indirizzo", "citta", "cap", "provincia", "descrizione_breve", "descrizione_estesa")
     conn = psycopg2.connect(**build_db_config())
@@ -1968,6 +1969,8 @@ def api_negozio():
 
                 data = request.get_json(silent=True) or {}
                 values = {field: (data.get(field) or "").strip() for field in fields}
+                if values["prenotazione_url"] and not re.match(r"^https?://", values["prenotazione_url"], re.IGNORECASE):
+                    return jsonify({"error": "Il link prenotazioni deve iniziare con http:// o https://.", "fields": ["prenotazione_url"]}), 400
                 values["colore_accento"] = values["colore_accento"] if re.fullmatch(r"#[0-9a-fA-F]{6}", values["colore_accento"]) else "#9d3e27"
                 values["colore_sfondo"] = values["colore_sfondo"] if re.fullmatch(r"#[0-9a-fA-F]{6}", values["colore_sfondo"]) else "#f7f3ed"
                 cover_value = values["costo_coperto"].replace(",", ".") or "0"
@@ -1986,7 +1989,7 @@ def api_negozio():
                         UPDATE negozi
                         SET nome=%s, indirizzo=%s, citta=%s, cap=%s, provincia=%s,
                             email=%s, telefono=%s, nazione=%s, descrizione_breve=%s, descrizione_estesa=%s,
-                            whatsapp=%s, sito_web=%s, instagram_url=%s, google_maps_url=%s,
+                            whatsapp=%s, prenotazione_url=%s, sito_web=%s, instagram_url=%s, google_maps_url=%s,
                             colore_accento=%s, colore_sfondo=%s, costo_coperto=%s
                         WHERE id = %s
                         """,
@@ -2000,9 +2003,9 @@ def api_negozio():
                         """
                         INSERT INTO negozi (
                             id_utente, nome, indirizzo, citta, cap, provincia, email, telefono,
-                            nazione, descrizione_breve, descrizione_estesa, whatsapp, sito_web, instagram_url, google_maps_url, colore_accento, colore_sfondo, costo_coperto, slug
+                            nazione, descrizione_breve, descrizione_estesa, whatsapp, prenotazione_url, sito_web, instagram_url, google_maps_url, colore_accento, colore_sfondo, costo_coperto, slug
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                         """,
                         [user_id] + [values[field] for field in fields] + [slug],
@@ -2239,7 +2242,8 @@ def public_menu(slug: str):
                 SELECT id, nome, indirizzo, citta, cap, provincia, email, telefono, nazione,
                        descrizione_breve, descrizione_estesa, slug, logo_url, copertina_url,
                        colore_accento, colore_sfondo, costo_coperto,
-                       COALESCE(ordine_categorie_personalizzato, FALSE), COALESCE(whatsapp, '')
+                       COALESCE(ordine_categorie_personalizzato, FALSE), COALESCE(whatsapp, ''),
+                       COALESCE(prenotazione_url, '')
                 FROM negozi WHERE slug = %s
                 """,
                 (slug,),
@@ -2257,6 +2261,7 @@ def public_menu(slug: str):
                 "costo_coperto": f"{float(row[16] or 0):.2f}".replace(".", ","),
                 "ordine_categorie_personalizzato": bool(row[17]),
                 "whatsapp": row[18] or "",
+                "prenotazione_url": row[19] or "",
             }
             cur.execute(
                 "INSERT INTO menu_visite (id_negozio, lingua, sorgente) VALUES (%s, %s, %s)",

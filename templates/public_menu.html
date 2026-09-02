@@ -80,11 +80,11 @@
     </div>
   </header>
 
-  {% if shop.telefono or shop.whatsapp_digits %}
+  {% if shop.telefono or shop.whatsapp_digits or shop.prenotazione_url %}
   <nav class="contact-actions" aria-label="Azioni di contatto">
     {% if shop.telefono %}<a class="contact-action" href="tel:{{ shop.telefono }}" aria-label="{{ ui.call }} {{ shop.nome }}"><span aria-hidden="true">☎</span> {{ ui.call }}</a>{% endif %}
     {% if shop.whatsapp_digits %}<a class="contact-action whatsapp" href="https://wa.me/{{ shop.whatsapp_digits }}" target="_blank" rel="noopener"><span aria-hidden="true">💬</span> {{ ui.whatsapp }}</a>{% endif %}
-    {% if shop.whatsapp_digits %}<a class="contact-action primary" href="https://wa.me/{{ shop.whatsapp_digits }}?text={{ ui.booking_message|urlencode }}" target="_blank" rel="noopener"><span aria-hidden="true">📅</span> {{ ui.book }}</a>{% elif shop.telefono %}<a class="contact-action primary" href="tel:{{ shop.telefono }}"><span aria-hidden="true">📅</span> {{ ui.book }}</a>{% endif %}
+    {% if shop.prenotazione_url %}<a class="contact-action primary" href="{{ shop.prenotazione_url }}" target="_blank" rel="noopener"><span aria-hidden="true">📅</span> {{ ui.book }}</a>{% elif shop.whatsapp_digits %}<a class="contact-action primary" href="https://wa.me/{{ shop.whatsapp_digits }}?text={{ ui.booking_message|urlencode }}" target="_blank" rel="noopener"><span aria-hidden="true">📅</span> {{ ui.book }}</a>{% elif shop.telefono %}<a class="contact-action primary" href="tel:{{ shop.telefono }}"><span aria-hidden="true">📅</span> {{ ui.book }}</a>{% endif %}
   </nav>
   {% endif %}
 
