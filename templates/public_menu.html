@@ -18,7 +18,7 @@
     .brand-logo img{width:100%;height:100%;object-fit:contain}.hero h1{margin:0;font-size:clamp(2rem,6vw,3.8rem);line-height:1}.hero p{margin:10px 0 0;color:#f2e7df;max-width:700px}
     .category-nav{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:12px max(18px,calc((100% - 1120px)/2));background:rgba(247,243,237,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);scrollbar-width:none}
     .category-nav a{flex:0 0 auto;padding:10px 15px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:.9rem;font-weight:750;transition:.18s ease}.category-nav a.active{background:var(--accent);border-color:var(--accent);color:#fff}.menu-section[hidden]{display:none}
-    .menu-tools{position:sticky;top:65px;z-index:4;display:grid;grid-template-columns:minmax(220px,1fr) repeat(2,minmax(150px,220px));gap:9px;width:min(1120px,calc(100% - 24px));margin:12px auto;padding:10px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.94);box-shadow:0 8px 24px rgba(70,48,33,.08);backdrop-filter:blur(10px)}.menu-tools[hidden]{display:none}.menu-tools input,.menu-tools select{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--text);font:600 .86rem system-ui}.filter-hidden{display:none!important}.filter-empty{grid-column:1/-1;padding:24px;text-align:center;color:var(--muted)}
+    .menu-tools{position:sticky;top:65px;z-index:4;display:grid;grid-template-columns:minmax(220px,1fr) repeat(2,minmax(150px,220px));gap:9px;width:min(1120px,calc(100% - 24px));margin:12px auto;padding:10px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.94);box-shadow:0 8px 24px rgba(70,48,33,.08);backdrop-filter:blur(10px)}.menu-tools[hidden]{display:none}.menu-tools>input{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--text);font:600 .86rem system-ui}.filter-dropdown{position:relative;min-width:0;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--text);font:600 .86rem system-ui}.filter-dropdown summary{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:39px;padding:9px 12px;cursor:pointer;list-style:none}.filter-dropdown summary::-webkit-details-marker{display:none}.filter-dropdown summary::after{content:"▾";font-size:.72rem}.filter-dropdown[open] summary::after{transform:rotate(180deg)}.filter-count{display:none;min-width:20px;padding:2px 6px;border-radius:999px;background:var(--accent);color:#fff;text-align:center;font-size:.7rem}.filter-count.active{display:inline-block}.filter-options{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:8;display:grid;gap:3px;max-height:260px;overflow:auto;padding:8px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow)}.filter-options label{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:.8rem}.filter-options label:hover{background:var(--bg)}.filter-options input{width:17px;height:17px;margin:0;accent-color:var(--accent)}.filter-hidden{display:none!important}.filter-empty{grid-column:1/-1;padding:24px;text-align:center;color:var(--muted)}
     main{width:min(1120px,100%);margin:auto;padding:28px 20px 70px}.intro{display:grid;grid-template-columns:1.4fr .6fr;gap:24px;margin-bottom:32px}.intro-card{padding:20px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.72)}
     .intro-card h2{margin:0 0 8px}.intro-card p{margin:0;color:var(--muted);line-height:1.65;white-space:pre-line}.contacts{display:grid;gap:8px}.contacts a,.contacts span{color:var(--muted);text-decoration:none;overflow-wrap:anywhere}
     .menu-section{scroll-margin-top:76px;margin-top:34px}.menu-section h2{margin:0 0 15px;font-family:Georgia,serif;font-size:2rem}.products{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
@@ -91,8 +91,8 @@
   {% if categories %}<nav class="category-nav" id="categoryNav" aria-label="{{ ui.categories }}" hidden>{% for category in categories %}<a href="#categoria-{{ category.id }}" data-category-target="categoria-{{ category.id }}">{{ category.nome }}</a>{% endfor %}</nav>{% endif %}
   <div class="menu-tools" id="menuTools" hidden>
     <input id="menuSearch" type="search" placeholder="Cerca un prodotto o ingrediente&hellip;" aria-label="Cerca nel menu">
-    <select id="labelFilter" aria-label="Filtra per caratteristica"><option value="">Tutte le caratteristiche</option><option>Vegetariano</option><option>Vegano</option><option>Senza glutine</option><option>Piccante</option><option>Novit&agrave;</option><option>Consigliato</option></select>
-    <select id="allergenFilter" aria-label="Escludi un allergene"><option value="">Non escludere allergeni</option>{% for allergen in ['Glutine','Crostacei','Uova','Pesce','Arachidi','Soia','Latte','Frutta a guscio','Sedano','Senape','Semi di sesamo','Solfiti','Lupini','Molluschi'] %}<option value="{{ allergen|lower }}">Senza {{ allergen }}</option>{% endfor %}</select>
+        <details class="filter-dropdown" id="labelFilter"><summary>Caratteristiche <span class="filter-count" data-filter-count>0</span></summary><div class="filter-options">{% for label in ['Vegetariano','Vegano','Senza glutine','Piccante','Novità','Consigliato'] %}<label><input type="checkbox" value="{{ label|lower }}"> {{ label }}</label>{% endfor %}</div></details>
+    <details class="filter-dropdown" id="allergenFilter"><summary>Escludi allergeni <span class="filter-count" data-filter-count>0</span></summary><div class="filter-options">{% for allergen in ['Glutine','Crostacei','Uova','Pesce','Arachidi','Soia','Latte','Frutta a guscio','Sedano','Senape','Semi di sesamo','Solfiti','Lupini','Molluschi'] %}<label><input type="checkbox" value="{{ allergen|lower }}"> {{ allergen }}</label>{% endfor %}</div></details>
   </div>
 
   <main>
@@ -183,15 +183,27 @@
       });
     }
 
+    function selectedFilterValues(container){
+      return [...container.querySelectorAll('input:checked')].map(input => input.value.toLowerCase());
+    }
+    function updateFilterCount(container){
+      const count = selectedFilterValues(container).length;
+      const badge = container.querySelector('[data-filter-count]');
+      badge.textContent = count;
+      badge.classList.toggle('active', count > 0);
+    }
     function filterMenu(){
       const query = menuSearch.value.trim().toLowerCase();
-      const label = labelFilter.value.toLowerCase();
-      const excludedAllergen = allergenFilter.value.toLowerCase();
-      const filtering = Boolean(query || label || excludedAllergen);
+      const labels = selectedFilterValues(labelFilter);
+      const excludedAllergens = selectedFilterValues(allergenFilter);
+      const filtering = Boolean(query || labels.length || excludedAllergens.length);
+      [labelFilter, allergenFilter].forEach(updateFilterCount);
       categorySections.forEach(section => {
         let matches = 0;
         section.querySelectorAll('[data-product-open]').forEach(card => {
-          const visible = (!query || card.dataset.search.includes(query)) && (!label || card.dataset.labels.split('|').includes(label)) && (!excludedAllergen || !card.dataset.allergens.split('|').includes(excludedAllergen));
+          const productLabels = card.dataset.labels.split('|');
+          const productAllergens = card.dataset.allergens.split('|');
+          const visible = (!query || card.dataset.search.includes(query)) && labels.every(label => productLabels.includes(label)) && excludedAllergens.every(allergen => !productAllergens.includes(allergen));
           card.classList.toggle('filter-hidden', filtering && !visible);
           if (!filtering || visible) matches++;
         });
@@ -199,7 +211,8 @@
         section.hidden = filtering ? matches === 0 : section.id !== activeCategoryId;
       });
     }
-    [menuSearch,labelFilter,allergenFilter].forEach(control => control.addEventListener('input', filterMenu));
+    menuSearch.addEventListener('input', filterMenu);
+    [labelFilter, allergenFilter].forEach(container => container.addEventListener('change', filterMenu));
 
     function fitPrintColumns(){
       const printableHeight = 250 * 96 / 25.4;
@@ -241,8 +254,10 @@
       const activeSection = document.getElementById(targetId);
       if (activeSection?.dataset.trackUrl) fetch(activeSection.dataset.trackUrl, {method: 'POST', credentials: 'same-origin', keepalive: true}).catch(() => {});
       if (menuSearch) menuSearch.value = '';
-      if (labelFilter) labelFilter.value = '';
-      if (allergenFilter) allergenFilter.value = '';
+      [labelFilter, allergenFilter].forEach(container => {
+        container.querySelectorAll('input:checked').forEach(input => { input.checked = false; });
+        updateFilterCount(container);
+      });
       productCards.forEach(card => card.classList.remove('filter-hidden'));
       categorySections.forEach(section => { updateSubcategorySeparators(section); section.hidden = section.id !== targetId; });
       categoryLinks.forEach(link => link.classList.toggle('active', link.dataset.categoryTarget === targetId));
