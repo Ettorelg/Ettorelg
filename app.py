@@ -2254,16 +2254,24 @@ def public_menu(slug: str):
                 """,
                 (shop["id"], shop["ordine_categorie_personalizzato"]),
             )
+            allergen_updates = []
             for product in cur.fetchall():
                 category = category_map.get(product[5])
                 if not category:
                     continue
+                detected_allergens = detect_allergens(product[1], product[2])
+                if detected_allergens != (product[10] or []):
+                    allergen_updates.append((detected_allergens, product[0]))
                 category["prodotti"].append({
                     "id": product[0], "nome": product[1], "descrizione": product[2],
                     "note": product[3], "prezzo": f"{product[4]:.2f}".replace(".", ","),
                     "sottocategoria_id": product[6], "sottocategoria": product[7], "immagine_url": product[8],
-                    "etichette": product[9] or [], "allergeni": product[10] or [], "disponibile": bool(product[11]),
+                    "etichette": product[9] or [], "allergeni": detected_allergens, "disponibile": bool(product[11]),
                 })
+            for allergens, product_id in allergen_updates:
+                cur.execute("UPDATE prodotti SET allergeni_auto=%s WHERE id=%s AND id_negozio=%s", (allergens, product_id, shop["id"]))
+            if allergen_updates:
+                conn.commit()
             categories = [category for category in categories if category["prodotti"]]
 
             cur.execute(
