@@ -89,8 +89,9 @@ ALLERGEN_KEYWORDS = {
     "Molluschi": ("cozza", "cozze", "vongola", "vongole", "calamaro", "calamari", "polpo", "ostrica", "ostriche"),
 }
 
-def detect_allergens(ingredients: str) -> list[str]:
-    text = (ingredients or "").lower()
+def detect_allergens(product_name: str = "", ingredients: str = "") -> list[str]:
+    """Rileva allergeni sia dal nome del prodotto sia dagli ingredienti."""
+    text = f"{product_name or ''} {ingredients or ''}".lower()
     return [
         allergen for allergen, keywords in ALLERGEN_KEYWORDS.items()
         if any(re.search(r"(?<!\w)" + re.escape(keyword) + r"\w*", text) for keyword in keywords)
@@ -2528,7 +2529,7 @@ def api_prodotti_create():
     nome = (request.form.get("nome") or "").strip().upper()
     descrizione = (request.form.get("descrizione") or "").strip()
     note = (request.form.get("note") or "").strip()
-    allergeni_auto = detect_allergens(descrizione)
+    allergeni_auto = detect_allergens(nome, descrizione)
     prezzo_euro = request.form.get("prezzo_euro")
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
     id_categoria = request.form.get("id_categoria") or None
@@ -2716,7 +2717,7 @@ def api_prodotti_importa_csv():
                     cur.execute("""
                         INSERT INTO prodotti (id_negozio,id_categoria,nome,descrizione,note,prezzo_euro,disponibile,ordine,allergeni_auto)
                         VALUES (%s,%s,%s,%s,%s,%s,%s,(SELECT COALESCE(MAX(ordine),0)+10 FROM prodotti WHERE id_negozio=%s),%s)
-                    """, (shop_id, category_id, name, description, data.get("note", ""), price, available, shop_id, detect_allergens(description)))
+                    """, (shop_id, category_id, name, description, data.get("note", ""), price, available, shop_id, detect_allergens(name, description)))
                     imported += 1
         return jsonify({"ok": True, "importati": imported, "limite_raggiunto": remaining_slots is not None and imported >= remaining_slots})
     finally:
@@ -2820,7 +2821,7 @@ def api_prodotti_importa_documento():
                     cur.execute("""
                         INSERT INTO prodotti (id_negozio,id_categoria,nome,descrizione,note,prezzo_euro,disponibile,ordine,allergeni_auto)
                         VALUES (%s,%s,%s,%s,'',%s,TRUE,(SELECT COALESCE(MAX(ordine),0)+10 FROM prodotti WHERE id_negozio=%s),%s)
-                    """, (shop_id, category_id, name, description, price, shop_id, detect_allergens(description)))
+                    """, (shop_id, category_id, name, description, price, shop_id, detect_allergens(name, description)))
                     imported += 1
         return jsonify({"ok": True, "importati": imported, "limite_raggiunto": remaining_slots is not None and imported >= remaining_slots})
     finally:
@@ -2840,7 +2841,7 @@ def api_prodotti_update(prodotto_id: int):
     nome = (request.form.get("nome") or "").strip().upper()
     descrizione = (request.form.get("descrizione") or "").strip()
     note = (request.form.get("note") or "").strip()
-    allergeni_auto = detect_allergens(descrizione)
+    allergeni_auto = detect_allergens(nome, descrizione)
     prezzo_euro = request.form.get("prezzo_euro")
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
     id_categoria = request.form.get("id_categoria") or None
