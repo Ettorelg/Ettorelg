@@ -3235,6 +3235,10 @@ def api_categorie_update(categoria_id: int):
     nome = (data.get("nome") or "").strip().upper()
     visibile = bool(data.get("visibile", True))
     ordine = data.get("ordine")
+    visibile_da = data.get("visibile_da") or None
+    visibile_fino = data.get("visibile_fino") or None
+    ora_inizio = data.get("ora_inizio") or None
+    ora_fine = data.get("ora_fine") or None
 
     if not nome:
         return jsonify({"error": "nome obbligatorio"}), 400
@@ -3254,9 +3258,9 @@ def api_categorie_update(categoria_id: int):
                 if ordine is None or ordine == "":
                     cur.execute("""
                         UPDATE categorie
-                        SET nome=%s, visibile=%s
+                        SET nome=%s, visibile=%s, visibile_da=%s, visibile_fino=%s, ora_inizio=%s, ora_fine=%s
                         WHERE id=%s
-                    """, (nome, visibile, categoria_id))
+                    """, (nome, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine, categoria_id))
                 else:
                     try:
                         ordine_int = int(ordine)
@@ -3264,9 +3268,9 @@ def api_categorie_update(categoria_id: int):
                         return jsonify({"error": "ordine non valido"}), 400
                     cur.execute("""
                         UPDATE categorie
-                        SET nome=%s, visibile=%s, ordine=%s
+                        SET nome=%s, visibile=%s, ordine=%s, visibile_da=%s, visibile_fino=%s, ora_inizio=%s, ora_fine=%s
                         WHERE id=%s
-                    """, (nome, visibile, ordine_int, categoria_id))
+                    """, (nome, visibile, ordine_int, visibile_da, visibile_fino, ora_inizio, ora_fine, categoria_id))
                     cur.execute("UPDATE negozi SET ordine_categorie_personalizzato = TRUE WHERE id = %s", (shop_id,))
 
         return jsonify({"ok": True})
@@ -3385,7 +3389,7 @@ def api_categorie_full():
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, nome, ordine, visibile
+                SELECT id, nome, ordine, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine
                 FROM categorie
                 WHERE id_negozio = %s
                 ORDER BY ordine ASC, nome ASC
@@ -3395,6 +3399,10 @@ def api_categorie_full():
                 "nome": r[1],
                 "ordine": int(r[2]) if r[2] is not None else 0,
                 "visibile": bool(r[3]),
+                "visibile_da": r[4].isoformat() if r[4] else "",
+                "visibile_fino": r[5].isoformat() if r[5] else "",
+                "ora_inizio": r[6].strftime("%H:%M") if r[6] else "",
+                "ora_fine": r[7].strftime("%H:%M") if r[7] else "",
             } for r in cur.fetchall()]
         return jsonify({"items": items})
     finally:
