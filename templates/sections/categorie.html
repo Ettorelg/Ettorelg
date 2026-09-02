@@ -57,11 +57,6 @@
       <input id="nome" required placeholder="Es. Pizze" />
     </div>
 
-    <div class="field" style="max-width:200px">
-      <label>Ordine</label>
-      <input id="ordine" inputmode="numeric" placeholder="Es. 10" />
-    </div>
-
     <div class="field" style="max-width:180px"><label>Visibile</label><select id="visibile"><option value="true">Sì</option><option value="false">No</option></select></div>
     <div class="field" style="max-width:180px"><label>Dal giorno</label><input id="visibile_da" type="date"></div>
     <div class="field" style="max-width:180px"><label>Al giorno</label><input id="visibile_fino" type="date"></div>
@@ -81,7 +76,6 @@
   <thead>
     <tr>
       <th>Nome</th>
-      <th>Ordine</th>
       <th>Visibile</th>
       <th class="right">Azioni</th>
     </tr>
@@ -107,7 +101,6 @@
   function resetForm(){
     f("id").value = "";
     f("nome").value = "";
-    f("ordine").value = "";
     f("visibile").value = "true"; f("visibile_da").value = ""; f("visibile_fino").value = ""; f("ora_inizio").value = ""; f("ora_fine").value = "";
     modeHint.textContent = "Modalità: creazione";
     f("saveBtn").textContent = "Salva categoria";
@@ -127,7 +120,6 @@
       return `
         <tr draggable="true" data-category-id="${c.id}">
           <td style="font-weight:650"><span class="drag-cell"><span class="drag-grip">⋮⋮</span>${esc(c.nome)}</span></td>
-          <td>${esc(c.ordine)}</td>
           <td>${vis}</td>
           <td class="right">
             <button class="btn" type="button" onclick="editCat(${c.id})">Modifica</button>
@@ -160,7 +152,6 @@
     if(!c) return;
     f("id").value = c.id;
     f("nome").value = c.nome;
-    f("ordine").value = c.ordine ?? "";
     f("visibile").value = c.visibile ? "true" : "false"; f("visibile_da").value=c.visibile_da||""; f("visibile_fino").value=c.visibile_fino||""; f("ora_inizio").value=c.ora_inizio||""; f("ora_fine").value=c.ora_fine||"";
     modeHint.textContent = "Modalità: modifica";
     f("saveBtn").textContent = "Aggiorna categoria";
@@ -187,7 +178,6 @@
     ev.preventDefault();
     const payload = {
       nome: f("nome").value.trim(),
-      ordine: f("ordine").value.trim(),
       visibile: f("visibile").value === "true", visibile_da:f("visibile_da").value, visibile_fino:f("visibile_fino").value, ora_inizio:f("ora_inizio").value, ora_fine:f("ora_fine").value
     };
     const id = f("id").value ? Number(f("id").value) : null;
