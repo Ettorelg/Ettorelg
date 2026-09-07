@@ -227,6 +227,7 @@
     printMedia.addEventListener?.('change', event => { if (event.matches) fitPrintColumns(); });
 
     function openProduct(card){
+      productModalContent.className = card.className;
       productModalContent.innerHTML = card.innerHTML;
       productModal.hidden = false;
       document.body.style.overflow = 'hidden';
