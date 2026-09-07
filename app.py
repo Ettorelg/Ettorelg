@@ -203,7 +203,7 @@ PAYPAL_CURRENCY = "EUR"
 PAYPAL_TRIAL_DAYS = 14
 APP_TRIAL_DAYS = 14
 LICENSE_PLANS = {
-    "base": {"name": "Base", "price": "79.00", "product_limit": 50},
+    "base": {"name": "Base", "price": "79.00", "product_limit": 100},
     "professional": {"name": "Professional", "price": "129.00", "product_limit": None},
 }
 
@@ -2605,7 +2605,7 @@ def api_prodotti_create():
     if not shop_id:
         return jsonify({"error": "negozio non trovato"}), 400
     if remaining_product_slots(session["user_id"], shop_id) == 0:
-        return jsonify({"error": "Il piano Base consente fino a 50 prodotti. Passa a Professional per inserirne altri."}), 403
+        return jsonify({"error": "Il piano Base consente fino a 100 prodotti. Passa a Professional per inserirne altri."}), 403
 
     # multipart form fields
     nome = (request.form.get("nome") or "").strip().upper()
@@ -2654,6 +2654,8 @@ def api_prodotti_create():
     image_file = request.files.get("immagine")
     image_path = ""
     if image_file and image_file.filename:
+        if get_user_license_plan(user_id) == "base":
+            return jsonify({"error": "Le foto dei prodotti richiedono la licenza Professional."}), 403
         if not is_allowed_image(image_file.filename):
             return jsonify({"error": "Formato immagine non valido (png/jpg/webp)"}), 400
         try:
@@ -2714,7 +2716,7 @@ def api_prodotto_duplica(prodotto_id: int):
     if not shop_id:
         return jsonify({"error": "negozio non trovato"}), 400
     if remaining_product_slots(session["user_id"], shop_id) == 0:
-        return jsonify({"error": "Il piano Base consente fino a 50 prodotti. Passa a Professional per duplicarne altri."}), 403
+        return jsonify({"error": "Il piano Base consente fino a 100 prodotti. Passa a Professional per duplicarne altri."}), 403
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
@@ -2767,7 +2769,7 @@ def api_prodotti_importa_csv():
         return jsonify({"error": "File CSV mancante"}), 400
     remaining_slots = remaining_product_slots(session["user_id"], shop_id)
     if remaining_slots == 0:
-        return jsonify({"error": "Hai raggiunto il limite di 50 prodotti del piano Base."}), 403
+        return jsonify({"error": "Hai raggiunto il limite di 100 prodotti del piano Base."}), 403
     try:
         content = uploaded.read().decode("utf-8-sig")
         dialect = csv.Sniffer().sniff(content[:2048], delimiters=",;")
@@ -2870,7 +2872,7 @@ def api_prodotti_importa_documento():
         return jsonify({"error": "Nessun prodotto da importare."}), 400
     remaining_slots = remaining_product_slots(session["user_id"], shop_id)
     if remaining_slots == 0:
-        return jsonify({"error": "Hai raggiunto il limite di 50 prodotti del piano Base."}), 403
+        return jsonify({"error": "Hai raggiunto il limite di 100 prodotti del piano Base."}), 403
     imported = 0
     conn = psycopg2.connect(**build_db_config())
     try:
@@ -2969,6 +2971,8 @@ def api_prodotti_update(prodotto_id: int):
     image_file = request.files.get("immagine")
     new_image_path = ""
     if image_file and image_file.filename:
+        if get_user_license_plan(user_id) == "base":
+            return jsonify({"error": "Le foto dei prodotti richiedono la licenza Professional."}), 403
         if not is_allowed_image(image_file.filename):
             return jsonify({"error": "Formato immagine non valido (png/jpg/webp)"}), 400
         try:
@@ -3672,4 +3676,5 @@ def api_sottocategorie_delete(sottocategoria_id: int):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
