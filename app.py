@@ -1384,8 +1384,22 @@ def api_admin_create_annual_paypal_plans():
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"}
         source_id = os.environ.get("PAYPAL_PLAN_PRO_ID") or os.environ.get("PAYPAL_PLAN_ID") or paypal_plan_id("professional")
         source = requests.get(f"{paypal_base_url()}/v1/billing/plans/{source_id}", headers=headers, timeout=25)
-        source.raise_for_status()
-        product_id = source.json()["product_id"]
+        if source.ok:
+            product_id = source.json()["product_id"]
+        else:
+            product = requests.post(
+                f"{paypal_base_url()}/v1/catalogs/products",
+                headers={**headers, "PayPal-Request-Id": f"alpha-menu-product-{os.environ.get('PAYPAL_MODE', 'sandbox').lower()}"},
+                json={
+                    "name": "Alpha Menu",
+                    "description": "Servizio annuale per la creazione e gestione di menu digitali",
+                    "type": "SERVICE",
+                    "category": "SOFTWARE",
+                },
+                timeout=25,
+            )
+            product.raise_for_status()
+            product_id = product.json()["id"]
         created = {}
         for plan, info in LICENSE_PLANS.items():
             response = requests.post(
