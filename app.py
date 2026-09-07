@@ -451,6 +451,50 @@ def trigger_license_expiry_email(user_id: int) -> None:
         maybe_send_license_expiry_email(user_id)
     except Exception:
         app.logger.exception("Controllo promemoria licenza non riuscito")
+
+
+_last_daily_reminder_check: date | None = None
+
+
+def process_daily_license_reminders() -> None:
+    """Esegue una sola scansione al giorno, anche con più processi applicativi."""
+    global _last_daily_reminder_check
+    today = date.today()
+    if _last_daily_reminder_check == today or not smtp_configured():
+        return
+    conn = psycopg2.connect(**build_db_config())
+    completed = False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT pg_try_advisory_xact_lock(%s)", (7281451,))
+                if not cur.fetchone()[0]:
+                    return
+                cur.execute("SELECT valore FROM impostazioni_app WHERE chiave='ultima_scansione_promemoria'")
+                previous = cur.fetchone()
+                if previous and previous[0] == today.isoformat():
+                    completed = True
+                    return
+                cur.execute("""
+                    SELECT id_utente
+                    FROM licenze_utenti
+                    WHERE stato='attiva'
+                      AND data_scadenza BETWEEN CURRENT_DATE AND CURRENT_DATE + 14
+                    ORDER BY data_scadenza, id_utente
+                """)
+                user_ids = [row[0] for row in cur.fetchall()]
+                for user_id in user_ids:
+                    trigger_license_expiry_email(user_id)
+                cur.execute("""
+                    INSERT INTO impostazioni_app (chiave,valore,updated_at)
+                    VALUES ('ultima_scansione_promemoria',%s,NOW())
+                    ON CONFLICT (chiave) DO UPDATE SET valore=EXCLUDED.valore,updated_at=NOW()
+                """, (today.isoformat(),))
+                completed = True
+    finally:
+        conn.close()
+        if completed:
+            _last_daily_reminder_check = today
     try:
         return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
     except (TypeError, ValueError):
@@ -743,6 +787,16 @@ def init_db() -> None:
 # Esegui init schema solo se sei in ambiente con DB configurato
 if os.getenv("DATABASE_URL") and os.getenv("AUTO_INIT_DB", "true").lower() == "true":
     init_db()
+
+
+@app.before_request
+def run_daily_reminder_check():
+    # Il webhook PayPal deve rispondere rapidamente e non viene rallentato dalla scansione email.
+    if request.endpoint != "paypal_webhook":
+        try:
+            process_daily_license_reminders()
+        except Exception:
+            app.logger.exception("Scansione giornaliera promemoria non riuscita")
 
 
 @app.before_request
