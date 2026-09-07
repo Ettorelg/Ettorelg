@@ -1051,12 +1051,14 @@ def pagamento():
     renewal_requested = request.args.get("rinnovo") == "1"
     choice_requested = request.args.get("scelta") == "1"
     selection_requested = renewal_requested or choice_requested
+    recurring_active = bool(row[2]) and row[3] in ("attivo", "ACTIVE", "prova")
     selected_plan = normalize_license_plan(session.get("renewal_plan") if selection_requested else row[8])
     plan_info = LICENSE_PLANS[selected_plan]
     return render_template(
         "pagamento.html", username=row[0], email=row[1], subscription_id=row[2],
         subscription_status=row[3], trial_until=row[4], next_billing=row[5],
         license_active=license_active, renewal_requested=renewal_requested, choice_requested=choice_requested, selection_requested=selection_requested,
+        recurring_active=recurring_active,
         paypal_configured=paypal_configured(selected_plan), paypal_client_id=os.environ.get("PAYPAL_CLIENT_ID", ""),
         paypal_plan_id=paypal_plan_id(selected_plan), price=plan_info["price"], plan=selected_plan, plan_name=plan_info["name"],
         currency=PAYPAL_CURRENCY, trial_days=0,
@@ -1074,10 +1076,17 @@ def paypal_subscription_activate():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT COALESCE(piano, 'professional') FROM licenze_utenti WHERE id_utente=%s", (user_id,))
+            cur.execute("""
+                SELECT COALESCE(l.piano, 'professional'), a.subscription_id, a.stato
+                FROM licenze_utenti l
+                LEFT JOIN abbonamenti_paypal a ON a.id_utente=l.id_utente
+                WHERE l.id_utente=%s
+            """, (user_id,))
             plan_row = cur.fetchone()
     finally:
         conn.close()
+    if renewal_requested and plan_row and plan_row[1] and plan_row[2] in ("attivo", "ACTIVE", "prova"):
+        return jsonify({"error": "Il rinnovo automatico PayPal è già attivo: non è stato creato un secondo abbonamento."}), 409
     selected_plan = normalize_license_plan(session.get("renewal_plan") if selection_requested else (plan_row[0] if plan_row else None))
     expected_plan_id = paypal_plan_id(selected_plan)
     if not paypal_configured(selected_plan):
@@ -1204,14 +1213,17 @@ def paypal_webhook():
                           AND cambio_piano_il IS NOT NULL AND cambio_piano_il <= CURRENT_DATE
                     """, (user_id,))
                 elif event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
-                    next_date = parse_paypal_date(resource.get("billing_info", {}).get("next_billing_time"), date.today() + timedelta(days=PAYPAL_TRIAL_DAYS))
-                    cur.execute("UPDATE abbonamenti_paypal SET stato='prova', trial_fino=COALESCE(trial_fino,%s), prossimo_addebito=%s, updated_at=NOW() WHERE id_utente=%s", (next_date, next_date, user_id))
+                    next_date = parse_paypal_date(resource.get("billing_info", {}).get("next_billing_time"), annual_expiry())
+                    cur.execute("UPDATE abbonamenti_paypal SET stato='attivo', trial_fino=NULL, prossimo_addebito=%s, updated_at=NOW() WHERE id_utente=%s", (next_date, user_id))
                     cur.execute("UPDATE licenze_utenti SET stato='attiva', data_scadenza=%s, updated_at=NOW() WHERE id_utente=%s", (next_date, user_id))
-                elif event_type in ("BILLING.SUBSCRIPTION.CANCELLED", "BILLING.SUBSCRIPTION.EXPIRED"):
+                elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
                     cur.execute("UPDATE abbonamenti_paypal SET stato='cancellato', cancellato_il=NOW(), updated_at=NOW() WHERE id_utente=%s", (user_id,))
+                elif event_type == "BILLING.SUBSCRIPTION.EXPIRED":
+                    cur.execute("UPDATE abbonamenti_paypal SET stato='scaduto', cancellato_il=COALESCE(cancellato_il,NOW()), updated_at=NOW() WHERE id_utente=%s", (user_id,))
+                    cur.execute("UPDATE licenze_utenti SET stato='sospesa', updated_at=NOW() WHERE id_utente=%s AND data_scadenza < CURRENT_DATE", (user_id,))
                 elif event_type in ("BILLING.SUBSCRIPTION.SUSPENDED", "BILLING.SUBSCRIPTION.PAYMENT.FAILED"):
-                    cur.execute("UPDATE abbonamenti_paypal SET stato='sospeso', updated_at=NOW() WHERE id_utente=%s", (user_id,))
-                    cur.execute("UPDATE licenze_utenti SET stato='sospesa', updated_at=NOW() WHERE id_utente=%s", (user_id,))
+                    cur.execute("UPDATE abbonamenti_paypal SET stato='pagamento_fallito', updated_at=NOW() WHERE id_utente=%s", (user_id,))
+                    cur.execute("UPDATE licenze_utenti SET stato='sospesa', updated_at=NOW() WHERE id_utente=%s AND data_scadenza < CURRENT_DATE", (user_id,))
         return jsonify({"ok": True})
     finally:
         conn.close()
@@ -1229,13 +1241,10 @@ def paypal_subscription_cancel():
             row = cur.fetchone()
         if not row or not row[0]:
             return jsonify({"error": "Nessun abbonamento PayPal trovato."}), 404
-        response = requests.post(
-            f"{paypal_base_url()}/v1/billing/subscriptions/{row[0]}/cancel",
-            headers={"Authorization": f"Bearer {paypal_access_token()}", "Content-Type": "application/json"},
-            json={"reason": "Disdetta richiesta dal cliente"}, timeout=20,
-        )
-        if response.status_code not in (200, 204):
-            return jsonify({"error": "PayPal non ha accettato la disdetta."}), 502
+        try:
+            paypal_cancel_subscription_by_id(row[0], "Disdetta richiesta dal cliente")
+        except (requests.RequestException, RuntimeError):
+            return jsonify({"error": "PayPal non ha accettato la disdetta. Riprova o contatta l’assistenza."}), 502
         with conn:
             with conn.cursor() as cur:
                 cur.execute("UPDATE abbonamenti_paypal SET stato='cancellato', cancellato_il=NOW(), updated_at=NOW() WHERE id_utente=%s", (user_id,))

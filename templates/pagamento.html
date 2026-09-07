@@ -28,9 +28,9 @@
 <body>
 <main class="card">
     <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
-    <h1>Scegli il tuo piano</h1>
-    <p class="lead">Ciao {{ username }},{% if choice_requested %} la prova gratuita Professional sta per terminare: scegli il piano con cui continuare.{% elif renewal_requested %} rinnova ora il tuo piano: l'anno acquistato verrà aggiunto alla scadenza attuale.{% else %} la prova gratuita Professional è terminata. Scegli il piano con cui continuare.{% endif %}</p>
-    {% if (not license_active or selection_requested) and paypal_configured %}
+    <h1>{% if renewal_requested and recurring_active %}Rinnovo già attivo{% else %}Scegli il tuo piano{% endif %}</h1>
+    <p class="lead">Ciao {{ username }},{% if renewal_requested and recurring_active %} il tuo abbonamento è già configurato per rinnovarsi automaticamente.{% elif choice_requested %} la prova gratuita Professional sta per terminare: scegli il piano con cui continuare.{% elif renewal_requested %} attiva adesso il piano annuale che proseguirà dopo la prova o licenza corrente.{% else %} la prova gratuita Professional è terminata. Scegli il piano con cui continuare.{% endif %}</p>
+    {% if (not license_active or selection_requested) and paypal_configured and not (renewal_requested and recurring_active) %}
     <div class="plan-choice">
         <label for="pendingPlan">Scegli il piano prima di pagare</label>
         <select id="pendingPlan">
@@ -69,7 +69,7 @@
         </div>
     </div>
     {% endif %}
-    <section class="offer">
+    {% if not (renewal_requested and recurring_active) %}<section class="offer">
         <strong>{{ plan_name }}</strong>
         <div>{{ price }} € + IVA ogni anno.</div>
         <div><strong>Cliente Alpha System?</strong> La configurazione iniziale è gratuita.</div>
@@ -86,9 +86,12 @@
             <li>Addebito annuale immediato, senza un secondo periodo di prova</li>
             <li>Rinnovo automatico annuale tramite PayPal; puoi disdire prima del rinnovo</li>
         </ul>
-    </section>
+    </section>{% endif %}
 
-    {% if license_active and not selection_requested %}
+    {% if renewal_requested and recurring_active %}
+        <div class="notice success">Il rinnovo automatico PayPal è già attivo{% if next_billing %} e il prossimo addebito è previsto il {{ next_billing.strftime('%d/%m/%Y') }}{% endif %}. Non devi acquistare un secondo abbonamento.</div>
+        <a class="btn" href="{{ url_for('dashboard_user') }}#account">Gestisci l’abbonamento</a>
+    {% elif license_active and not selection_requested %}
         <div class="notice success">Il tuo account è attivo{% if next_billing %} fino al {{ next_billing.strftime('%d/%m/%Y') }}{% endif %}.</div>
         <a class="btn" href="{{ url_for('dashboard_user') }}">Vai alla dashboard</a>
     {% elif not paypal_configured %}
@@ -102,7 +105,7 @@
 </main>
 {% include '_legal_footer.html' %}
 
-{% if paypal_configured and (not license_active or selection_requested) %}
+{% if paypal_configured and (not license_active or selection_requested) and not (renewal_requested and recurring_active) %}
 <script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id|urlencode }}&vault=true&intent=subscription&currency={{ currency }}"></script>
 <script>
 const pendingPlan=document.getElementById('pendingPlan');
