@@ -16,7 +16,7 @@
     {% else %}
       <h1>Passa a {{ target_name }}</h1>
       <p class="muted">Piano attuale: <strong>{{ current_name }}</strong>. Conferma il cambio accedendo al tuo conto PayPal.</p>
-      <div class="summary"><span>Nuovo piano annuale</span><strong>{{ target_name }} · {{ target_price }} € IVA inclusa</strong></div>
+      <div class="summary"><span>Nuovo piano annuale</span><strong>{{ target_name }} · {{ target_price }} € + IVA</strong></div>
       {% if target_plan == 'base' %}
         <p class="notice">Il piano Professional rimane disponibile fino al prossimo rinnovo{% if next_billing %}, previsto per il {{ next_billing }}{% endif %}. Da quella data sarà applicato il piano Base.</p>
       {% else %}

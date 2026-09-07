@@ -203,8 +203,8 @@ PAYPAL_CURRENCY = "EUR"
 PAYPAL_TRIAL_DAYS = 14
 APP_TRIAL_DAYS = 14
 LICENSE_PLANS = {
-    "base": {"name": "Base", "price": "69.00", "product_limit": 50},
-    "professional": {"name": "Professional", "price": "99.00", "product_limit": None},
+    "base": {"name": "Base", "price": "79.00", "product_limit": 50},
+    "professional": {"name": "Professional", "price": "129.00", "product_limit": None},
 }
 
 
@@ -1295,7 +1295,7 @@ def api_admin_create_paypal_base_plan():
             json={
                 "product_id": product_id,
                 "name": "Alpha Menu Base annuale",
-                "description": "14 giorni gratuiti, poi 69 EUR ogni anno",
+                "description": "Piano Base Alpha Menu, 79 EUR ogni anno più IVA",
                 "status": "ACTIVE",
                 "billing_cycles": [
                     {

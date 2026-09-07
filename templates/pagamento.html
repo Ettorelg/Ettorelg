@@ -34,12 +34,12 @@
     <div class="plan-choice">
         <label for="pendingPlan">Scegli il piano prima di pagare</label>
         <select id="pendingPlan">
-            <option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 69 € / anno</option>
-            <option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 99 € / anno</option>
+            <option value="base"{% if plan == 'base' %} selected{% endif %}>Base · 79 € + IVA / anno</option>
+            <option value="professional"{% if plan == 'professional' %} selected{% endif %}>Professional · 129 € + IVA / anno</option>
         </select>
         <div class="plan-compare">
             <section class="plan-summary" data-plan-card="base">
-                <h3>Base · 69 €/anno</h3>
+                <h3>Base · 79 € + IVA/anno</h3>
                 <strong>Un menu digitale completo e facile da gestire</strong>
                 <ul>
                     <li>Fino a 50 prodotti, categorie e sottocategorie</li>
@@ -53,7 +53,7 @@
                 </ul>
             </section>
             <section class="plan-summary" data-plan-card="professional">
-                <h3>Professional · 99 €/anno</h3>
+                <h3>Professional · 129 € + IVA/anno ⭐ Consigliato</h3>
                 <strong>Tutto per valorizzare il locale e capire i clienti</strong>
                 <ul>
                     <li>Tutte le funzioni Base, senza limiti di prodotti</li>
@@ -71,7 +71,8 @@
     {% endif %}
     <section class="offer">
         <strong>{{ plan_name }}</strong>
-        <div>{{ price }} € IVA inclusa ogni anno.</div>
+        <div>{{ price }} € + IVA ogni anno.</div>
+        <div><strong>Cliente Alpha System?</strong> La configurazione iniziale è gratuita.</div>
         <ul>
             {% if plan == 'base' %}
             <li>Menu digitale professionale, pronto da condividere con QR Code</li>

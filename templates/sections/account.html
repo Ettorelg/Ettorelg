@@ -48,7 +48,7 @@
      const r=await fetch('/api/paypal/subscription'),d=await r.json();if(!r.ok||!d.item)return;
      const x=d.item;subscriptionCard.style.display='block';
      const next=x.prossimo_addebito?new Date(x.prossimo_addebito+'T12:00:00').toLocaleDateString('it-IT'):'';
-     subscriptionSummary.textContent=x.stato==='prova'?`Prova gratuita attiva. Primo addebito di 99 € il ${next}.`:
+     subscriptionSummary.textContent=x.stato==='prova'?`Prova gratuita attiva. Alla scadenza scegli Base (79 € + IVA/anno) o Professional (129 € + IVA/anno).`:
        x.stato==='cancellato'?`Rinnovo automatico disattivato. Accesso disponibile fino al ${next}.`:
        `Stato: ${x.stato.toUpperCase()}${next?`. Prossimo rinnovo: ${next}.`:''}`;
      cancelSubscription.style.display=x.puo_disdire?'inline-block':'none';
