@@ -217,10 +217,52 @@ def remaining_product_slots(user_id: int, shop_id: int) -> int | None:
 PAYPAL_CURRENCY = "EUR"
 PAYPAL_TRIAL_DAYS = 14
 APP_TRIAL_DAYS = 14
+LEGAL_TERMS_VERSION = "2026-08-26"
+LEGAL_PRIVACY_VERSION = "2026-08-26"
 LICENSE_PLANS = {
     "base": {"name": "Base", "price": "79.00", "product_limit": 100},
     "professional": {"name": "Professional", "price": "129.00", "product_limit": None},
 }
+
+
+def record_registration_consents(cur, user_id: int, marketing: bool = False) -> None:
+    """Registra separatamente i consensi necessari e quello marketing facoltativo."""
+    user_agent = (request.headers.get("User-Agent") or "")[:500]
+    rows = (
+        (user_id, "termini", LEGAL_TERMS_VERSION, True, user_agent),
+        (user_id, "privacy", LEGAL_PRIVACY_VERSION, True, user_agent),
+        (user_id, "marketing", LEGAL_PRIVACY_VERSION, bool(marketing), user_agent),
+    )
+    cur.executemany(
+        """
+        INSERT INTO consensi_utenti (id_utente, tipo, versione, accettato, user_agent)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        rows,
+    )
+
+
+def registration_consent_from_form(provider: str = "manual") -> dict | None:
+    if request.form.get("accept_legal") != "on":
+        return None
+    return {
+        "legal": True,
+        "marketing": request.form.get("accept_marketing") == "on",
+        "terms_version": LEGAL_TERMS_VERSION,
+        "privacy_version": LEGAL_PRIVACY_VERSION,
+        "provider": provider,
+        "created_at": int(time.time()),
+    }
+
+
+def oauth_registration_consent(provider: str) -> dict | None:
+    consent = session.get("oauth_registration_consent")
+    if not isinstance(consent, dict) or consent.get("provider") != provider:
+        return None
+    if int(time.time()) - int(consent.get("created_at", 0)) > 900:
+        session.pop("oauth_registration_consent", None)
+        return None
+    return consent
 
 
 def normalize_license_plan(value: str | None) -> str:
@@ -505,6 +547,18 @@ def init_db() -> None:
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_google_sub_unique ON utenti (google_sub) WHERE google_sub IS NOT NULL")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_apple_sub_unique ON utenti (apple_sub) WHERE apple_sub IS NOT NULL")
                 cur.execute("""
+                    CREATE TABLE IF NOT EXISTS consensi_utenti (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_utente INTEGER NOT NULL REFERENCES utenti(id) ON DELETE CASCADE,
+                        tipo TEXT NOT NULL CHECK (tipo IN ('termini', 'privacy', 'marketing')),
+                        versione TEXT NOT NULL,
+                        accettato BOOLEAN NOT NULL,
+                        accepted_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+                        user_agent TEXT NOT NULL DEFAULT ''
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS consensi_utenti_utente_data ON consensi_utenti (id_utente, accepted_at DESC)")
+                cur.execute("""
                     CREATE TABLE IF NOT EXISTS licenze_utenti (
                         id SERIAL PRIMARY KEY,
                         id_utente INTEGER NOT NULL UNIQUE REFERENCES utenti(id) ON DELETE CASCADE,
@@ -602,7 +656,7 @@ def enforce_current_license():
     if not user_id or session.get("is_admin"):
         return None
     public_endpoints = {
-        "index", "login", "register", "auth_google", "auth_google_callback",
+        "index", "login", "register", "register_google", "register_apple", "auth_google", "auth_google_callback",
         "auth_apple", "auth_apple_callback", "logout",
         "privacy_policy", "terms_of_service", "uploaded_file", "static", "public_menu",
         "paypal_webhook", "pagamento", "paypal_subscription_activate",
@@ -697,6 +751,9 @@ def register():
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
     confirm = request.form.get("password_confirm", "")
+    consent = registration_consent_from_form()
+    if not consent:
+        return render_template("register.html", error="Per creare l’account devi accettare i Termini di servizio e l’Informativa privacy.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
     if not business_name or not email or not password:
         return render_template("register.html", error="Compila tutti i campi.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
     if password != confirm:
@@ -713,6 +770,7 @@ def register():
                     (business_name, email, hash_password(password)),
                 )
                 user_id = cur.fetchone()[0]
+                record_registration_consents(cur, user_id, consent["marketing"])
                 trial_end = date.today() + timedelta(days=APP_TRIAL_DAYS)
                 cur.execute(
                     "INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza, piano) VALUES (%s, 'attiva', CURRENT_DATE, %s, 'professional')",
@@ -729,6 +787,24 @@ def register():
         return render_template("register.html", error="Email o nome dell’attività già utilizzati.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
     finally:
         conn.close()
+
+
+@app.post("/register/google")
+def register_google():
+    consent = registration_consent_from_form("google")
+    if not consent:
+        return render_template("register.html", error="Per registrarti con Google devi accettare i Termini di servizio e l’Informativa privacy.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
+    session["oauth_registration_consent"] = consent
+    return redirect(url_for("auth_google"))
+
+
+@app.post("/register/apple")
+def register_apple():
+    consent = registration_consent_from_form("apple")
+    if not consent:
+        return render_template("register.html", error="Per registrarti con Apple devi accettare i Termini di servizio e l’Informativa privacy.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
+    session["oauth_registration_consent"] = consent
+    return redirect(url_for("auth_apple"))
 
 
 @app.get("/auth/google")
@@ -757,6 +833,9 @@ def auth_google_callback():
                 cur.execute("SELECT id, username, admin FROM utenti WHERE google_sub = %s OR LOWER(email) = LOWER(%s) ORDER BY google_sub = %s DESC LIMIT 1", (google_sub, email, google_sub))
                 row = cur.fetchone()
                 is_new_user = not bool(row)
+                registration_consent = oauth_registration_consent("google")
+                if is_new_user and not registration_consent:
+                    return render_template("register.html", error="Prima di creare un nuovo account con Google, accetta i Termini e la Privacy dalla pagina di registrazione.", google_enabled=True, plans=LICENSE_PLANS, base_available=paypal_configured("base"))
                 if row:
                     user_id, username, is_admin = row
                     cur.execute("UPDATE utenti SET google_sub = %s, email = %s WHERE id = %s", (google_sub, email, user_id))
@@ -774,6 +853,7 @@ def auth_google_callback():
                     user_id = cur.fetchone()[0]
                     is_admin = False
                 if is_new_user:
+                    record_registration_consents(cur, user_id, registration_consent.get("marketing", False))
                     trial_end = date.today() + timedelta(days=APP_TRIAL_DAYS)
                     cur.execute("INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza, piano) VALUES (%s, 'attiva', CURRENT_DATE, %s, 'professional')", (user_id, trial_end))
                     cur.execute("INSERT INTO abbonamenti_paypal (id_utente, plan_id, stato, trial_fino, prossimo_addebito) VALUES (%s, %s, 'prova_locale', %s, %s)", (user_id, paypal_plan_id("professional"), trial_end, trial_end))
@@ -781,6 +861,7 @@ def auth_google_callback():
                     cur.execute("INSERT INTO licenze_utenti (id_utente, data_scadenza) VALUES (%s, %s) ON CONFLICT (id_utente) DO NOTHING", (user_id, annual_expiry()))
                 cur.execute("SELECT stato, data_scadenza FROM licenze_utenti WHERE id_utente = %s", (user_id,))
                 license_row = cur.fetchone()
+        session.pop("oauth_registration_consent", None)
         if not is_admin and (not license_row or not license_is_active(*license_row)):
             session.clear()
             session.update(pending_user_id=user_id, pending_username=username)
@@ -878,6 +959,9 @@ def auth_apple_callback():
                 )
                 row = cur.fetchone()
                 is_new_user = not bool(row)
+                registration_consent = oauth_registration_consent("apple")
+                if is_new_user and not registration_consent:
+                    return render_template("register.html", error="Prima di creare un nuovo account con Apple, accetta i Termini e la Privacy dalla pagina di registrazione.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
                 if row:
                     user_id, username, is_admin = row
                     cur.execute(
@@ -906,6 +990,7 @@ def auth_apple_callback():
                     user_id = cur.fetchone()[0]
                     is_admin = False
                 if is_new_user:
+                    record_registration_consents(cur, user_id, registration_consent.get("marketing", False))
                     trial_end = date.today() + timedelta(days=APP_TRIAL_DAYS)
                     cur.execute(
                         """
@@ -928,6 +1013,7 @@ def auth_apple_callback():
                     )
                 cur.execute("SELECT stato,data_scadenza FROM licenze_utenti WHERE id_utente=%s", (user_id,))
                 license_row = cur.fetchone()
+        session.pop("oauth_registration_consent", None)
         if not is_admin and (not license_row or not license_is_active(*license_row)):
             session.clear()
             session.update(pending_user_id=user_id, pending_username=username)
