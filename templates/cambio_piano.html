@@ -31,7 +31,7 @@
           createSubscription(data,actions){return actions.subscription.revise({{ subscription_id|tojson }},{plan_id:{{ target_plan_id|tojson }}})},
           async onApprove(){
             statusBox.textContent='Verifica del nuovo piano…';
-            const response=await fetch('/api/paypal/subscription/change/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({piano:{{ target_plan|tojson }}})});
+            const response=await fetch('/api/paypal/subscription/change/confirm',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':{{ csrf_token()|tojson }}},body:JSON.stringify({piano:{{ target_plan|tojson }}})});
             const result=await response.json();
             if(!response.ok){throw new Error(result.error||'Cambio piano non confermato.')}
             statusBox.textContent=result.message;

@@ -108,6 +108,7 @@
         <p class="subtitle">Prova tutte le funzioni Professional per 14 giorni, senza carta di credito.</p>
         {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
         <form id="registrationForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group plan-group">
                 <label>1. Prova Professional gratuita</label>
                 <p class="plan-help">Hai 14 giorni di accesso completo. Alla scadenza potrai scegliere Base (79 € + IVA/anno) oppure Professional (129 € + IVA/anno, consigliato). Per i clienti Alpha System la configurazione iniziale è gratuita.</p>

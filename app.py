@@ -3,6 +3,7 @@ import csv
 import os
 import re
 import hmac
+import hashlib
 import html
 import json
 import secrets
@@ -167,6 +168,55 @@ def save_shop_image(file_storage, shop_id: int, image_type: str) -> str:
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def csrf_token() -> str:
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return token
+
+
+def request_fingerprint(email: str = "") -> str:
+    forwarded = (request.headers.get("X-Forwarded-For") or "").split(",", 1)[0].strip()
+    source = f"{forwarded or request.remote_addr or ''}|{email.strip().lower()}|{app.secret_key}"
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+
+def login_is_limited(email: str) -> bool:
+    fingerprint = request_fingerprint(email)
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) FROM tentativi_login
+                WHERE fingerprint=%s AND tentato_il > NOW() - INTERVAL '15 minutes'
+            """, (fingerprint,))
+            return cur.fetchone()[0] >= 10
+    finally:
+        conn.close()
+
+
+def record_login_failure(email: str) -> None:
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO tentativi_login (fingerprint) VALUES (%s)", (request_fingerprint(email),))
+                cur.execute("DELETE FROM tentativi_login WHERE tentato_il < NOW() - INTERVAL '24 hours'")
+    finally:
+        conn.close()
+
+
+def clear_login_failures(email: str) -> None:
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM tentativi_login WHERE fingerprint=%s", (request_fingerprint(email),))
+    finally:
+        conn.close()
 
 
 def verify_password(password: str, stored: str) -> bool:
@@ -562,7 +612,7 @@ def google_enabled() -> bool:
 
 @app.context_processor
 def auth_provider_flags():
-    return {"google_enabled": google_enabled(), "apple_enabled": apple_enabled()}
+    return {"google_enabled": google_enabled(), "apple_enabled": apple_enabled(), "csrf_token": csrf_token}
 
 
 def init_db() -> None:
@@ -676,6 +726,24 @@ def init_db() -> None:
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_email_unique ON utenti (LOWER(email)) WHERE email IS NOT NULL")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_google_sub_unique ON utenti (google_sub) WHERE google_sub IS NOT NULL")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS utenti_apple_sub_unique ON utenti (apple_sub) WHERE apple_sub IS NOT NULL")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS tentativi_login (
+                        id BIGSERIAL PRIMARY KEY,
+                        fingerprint TEXT NOT NULL,
+                        tentato_il TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS tentativi_login_fingerprint_data ON tentativi_login (fingerprint,tentato_il DESC)")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS reset_password (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_utente INTEGER NOT NULL REFERENCES utenti(id) ON DELETE CASCADE,
+                        token_hash TEXT NOT NULL UNIQUE,
+                        scade_il TIMESTAMP WITH TIME ZONE NOT NULL,
+                        usato_il TIMESTAMP WITH TIME ZONE
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS reset_password_utente ON reset_password (id_utente,scade_il DESC)")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS consensi_utenti (
                         id BIGSERIAL PRIMARY KEY,
@@ -800,13 +868,27 @@ def run_daily_reminder_check():
 
 
 @app.before_request
+def enforce_csrf():
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return None
+    if request.endpoint in ("paypal_webhook", "auth_apple_callback", "track_category_open", "track_product_open"):
+        return None
+    supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token", "")
+    expected = session.get("csrf_token", "")
+    if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "Sessione di sicurezza scaduta. Ricarica la pagina e riprova."}), 403
+        return "Sessione di sicurezza scaduta. Torna alla pagina precedente e riprova.", 403
+
+
+@app.before_request
 def enforce_current_license():
     """Blocca anche le sessioni già aperte quando prova o licenza terminano."""
     user_id = session.get("user_id")
     if not user_id or session.get("is_admin"):
         return None
     public_endpoints = {
-        "index", "login", "register", "register_google", "register_apple", "auth_google", "auth_google_callback",
+        "index", "login", "register", "register_google", "register_apple", "forgot_password", "reset_password", "auth_google", "auth_google_callback",
         "auth_apple", "auth_apple_callback", "logout",
         "privacy_policy", "terms_of_service", "uploaded_file", "static", "public_menu",
         "paypal_webhook", "pagamento", "paypal_subscription_activate",
@@ -865,6 +947,8 @@ def login():
     password = request.form.get("password", "")
     if not email or not password:
         return render_template("login.html", error="Inserisci email e password.", google_enabled=google_enabled())
+    if login_is_limited(email):
+        return render_template("login.html", error="Troppi tentativi di accesso. Attendi 15 minuti e riprova.", google_enabled=google_enabled()), 429
 
     conn = psycopg2.connect(**build_db_config())
     try:
@@ -880,9 +964,11 @@ def login():
         conn.close()
 
     if not row or not verify_password(password, row[2]):
+        record_login_failure(email)
         return render_template("login.html", error="Email o password errati.", google_enabled=google_enabled())
 
     user_id, username_db, _, is_admin, status, expiry = row
+    clear_login_failures(email)
     if not is_admin and not license_is_active(status, expiry):
         session.clear()
         session.update(pending_user_id=user_id, pending_username=username_db)
@@ -892,6 +978,65 @@ def login():
     if not is_admin:
         trigger_license_expiry_email(user_id)
     return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
+
+
+@app.route("/password-dimenticata", methods=["GET", "POST"])
+def forgot_password():
+    message = None
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        conn = psycopg2.connect(**build_db_config())
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id,username,email FROM utenti WHERE LOWER(email)=LOWER(%s)", (email,))
+                    row = cur.fetchone()
+                    if row and row[2]:
+                        raw_token = secrets.token_urlsafe(40)
+                        token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+                        cur.execute("UPDATE reset_password SET usato_il=NOW() WHERE id_utente=%s AND usato_il IS NULL", (row[0],))
+                        cur.execute("INSERT INTO reset_password (id_utente,token_hash,scade_il) VALUES (%s,%s,NOW()+INTERVAL '1 hour')", (row[0], token_hash))
+                        reset_url = url_for("reset_password", token=raw_token, _external=True, _scheme="https")
+                        send_transactional_email(
+                            row[2], "Reimposta la password di Alpha Menu",
+                            f"Ciao {row[1]},\n\nusa questo collegamento entro un'ora per scegliere una nuova password:\n{reset_url}\n\nSe non hai richiesto tu il recupero, ignora questa email.\n\nAlpha Menu – Alpha System S.r.l.",
+                        )
+            message = "Se l’indirizzo è associato a un account, riceverai a breve le istruzioni."
+        finally:
+            conn.close()
+    return render_template("forgot_password.html", message=message)
+
+
+@app.route("/reimposta-password/<token>", methods=["GET", "POST"])
+def reset_password(token: str):
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT r.id,u.id,u.email FROM reset_password r
+                JOIN utenti u ON u.id=r.id_utente
+                WHERE r.token_hash=%s AND r.usato_il IS NULL AND r.scade_il>NOW()
+            """, (token_hash,))
+            row = cur.fetchone()
+        if not row:
+            return render_template("reset_password.html", invalid=True), 400
+        if request.method == "POST":
+            password = request.form.get("password", "")
+            confirm = request.form.get("password_confirm", "")
+            if len(password) < 8:
+                return render_template("reset_password.html", error="La password deve avere almeno 8 caratteri.")
+            if password != confirm:
+                return render_template("reset_password.html", error="Le password non coincidono.")
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE utenti SET password=%s,password_impostata=TRUE WHERE id=%s", (hash_password(password), row[1]))
+                    cur.execute("UPDATE reset_password SET usato_il=NOW() WHERE id=%s AND usato_il IS NULL", (row[0],))
+                    cur.execute("DELETE FROM tentativi_login WHERE fingerprint=%s", (request_fingerprint(row[2]),))
+            return render_template("reset_password.html", success=True)
+        return render_template("reset_password.html")
+    finally:
+        conn.close()
 
 
 @app.route("/register", methods=["GET", "POST"])

@@ -7,6 +7,7 @@
 <style>@media(max-width:700px){td::before{display:block;margin-bottom:4px;color:var(--muted);font-size:.7rem;font-weight:800;text-transform:uppercase}td:nth-child(1)::before{content:"Utente"}td:nth-child(2)::before{content:"Email"}td:nth-child(3)::before{content:"Negozio"}td:nth-child(4)::before{content:"Admin"}td:nth-child(5)::before{content:"Licenza"}td:nth-child(6)::before{content:"Scadenza"}td:nth-child(7)::before{content:"Giorni"}td:nth-child(8)::before{content:"Nuova password"}td:nth-child(9)::before{content:"Azioni"}}</style>
 {% include '_legal_footer.html' %}
 <script>
+const csrfToken={{ csrf_token()|tojson }};const nativeFetch=window.fetch.bind(window);window.fetch=(input,opts={})=>{const method=String(opts.method||'GET').toUpperCase();if(['POST','PUT','PATCH','DELETE'].includes(method)){const headers=new Headers(opts.headers||{});headers.set('X-CSRF-Token',csrfToken);opts={...opts,headers}}return nativeFetch(input,opts)};
 let users=[];let currentUserId=null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notify(t,error=false){const el=document.getElementById('message');el.textContent=t;el.className='msg'+(error?' error':'')}

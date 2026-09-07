@@ -117,7 +117,7 @@ syncPlanSelection();
 pendingPlan?.addEventListener('change',async()=>{
     const r=await fetch('/api/paypal/pending-plan',{
         method:'POST',
-        headers:{'Content-Type':'application/json'},
+        headers:{'Content-Type':'application/json','X-CSRF-Token':{{ csrf_token()|tojson }}},
         body:JSON.stringify({piano:pendingPlan.value,rinnovo:isRenewal,scelta:isChoice})
     });
     const d=await r.json();
@@ -136,7 +136,7 @@ paypal.Buttons({
     },
     onApprove: async function(data) {
         const response = await fetch('/api/paypal/subscription/activate', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
+            method: 'POST', headers: {'Content-Type': 'application/json','X-CSRF-Token':{{ csrf_token()|tojson }}},
             body: JSON.stringify({subscription_id: data.subscriptionID, renewal: isRenewal, choice: isChoice})
         });
         const result = await response.json();
