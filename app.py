@@ -6,8 +6,10 @@ import hmac
 import html
 import json
 import secrets
+import smtplib
 import time
 from datetime import date, datetime, timedelta
+from email.message import EmailMessage
 from urllib.parse import urlencode
 from pathlib import Path
 
@@ -365,6 +367,90 @@ def paypal_verify_webhook(payload: dict) -> bool:
 def parse_paypal_date(value, fallback=None):
     if not value:
         return fallback
+
+
+def smtp_configured() -> bool:
+    return all(os.environ.get(name) for name in ("SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM"))
+
+
+def send_transactional_email(recipient: str, subject: str, body: str, reply_to: str | None = None) -> bool:
+    """Invia email di servizio; gli errori non interrompono le operazioni del cliente."""
+    if not smtp_configured() or not recipient:
+        return False
+    message = EmailMessage()
+    message["From"] = os.environ["SMTP_FROM"]
+    message["To"] = recipient
+    message["Subject"] = subject.replace("\r", " ").replace("\n", " ")[:180]
+    if reply_to:
+        message["Reply-To"] = reply_to.replace("\r", "").replace("\n", "")[:254]
+    message.set_content(body)
+    host = os.environ["SMTP_HOST"]
+    port = int(os.environ.get("SMTP_PORT", "587"))
+    try:
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=15) as server:
+                server.login(os.environ["SMTP_USERNAME"], os.environ["SMTP_PASSWORD"])
+                server.send_message(message)
+        else:
+            with smtplib.SMTP(host, port, timeout=15) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(os.environ["SMTP_USERNAME"], os.environ["SMTP_PASSWORD"])
+                server.send_message(message)
+        return True
+    except (OSError, smtplib.SMTPException, ValueError):
+        app.logger.exception("Invio email transazionale non riuscito")
+        return False
+
+
+def maybe_send_license_expiry_email(user_id: int) -> None:
+    """Invia al massimo un promemoria per ciascuna soglia: 14, 7, 3 e 1 giorno."""
+    if not smtp_configured():
+        return
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT u.username, u.email, l.data_scadenza,
+                       COALESCE(a.stato, '')='prova_locale'
+                FROM utenti u
+                JOIN licenze_utenti l ON l.id_utente=u.id
+                LEFT JOIN abbonamenti_paypal a ON a.id_utente=u.id
+                WHERE u.id=%s AND l.stato='attiva'
+            """, (user_id,))
+            row = cur.fetchone()
+            if not row or not row[1] or not row[2]:
+                return
+            days = (row[2] - date.today()).days
+            threshold = next((value for value in (1, 3, 7, 14) if days <= value), None) if days >= 0 else None
+            if threshold is None:
+                return
+            notice_type = "trial" if row[3] else "licenza"
+            reference = f"{row[2].isoformat()}:{threshold}"
+            cur.execute("SELECT 1 FROM notifiche_email WHERE id_utente=%s AND tipo=%s AND riferimento=%s", (user_id, notice_type, reference))
+            if cur.fetchone():
+                return
+        label = "La prova gratuita" if row[3] else "La licenza Alpha Menu"
+        action = "Scegli il piano Base o Professional" if row[3] else "Controlla il rinnovo dalla dashboard"
+        sent = send_transactional_email(
+            row[1],
+            f"{label} scade tra {days} giorn{'o' if days == 1 else 'i'}",
+            f"Ciao {row[0]},\n\n{label.lower()} scade il {row[2].strftime('%d/%m/%Y')}.\n{action}: https://menu.alphasystemsrl.it/dashboard_user#licenze\n\nAlpha Menu – Alpha System S.r.l.",
+        )
+        if sent:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("INSERT INTO notifiche_email (id_utente,tipo,riferimento) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING", (user_id, notice_type, reference))
+    finally:
+        conn.close()
+
+
+def trigger_license_expiry_email(user_id: int) -> None:
+    try:
+        maybe_send_license_expiry_email(user_id)
+    except Exception:
+        app.logger.exception("Controllo promemoria licenza non riuscito")
     try:
         return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
     except (TypeError, ValueError):
@@ -634,6 +720,16 @@ def init_db() -> None:
                     )
                 """)
                 cur.execute("""
+                    CREATE TABLE IF NOT EXISTS notifiche_email (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_utente INTEGER NOT NULL REFERENCES utenti(id) ON DELETE CASCADE,
+                        tipo TEXT NOT NULL,
+                        riferimento TEXT NOT NULL,
+                        inviata_il TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                        UNIQUE (id_utente, tipo, riferimento)
+                    )
+                """)
+                cur.execute("""
                     CREATE TABLE IF NOT EXISTS impostazioni_app (
                         chiave TEXT PRIMARY KEY,
                         valore TEXT NOT NULL,
@@ -739,6 +835,8 @@ def login():
         return redirect(url_for("pagamento"))
 
     session.update(user_id=user_id, username=username_db, is_admin=bool(is_admin))
+    if not is_admin:
+        trigger_license_expiry_email(user_id)
     return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
 
 
@@ -782,6 +880,7 @@ def register():
                 )
         session.clear()
         session.update(user_id=user_id, username=business_name, is_admin=False)
+        trigger_license_expiry_email(user_id)
         return redirect(url_for("dashboard_user"))
     except psycopg2.IntegrityError:
         return render_template("register.html", error="Email o nome dell’attività già utilizzati.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
@@ -867,6 +966,8 @@ def auth_google_callback():
             session.update(pending_user_id=user_id, pending_username=username)
             return redirect(url_for("pagamento"))
         session.update(user_id=user_id, username=username, is_admin=bool(is_admin))
+        if not is_admin:
+            trigger_license_expiry_email(user_id)
         return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
     finally:
         conn.close()
@@ -1020,6 +1121,8 @@ def auth_apple_callback():
             return redirect(url_for("pagamento"))
         session.clear()
         session.update(user_id=user_id, username=username, is_admin=bool(is_admin))
+        if not is_admin:
+            trigger_license_expiry_email(user_id)
         return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
     finally:
         conn.close()
@@ -1237,7 +1340,13 @@ def paypal_subscription_cancel():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT subscription_id FROM abbonamenti_paypal WHERE id_utente=%s", (user_id,))
+            cur.execute("""
+                SELECT a.subscription_id, u.username, u.email, l.data_scadenza
+                FROM abbonamenti_paypal a
+                JOIN utenti u ON u.id=a.id_utente
+                LEFT JOIN licenze_utenti l ON l.id_utente=a.id_utente
+                WHERE a.id_utente=%s
+            """, (user_id,))
             row = cur.fetchone()
         if not row or not row[0]:
             return jsonify({"error": "Nessun abbonamento PayPal trovato."}), 404
@@ -1248,6 +1357,12 @@ def paypal_subscription_cancel():
         with conn:
             with conn.cursor() as cur:
                 cur.execute("UPDATE abbonamenti_paypal SET stato='cancellato', cancellato_il=NOW(), updated_at=NOW() WHERE id_utente=%s", (user_id,))
+        expiry_text = row[3].strftime("%d/%m/%Y") if row[3] else "la scadenza indicata in dashboard"
+        send_transactional_email(
+            row[2],
+            "Conferma disattivazione rinnovo Alpha Menu",
+            f"Ciao {row[1]},\n\nabbiamo disattivato il rinnovo automatico PayPal. Non saranno effettuati altri rinnovi automatici. Il servizio resta disponibile fino al {expiry_text}.\n\nAlpha Menu – Alpha System S.r.l.",
+        )
         return jsonify({"ok": True, "message": "Rinnovo automatico disattivato. La licenza resta valida fino alla scadenza."})
     finally:
         conn.close()
@@ -2600,6 +2715,49 @@ def api_menu_pubblico():
         "menu_url": url_for("public_menu", slug=slug, _external=True, _scheme="https"),
         "qr_url": url_for("public_menu_qrcode", slug=slug, _external=True, _scheme="https"),
     })
+
+
+@app.post("/api/richieste-qr")
+def api_richieste_qr():
+    if not session.get("user_id") or session.get("is_admin"):
+        return jsonify({"error": "Accesso richiesto."}), 401
+    data = request.get_json(silent=True) or {}
+    formato = (data.get("formato") or "").strip()
+    configurazione = (data.get("configurazione") or "").strip()
+    allowed_formats = {"Da tavolo", "Adesivo / vetrofania", "Porta conto", "Altro formato"}
+    allowed_configurations = {"Solo QR", "QR + NFC integrato"}
+    try:
+        quantity = int(data.get("quantita", 0))
+    except (TypeError, ValueError):
+        quantity = 0
+    if formato not in allowed_formats or configurazione not in allowed_configurations or not 1 <= quantity <= 10000:
+        return jsonify({"error": "Dati del preventivo non validi."}), 400
+    recipient = os.environ.get("QR_ORDER_RECIPIENT", "").strip()
+    if not recipient or not smtp_configured():
+        return jsonify({"error": "Il servizio richieste non è ancora configurato. Contatta Alpha System."}), 503
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT u.username, COALESCE(u.email,''), n.nome, n.slug
+                FROM utenti u JOIN negozi n ON n.id_utente=u.id
+                WHERE u.id=%s
+            """, (session["user_id"],))
+            row = cur.fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return jsonify({"error": "Completa prima i dati del negozio."}), 409
+    menu_url = url_for("public_menu", slug=row[3], _external=True, _scheme="https")
+    sent = send_transactional_email(
+        recipient,
+        f"Richiesta preventivo QR – {row[2]}",
+        f"Nuova richiesta Alpha Menu\n\nCliente: {row[0]}\nAttività: {row[2]}\nEmail: {row[1] or 'non indicata'}\nFormato: {formato}\nConfigurazione: {configurazione}\nQuantità: {quantity}\nMenu: {menu_url}",
+        reply_to=row[1] or None,
+    )
+    if not sent:
+        return jsonify({"error": "Invio non riuscito. Riprova tra qualche minuto."}), 502
+    return jsonify({"ok": True, "message": "Richiesta inviata ad Alpha System. Ti contatteremo per il preventivo."})
 
 
 @app.get("/api/prodotti")
