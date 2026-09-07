@@ -8,6 +8,7 @@ import html
 import json
 import secrets
 import smtplib
+import threading
 import time
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
@@ -510,7 +511,7 @@ def process_daily_license_reminders() -> None:
     """Esegue una sola scansione al giorno, anche con più processi applicativi."""
     global _last_daily_reminder_check
     today = date.today()
-    if _last_daily_reminder_check == today or not smtp_configured():
+    if not smtp_configured():
         return
     conn = psycopg2.connect(**build_db_config())
     completed = False
@@ -860,11 +861,18 @@ if os.getenv("DATABASE_URL") and os.getenv("AUTO_INIT_DB", "true").lower() == "t
 @app.before_request
 def run_daily_reminder_check():
     # Il webhook PayPal deve rispondere rapidamente e non viene rallentato dalla scansione email.
-    if request.endpoint != "paypal_webhook":
-        try:
-            process_daily_license_reminders()
-        except Exception:
-            app.logger.exception("Scansione giornaliera promemoria non riuscita")
+    global _last_daily_reminder_check
+    today = date.today()
+    if request.endpoint != "paypal_webhook" and _last_daily_reminder_check != today and smtp_configured():
+        _last_daily_reminder_check = today
+
+        def background_check():
+            try:
+                process_daily_license_reminders()
+            except Exception:
+                app.logger.exception("Scansione giornaliera promemoria non riuscita")
+
+        threading.Thread(target=background_check, name="license-reminders", daemon=True).start()
 
 
 @app.before_request
