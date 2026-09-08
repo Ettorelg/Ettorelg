@@ -2198,7 +2198,8 @@ def api_admin_users_list():
                               "giorni_rimanenti": days,
                               "in_scadenza": days is not None and 0 <= days <= 30,
                               "piano": normalize_license_plan(row[8]),
-                              "in_prova": row[9] == "prova_locale"})
+                              "in_prova": row[9] == "prova_locale",
+                              "fonte_pagamento": row[9]})
         return jsonify({"items": items, "current_user_id": session["user_id"]})
     finally:
         conn.close()
@@ -2273,6 +2274,7 @@ def api_admin_license_update(user_id: int):
     status = data.get("stato")
     expiry_raw = data.get("data_scadenza")
     raw_plan = (data.get("piano") or "").strip().lower()
+    confirm_paypal_cancel = data.get("conferma_annullamento_paypal") is True
     is_trial = raw_plan == "trial"
     plan = "professional" if is_trial else normalize_license_plan(raw_plan)
     if status not in {"attiva", "sospesa"}:
@@ -2285,6 +2287,16 @@ def api_admin_license_update(user_id: int):
     try:
         with conn:
             with conn.cursor() as cur:
+                cur.execute("SELECT subscription_id, stato FROM abbonamenti_paypal WHERE id_utente=%s FOR UPDATE", (user_id,))
+                subscription = cur.fetchone()
+                active_paypal_subscription = bool(subscription and subscription[0] and subscription[1] not in {"cancellato", "scaduto"})
+                if active_paypal_subscription and not confirm_paypal_cancel:
+                    return jsonify({"error": "Questo cliente ha un abbonamento PayPal attivo. Conferma per annullarlo e passare alla gestione manuale."}), 409
+                if active_paypal_subscription:
+                    try:
+                        paypal_cancel_subscription_by_id(subscription[0], "Passaggio a licenza gestita manualmente dall'amministratore")
+                    except RuntimeError as error:
+                        return jsonify({"error": str(error)}), 502
                 cur.execute("""
                     INSERT INTO licenze_utenti (id_utente, stato, data_scadenza, piano)
                     VALUES (%s, %s, %s, %s)
@@ -2295,9 +2307,19 @@ def api_admin_license_update(user_id: int):
                     cur.execute("""
                         INSERT INTO abbonamenti_paypal (id_utente, plan_id, stato, trial_fino, prossimo_addebito, updated_at)
                         VALUES (%s, %s, 'prova_locale', %s, %s, NOW())
-                        ON CONFLICT (id_utente) DO UPDATE SET plan_id=EXCLUDED.plan_id, stato='prova_locale',
-                            trial_fino=EXCLUDED.trial_fino, prossimo_addebito=EXCLUDED.prossimo_addebito, updated_at=NOW()
+                        ON CONFLICT (id_utente) DO UPDATE SET subscription_id=NULL, plan_id=EXCLUDED.plan_id, stato='prova_locale',
+                            trial_fino=EXCLUDED.trial_fino, prossimo_addebito=EXCLUDED.prossimo_addebito, cancellato_il=NULL, updated_at=NOW()
                     """, (user_id, paypal_plan_id("professional"), expiry, expiry))
+                else:
+                    # Bonifico e contanti: licenza attiva senza rinnovo PayPal.
+                    cur.execute("""
+                        INSERT INTO abbonamenti_paypal
+                            (id_utente, subscription_id, plan_id, stato, trial_fino, prossimo_addebito, ultimo_pagamento, cancellato_il, updated_at)
+                        VALUES (%s, NULL, NULL, 'manuale', NULL, NULL, NOW(), NULL, NOW())
+                        ON CONFLICT (id_utente) DO UPDATE
+                        SET subscription_id=NULL, plan_id=NULL, stato='manuale', trial_fino=NULL,
+                            prossimo_addebito=NULL, ultimo_pagamento=NOW(), cancellato_il=NULL, updated_at=NOW()
+                    """, (user_id,))
         return jsonify({"ok": True})
     finally:
         conn.close()
