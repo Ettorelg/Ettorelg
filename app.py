@@ -993,6 +993,11 @@ def forgot_password():
     message = None
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
+        # Limite separato dal login per evitare invii ripetuti di email di recupero.
+        recovery_key = "password-recovery:" + email
+        if login_is_limited(recovery_key):
+            return render_template("forgot_password.html", message="Troppe richieste. Attendi 15 minuti e riprova."), 429
+        record_login_failure(recovery_key)
         conn = psycopg2.connect(**build_db_config())
         try:
             with conn:
@@ -1004,7 +1009,7 @@ def forgot_password():
                         token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
                         cur.execute("UPDATE reset_password SET usato_il=NOW() WHERE id_utente=%s AND usato_il IS NULL", (row[0],))
                         cur.execute("INSERT INTO reset_password (id_utente,token_hash,scade_il) VALUES (%s,%s,NOW()+INTERVAL '1 hour')", (row[0], token_hash))
-                        reset_url = url_for("reset_password", token=raw_token, _external=True, _scheme="https")
+                        reset_url = "https://menu.alphasystemsrl.it" + url_for("reset_password", token=raw_token)
                         send_transactional_email(
                             row[2], "Reimposta la password di Alpha Menu",
                             f"Ciao {row[1]},\n\nusa questo collegamento entro un'ora per scegliere una nuova password:\n{reset_url}\n\nSe non hai richiesto tu il recupero, ignora questa email.\n\nAlpha Menu – Alpha System S.r.l.",
@@ -1034,12 +1039,19 @@ def reset_password(token: str):
             confirm = request.form.get("password_confirm", "")
             if len(password) < 8:
                 return render_template("reset_password.html", error="La password deve avere almeno 8 caratteri.")
+            if len(password.encode("utf-8")) > 72:
+                return render_template("reset_password.html", error="La password è troppo lunga: usa al massimo 72 byte UTF-8.")
             if password != confirm:
                 return render_template("reset_password.html", error="Le password non coincidono.")
             with conn:
                 with conn.cursor() as cur:
+                    # Consuma il token atomicamente: due richieste simultanee non
+                    # possono entrambe modificare la password con lo stesso link.
+                    cur.execute("UPDATE reset_password SET usato_il=NOW() WHERE id=%s AND usato_il IS NULL AND scade_il>NOW() RETURNING id", (row[0],))
+                    if not cur.fetchone():
+                        return render_template("reset_password.html", invalid=True), 400
                     cur.execute("UPDATE utenti SET password=%s,password_impostata=TRUE WHERE id=%s", (hash_password(password), row[1]))
-                    cur.execute("UPDATE reset_password SET usato_il=NOW() WHERE id=%s AND usato_il IS NULL", (row[0],))
+                    cur.execute("UPDATE reset_password SET usato_il=NOW() WHERE id_utente=%s AND usato_il IS NULL", (row[1],))
                     cur.execute("DELETE FROM tentativi_login WHERE fingerprint=%s", (request_fingerprint(row[2]),))
             return render_template("reset_password.html", success=True)
         return render_template("reset_password.html")
