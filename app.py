@@ -436,6 +436,28 @@ def valid_email_address(value: str | None) -> bool:
     return bool(value and re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]{2,63}", value.strip()))
 
 
+def normalize_table_number_ranges(value: str | None) -> tuple[str, int] | None:
+    """Accetta numeri/intervalli non sovrapposti, es. 1-30, 90-120."""
+    compact = re.sub(r"\s+", "", value or "")
+    if not compact or len(compact) > 160:
+        return None
+    intervals = []
+    for part in compact.split(","):
+        match = re.fullmatch(r"(\d{1,4})(?:-(\d{1,4}))?", part)
+        if not match:
+            return None
+        start = int(match.group(1))
+        end = int(match.group(2) or start)
+        if start < 1 or end < start or end > 10000:
+            return None
+        intervals.append((start, end))
+    ordered = sorted(intervals)
+    if any(next_start <= previous_end for (_, previous_end), (next_start, _) in zip(ordered, ordered[1:])):
+        return None
+    quantity = sum(end - start + 1 for start, end in intervals)
+    return ", ".join(f"{start}-{end}" if start != end else str(start) for start, end in intervals), quantity
+
+
 def send_transactional_email(recipient: str, subject: str, body: str, reply_to: str | None = None) -> bool:
     """Invia email di servizio; gli errori non interrompono le operazioni del cliente."""
     if not email_configured() or not valid_email_address(recipient):
@@ -2979,13 +3001,17 @@ def api_richieste_qr():
     data = request.get_json(silent=True) or {}
     prodotto = (data.get("prodotto") or "").strip()
     numero_tavolo = (data.get("numero_tavolo") or "").strip()
+    numeri_tavolo = (data.get("numeri_tavolo") or "").strip()
     nfc = (data.get("nfc") or "").strip()
     try:
         quantity = int(data.get("quantita", 0))
     except (TypeError, ValueError):
         quantity = 0
-    if prodotto != "Supporto QR da tavolo stampato in 3D" or numero_tavolo not in {"Sì", "No"} or nfc not in {"Sì", "No"} or not 1 <= quantity <= 10000:
+    ranges = normalize_table_number_ranges(numeri_tavolo) if numero_tavolo == "Sì" else None
+    if prodotto != "Supporto QR da tavolo stampato in 3D" or numero_tavolo not in {"Sì", "No"} or nfc not in {"Sì", "No"} or not 1 <= quantity <= 10000 or (numero_tavolo == "Sì" and not ranges):
         return jsonify({"error": "Dati del preventivo non validi."}), 400
+    if ranges:
+        numeri_tavolo, quantity = ranges
     recipient = os.environ.get("QR_ORDER_RECIPIENT", "").strip()
     if not recipient or not email_configured():
         return jsonify({"error": "Il servizio richieste non è ancora configurato. Contatta Alpha System."}), 503
@@ -3006,7 +3032,7 @@ def api_richieste_qr():
     sent = send_transactional_email(
         recipient,
         f"Richiesta preventivo QR – {row[2]}",
-        f"Nuova richiesta Alpha Menu\n\nCliente: {row[0]}\nAttività: {row[2]}\nEmail: {row[1] or 'non indicata'}\nProdotto: {prodotto}\nNumero tavolo sul retro: {numero_tavolo}\nNFC integrato: {nfc}\nQuantità: {quantity}\nMenu: {menu_url}",
+        f"Nuova richiesta Alpha Menu\n\nCliente: {row[0]}\nAttività: {row[2]}\nEmail: {row[1] or 'non indicata'}\nProdotto: {prodotto}\nNumero tavolo sul retro: {numero_tavolo}\nNumeri tavolo: {numeri_tavolo if ranges else 'non previsto'}\nNFC integrato: {nfc}\nQuantità: {quantity}\nMenu: {menu_url}",
         reply_to=row[1] or None,
     )
     if not sent:

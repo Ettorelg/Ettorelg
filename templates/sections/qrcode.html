@@ -31,8 +31,9 @@
   <div class="qr-features"><span class="qr-pill">Stampa 3D</span><span class="qr-pill">Numero tavolo opzionale</span><span class="qr-pill">NFC opzionale</span><span class="qr-pill">Sconti per pacchetti</span></div>
   <div class="qr-quote">
     <label>Numero tavolo sul retro<select id="quoteTableNumber"><option value="Sì">Sì, numerato</option><option value="No">No, senza numero</option></select></label>
+    <label id="quoteRangesLabel">Numeri tavolo<input id="quoteTableRanges" type="text" maxlength="160" placeholder="Es. 1-30, 90-120" autocomplete="off"></label>
     <label>NFC integrato<select id="quoteNfc"><option value="No">No, solo QR</option><option value="Sì">Sì, aggiungi NFC</option></select></label>
-    <label>Quantità<input id="quoteQuantity" type="number" min="1" max="10000" value="1" inputmode="numeric"></label>
+    <label id="quoteQuantityLabel">Quantità<input id="quoteQuantity" type="number" min="1" max="10000" value="1" inputmode="numeric"></label>
     <button class="qr-button" id="quoteButton" type="button">Richiedi preventivo</button>
   </div>
   <p class="qr-note">Il prezzo indicato è “a partire da”: per quantità, numerazione e NFC prepariamo un preventivo con eventuale sconto pacchetto.</p><p class="qr-message" id="quoteStatus" aria-live="polite"></p>
@@ -43,11 +44,42 @@
     const layout = document.getElementById("qrLayout");
     const quoteButton = document.getElementById("quoteButton");
     const quoteStatus = document.getElementById("quoteStatus");
+    const tableNumber = document.getElementById("quoteTableNumber");
+    const tableRanges = document.getElementById("quoteTableRanges");
+    const tableRangesLabel = document.getElementById("quoteRangesLabel");
+    const quantity = document.getElementById("quoteQuantity");
+    const quantityLabel = document.getElementById("quoteQuantityLabel");
+    const parseRanges = (value) => {
+      const intervals = value.trim().split(",").map((part) => part.trim()).filter(Boolean).map((part) => {
+        const match = part.match(/^(\d{1,4})(?:\s*-\s*(\d{1,4}))?$/);
+        if (!match) return null;
+        const start = Number(match[1]), end = Number(match[2] || match[1]);
+        return start > 0 && end >= start && end <= 10000 ? [start, end] : null;
+      });
+      if (!intervals.length || intervals.some((item) => !item)) return null;
+      const ordered = [...intervals].sort((a, b) => a[0] - b[0]);
+      if (ordered.some((item, index) => index && item[0] <= ordered[index - 1][1])) return null;
+      return intervals.reduce((total, [start, end]) => total + end - start + 1, 0);
+    };
+    const updateNumbering = () => {
+      const numbered = tableNumber.value === "Sì";
+      tableRangesLabel.hidden = !numbered;
+      quantity.readOnly = numbered;
+      quantityLabel.firstChild.textContent = numbered ? "Quantità (calcolata dai numeri)" : "Quantità";
+      if (numbered) {
+        const calculated = parseRanges(tableRanges.value);
+        if (calculated) quantity.value = calculated;
+      }
+    };
+    tableNumber.addEventListener("change", updateNumbering);
+    tableRanges.addEventListener("input", updateNumbering);
+    updateNumbering();
     const quoteData = () => ({
       prodotto: "Supporto QR da tavolo stampato in 3D",
-      numero_tavolo: document.getElementById("quoteTableNumber").value,
+      numero_tavolo: tableNumber.value,
+      numeri_tavolo: tableNumber.value === "Sì" ? tableRanges.value : "",
       nfc: document.getElementById("quoteNfc").value,
-      quantita: Math.max(1, Number(document.getElementById("quoteQuantity").value) || 1)
+      quantita: Math.max(1, Number(quantity.value) || 1)
     });
     quoteButton.addEventListener("click", async () => {
       quoteButton.disabled = true;
