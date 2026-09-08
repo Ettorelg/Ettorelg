@@ -972,7 +972,7 @@ def enforce_current_license():
     if not user_id or session.get("is_admin"):
         return None
     public_endpoints = {
-        "index", "login", "register", "register_google", "register_apple", "forgot_password", "reset_password", "auth_google", "auth_google_callback",
+        "index", "free_trial", "login", "register", "register_google", "register_apple", "forgot_password", "reset_password", "auth_google", "auth_google_callback",
         "auth_apple", "auth_apple_callback", "logout",
         "privacy_policy", "terms_of_service", "uploaded_file", "static", "public_menu",
         "paypal_webhook", "pagamento", "paypal_subscription_activate",
@@ -1005,6 +1005,11 @@ def uploaded_file(filename: str):
 @app.route("/")
 def index():
     return redirect("/login")
+
+
+@app.get("/prova-gratuita")
+def free_trial():
+    return render_template("free_trial.html")
 
 
 @app.get("/privacy")
