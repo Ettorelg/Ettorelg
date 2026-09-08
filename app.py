@@ -431,13 +431,20 @@ def email_configured() -> bool:
     return provider == "smtp" and smtp_configured()
 
 
+def valid_email_address(value: str | None) -> bool:
+    """Controllo minimo per gli indirizzi passati ai provider email."""
+    return bool(value and re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]{2,63}", value.strip()))
+
+
 def send_transactional_email(recipient: str, subject: str, body: str, reply_to: str | None = None) -> bool:
     """Invia email di servizio; gli errori non interrompono le operazioni del cliente."""
-    if not email_configured() or not recipient:
+    if not email_configured() or not valid_email_address(recipient):
         return False
     subject = subject.replace("\r", " ").replace("\n", " ")[:180]
-    if reply_to:
+    if reply_to and valid_email_address(reply_to):
         reply_to = reply_to.replace("\r", "").replace("\n", "")[:254]
+    else:
+        reply_to = None
     if os.environ.get("EMAIL_PROVIDER", "smtp").strip().lower() == "resend":
         payload = {"from": os.environ["EMAIL_FROM"].strip(), "to": [recipient],
                    "subject": subject, "text": body}
