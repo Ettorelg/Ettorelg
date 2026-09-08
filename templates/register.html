@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-logo.jpg') }}" type="image/jpeg">
+    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-logo.png') }}" type="image/png">
     <title>Registrazione - Menu Online</title>
     <style>
         * { box-sizing: border-box; }
@@ -104,7 +104,7 @@
 </head>
 <body>
     <div class="register-card">
-        <img src="{{ url_for('static', filename='alpha-menu-logo.jpg') }}" alt="Alpha Menu" class="logo">
+        <img src="{{ url_for('static', filename='alpha-menu-logo.png') }}" alt="Alpha Menu" class="logo">
         <p class="subtitle">Prova tutte le funzioni Professional per 14 giorni, senza carta di credito.</p>
         {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
         <form id="registrationForm" method="POST">

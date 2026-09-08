@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-logo.jpg') }}" type="image/jpeg">
+    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-logo.png') }}" type="image/png">
     <title>Attiva il tuo account - Menu Online</title>
     <style>
         * { box-sizing: border-box; }
@@ -27,7 +27,7 @@
 </head>
 <body>
 <main class="card">
-    <img src="{{ url_for('static', filename='alpha-menu-logo.jpg') }}" alt="Alpha Menu" class="logo">
+    <img src="{{ url_for('static', filename='alpha-menu-logo.png') }}" alt="Alpha Menu" class="logo">
     <h1>{% if renewal_requested and recurring_active %}Rinnovo già attivo{% else %}Scegli il tuo piano{% endif %}</h1>
     <p class="lead">Ciao {{ username }},{% if renewal_requested and recurring_active %} il tuo abbonamento è già configurato per rinnovarsi automaticamente.{% elif choice_requested %} la prova gratuita Professional sta per terminare: scegli il piano con cui continuare.{% elif renewal_requested %} attiva adesso il piano annuale che proseguirà dopo la prova o licenza corrente.{% else %} la prova gratuita Professional è terminata. Scegli il piano con cui continuare.{% endif %}</p>
     {% if (not license_active or selection_requested) and paypal_configured and not (renewal_requested and recurring_active) %}
