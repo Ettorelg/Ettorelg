@@ -29,8 +29,9 @@ class TableNumberRangeTests(unittest.TestCase):
         exec(compile(ast.Module(body=[function], type_ignores=[]), "app.py", "exec"), scope)
         quote = scope["qr_quote_price"](30, True, True)
         self.assertEqual(quote["base_cents"], 500)
-        self.assertEqual(quote["unit_cents"], 365)
-        self.assertEqual(quote["total_cents"], 10950)
+        self.assertEqual(quote["discount_rates"], [10, 9, 8])
+        self.assertEqual(quote["unit_cents"], 377)
+        self.assertEqual(quote["total_cents"], 11310)
 
 
 if __name__ == "__main__":

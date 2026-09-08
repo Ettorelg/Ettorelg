@@ -36,7 +36,7 @@
     <button class="qr-button" id="quoteButton" type="button">Richiedi preventivo</button>
   </div>
   <div class="qr-total" id="quoteTotal" aria-live="polite"></div>
-  <p class="qr-note">Il totale è indicativo e non include IVA. Lo sconto è composto: ogni gruppo di 10 supporti applica un ulteriore 10% al prezzo già scontato.</p><p class="qr-message" id="quoteStatus" aria-live="polite"></p>
+  <p class="qr-note">Il totale è indicativo e non include IVA. Gli sconti sono composti: ogni gruppo di 10 supporti applica uno sconto aggiuntivo che parte dal 10%, poi 9%, 8% e così via.</p><p class="qr-message" id="quoteStatus" aria-live="polite"></p>
 </section>
 <script>
   (async () => {
@@ -55,11 +55,11 @@
     const updateTotal = () => {
       const count = Math.max(1, Number(quantity.value) || 1);
       const base = tableNumber.value === "Sì" && nfc.value === "Sì" ? 500 : tableNumber.value === "Sì" || nfc.value === "Sì" ? 450 : 400;
-      const steps = Math.floor(count / 10);
+      const rates = Array.from({length: Math.floor(count / 10)}, (_, index) => Math.max(0, 10 - index)).filter(Boolean);
       let unit = base;
-      for (let index = 0; index < steps; index += 1) unit = Math.round(unit * .9);
+      for (const rate of rates) unit = Math.round(unit * (100 - rate) / 100);
       const discount = (1 - unit / base) * 100;
-      quoteTotal.innerHTML = `<strong>Totale indicativo: ${euro.format((unit * count) / 100)} + IVA</strong><small>${euro.format(base / 100)} cad. · ${steps ? `${steps} × 10% composto = −${discount.toLocaleString("it-IT", {maximumFractionDigits: 1})}%` : "Sconto pacchetto da 10 supporti"} · ${euro.format(unit / 100)} cad. scontato</small>`;
+      quoteTotal.innerHTML = `<strong>Totale indicativo: ${euro.format((unit * count) / 100)} + IVA</strong><small>${euro.format(base / 100)} cad. · ${rates.length ? `${rates.map(rate => `${rate}%`).join(" + ")} composto = −${discount.toLocaleString("it-IT", {maximumFractionDigits: 1})}%` : "Sconto pacchetto da 10 supporti"} · ${euro.format(unit / 100)} cad. scontato</small>`;
     };
     const parseRanges = (value) => {
       const intervals = value.trim().split(",").map((part) => part.trim()).filter(Boolean).map((part) => {

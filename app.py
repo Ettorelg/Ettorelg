@@ -459,16 +459,17 @@ def normalize_table_number_ranges(value: str | None) -> tuple[str, int] | None:
 
 
 def qr_quote_price(quantity: int, numbered: bool, nfc: bool) -> dict:
-    """Prezzi in centesimi: uno sconto composto del 10% per ciascun blocco di 10."""
+    """Sconti composti per blocchi: 10%, poi 9%, 8% e così via fino all'1%."""
     base_cents = 500 if numbered and nfc else 450 if numbered or nfc else 400
-    discount_steps = quantity // 10
+    discount_rates = [max(0, 10 - step) for step in range(quantity // 10)]
     unit_cents = base_cents
-    for _ in range(discount_steps):
-        # Arrotondamento commerciale al centesimo, identico a Math.round nel browser.
-        unit_cents = (unit_cents * 9 + 5) // 10
+    for rate in discount_rates:
+        if rate:
+            # Arrotondamento commerciale al centesimo, identico a Math.round nel browser.
+            unit_cents = (unit_cents * (100 - rate) + 50) // 100
     return {
         "base_cents": base_cents,
-        "discount_steps": discount_steps,
+        "discount_rates": discount_rates,
         "discount_percent": round((1 - (unit_cents / base_cents)) * 100, 1),
         "unit_cents": unit_cents,
         "total_cents": unit_cents * quantity,
@@ -3072,7 +3073,7 @@ def api_richieste_qr():
     sent = send_transactional_email(
         recipient,
         f"Richiesta preventivo QR – {row[2]}",
-        f"Nuova richiesta Alpha Menu\n\nCliente: {row[0]}\nAttività: {row[2]}\nEmail: {row[1] or 'non indicata'}\nProdotto: {prodotto}\nNumero tavolo sul retro: {numero_tavolo}\nNumeri tavolo: {numeri_tavolo if ranges else 'non previsto'}\nNFC integrato: {nfc}\nQuantità: {quantity}\nPrezzo base unitario: € {quote['base_cents'] / 100:.2f}\nSconto composto: {quote['discount_steps']} × 10% ({quote['discount_percent']:.1f}%)\nPrezzo unitario scontato: € {quote['unit_cents'] / 100:.2f}\nTotale indicativo IVA esclusa: € {quote['total_cents'] / 100:.2f}\nMenu: {menu_url}",
+        f"Nuova richiesta Alpha Menu\n\nCliente: {row[0]}\nAttività: {row[2]}\nEmail: {row[1] or 'non indicata'}\nProdotto: {prodotto}\nNumero tavolo sul retro: {numero_tavolo}\nNumeri tavolo: {numeri_tavolo if ranges else 'non previsto'}\nNFC integrato: {nfc}\nQuantità: {quantity}\nPrezzo base unitario: € {quote['base_cents'] / 100:.2f}\nSconti composti: {' + '.join(f'{rate}%' for rate in quote['discount_rates'] if rate) or 'nessuno'} ({quote['discount_percent']:.1f}%)\nPrezzo unitario scontato: € {quote['unit_cents'] / 100:.2f}\nTotale indicativo IVA esclusa: € {quote['total_cents'] / 100:.2f}\nMenu: {menu_url}",
         reply_to=row[1] or None,
     )
     if not sent:
