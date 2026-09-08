@@ -2478,7 +2478,11 @@ def dashboard_user_section(section: str):
     # Esempio: if section == "prodotti": products = ...
     # return render_template("sections/prodotti.html", products=products)
 
-    return render_template(f"sections/{section}.html", username=session.get("username", "utente"))
+    return render_template(
+        f"sections/{section}.html",
+        username=session.get("username", "utente"),
+        license_plan=get_user_license_plan(session["user_id"]),
+    )
 def get_user_shop_id(user_id: int) -> int | None:
     conn = psycopg2.connect(**build_db_config())
     try:
@@ -2799,7 +2803,8 @@ def public_menu(slug: str):
                        descrizione_breve, descrizione_estesa, slug, logo_url, copertina_url,
                        colore_accento, colore_sfondo, costo_coperto,
                        COALESCE(ordine_categorie_personalizzato, FALSE), COALESCE(whatsapp, ''),
-                       COALESCE(prenotazione_url, '')
+                       COALESCE(prenotazione_url, ''),
+                       COALESCE((SELECT piano FROM licenze_utenti WHERE id_utente = negozi.id_utente LIMIT 1), 'professional')
                 FROM negozi WHERE slug = %s
                 """,
                 (slug,),
@@ -2818,6 +2823,7 @@ def public_menu(slug: str):
                 "ordine_categorie_personalizzato": bool(row[17]),
                 "whatsapp": row[18] or "",
                 "prenotazione_url": row[19] or "",
+                "piano": normalize_license_plan(row[20]),
             }
             cur.execute(
                 "INSERT INTO menu_visite (id_negozio, lingua, sorgente) VALUES (%s, %s, %s)",
@@ -2884,7 +2890,8 @@ def public_menu(slug: str):
                 category["prodotti"].append({
                     "id": product[0], "nome": product[1], "descrizione": product[2],
                     "note": product[3], "prezzo": f"{product[4]:.2f}".replace(".", ","),
-                    "sottocategoria_id": product[6], "sottocategoria": product[7], "immagine_url": product[8],
+                    "sottocategoria_id": product[6], "sottocategoria": product[7],
+                    "immagine_url": product[8] if shop["piano"] == "professional" else "",
                     "etichette": product[9] or [], "allergeni": detected_allergens, "disponibile": bool(product[11]),
                 })
             for allergens, product_id in allergen_updates:
@@ -2910,8 +2917,11 @@ def public_menu(slug: str):
                 }
                 for item in cur.fetchall()
             }
-            cur.execute("SELECT codice FROM lingue_negozio WHERE id_negozio=%s ORDER BY codice", (shop["id"],))
-            enabled_codes = [item[0] for item in cur.fetchall() if item[0] in SUPPORTED_MENU_LANGUAGES]
+            if shop["piano"] == "professional":
+                cur.execute("SELECT codice FROM lingue_negozio WHERE id_negozio=%s ORDER BY codice", (shop["id"],))
+                enabled_codes = [item[0] for item in cur.fetchall() if item[0] in SUPPORTED_MENU_LANGUAGES]
+            else:
+                enabled_codes = []
             language = requested_language if requested_language in enabled_codes else "it"
             translations = {}
             if language != "it":

@@ -10,6 +10,7 @@
     :root{--bg:{{ shop.colore_sfondo or '#f7f3ed' }};--card:#fff;--text:#211d19;--muted:#70675f;--accent:{{ shop.colore_accento or '#9d3e27' }};--line:#e8ded4;--shadow:0 14px 40px rgba(70,48,33,.12)}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
     .language-picker{position:absolute;top:10px;right:10px;z-index:4;margin:0;padding:2px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(20,13,9,.62);box-shadow:0 3px 12px rgba(0,0,0,.16);backdrop-filter:blur(7px)}.language-picker select{max-width:104px;border:0;border-radius:999px;padding:6px 22px 6px 8px;background:transparent;color:#fff;font-size:.72rem;font-weight:750;cursor:pointer;outline:none}.language-picker option{color:#211d19;background:#fff}
+    .alpha-menu-promo{width:min(720px,calc(100% - 40px));margin:0 auto 26px;padding:15px 18px;border:1px solid color-mix(in srgb,var(--accent) 25%,var(--line));border-radius:15px;background:rgba(255,255,255,.72);text-align:center;color:var(--muted);font-size:.84rem}.alpha-menu-promo strong{display:block;margin-bottom:5px;color:var(--text)}.alpha-menu-promo a{color:var(--accent);font-weight:800;text-decoration:none}.alpha-menu-promo a:hover{text-decoration:underline}
     .hero{position:relative;min-height:310px;display:flex;align-items:flex-end;background:#382c25 center/cover no-repeat;overflow:hidden}
     .hero.has-cover{background-image:linear-gradient(180deg,rgba(20,13,9,.12),rgba(20,13,9,.82)),url('{{ shop.copertina_url }}')}
     .hero:not(.has-cover){background-image:linear-gradient(135deg,#7d3020,#221813)}
@@ -64,12 +65,13 @@
       .chips{display:inline;margin:0}.chip{display:inline;padding:0;border:0;background:none!important;color:#333;font-size:5.8pt;font-weight:600}.chip+.chip::before{content:", ";color:#555}
       .note{display:block;margin:.4mm 0 0;color:#555;font-size:6pt;line-height:1.1}
       .allergen-line{display:block;margin:.5mm 0 0;padding:.4mm 0 0;border-top:.35pt dotted #aaa;color:#444;font-size:5.8pt;line-height:1.12}.allergen-line strong{margin-right:.6mm}
+      body.plan-base > *{display:none!important}body.plan-base::before{content:"La stampa A4 è inclusa nel piano Alpha Menu Professional.";display:block!important;margin:28mm 12mm;color:#111;font:700 15pt/1.35 Arial,sans-serif;text-align:center}
     }
 
     @media(max-width:480px){.hero-inner{padding-top:58px}.language-picker{top:8px;right:8px}.language-picker select{min-height:36px}.intro-card{overflow-wrap:anywhere}.view-actions{margin:20px 0}.legal-footer{margin-top:0}.contact-actions{display:grid;grid-template-columns:1fr 1fr;padding:10px;gap:7px}.contact-action{min-height:44px;padding:9px 8px;font-size:.78rem}.contact-action.whatsapp{grid-column:1/-1;grid-row:1}}
   </style>
 </head>
-<body>
+<body class="{% if shop.piano == 'base' %}plan-base{% endif %}">
   <header class="hero{% if shop.copertina_url %} has-cover{% endif %}">
     {% if languages|length > 1 %}{% set flags = {'it': '🇮🇹', 'en': '🇬🇧', 'fr': '🇫🇷', 'de': '🇩🇪', 'es': '🇪🇸'} %}<form class="language-picker"><select aria-label="Lingua del menu" title="Cambia lingua" onchange="location.href=this.value">{% for item in languages %}<option value="{{ url_for('public_menu', slug=shop.slug, lang=item.codice) }}"{% if item.codice == language %} selected{% endif %}>{{ flags.get(item.codice, '🌐') }} {{ item.nome }}</option>{% endfor %}</select></form>{% endif %}
     <div class="hero-inner">
@@ -292,6 +294,12 @@
       document.querySelector('.intro')?.scrollIntoView({behavior: 'smooth', block: 'start'});
     });
   </script>
+  {% if shop.piano == 'base' %}
+  <aside class="alpha-menu-promo">
+    <strong>Menu digitale realizzato con Alpha Menu</strong>
+    <a href="{{ url_for('index') }}">Vuoi un menu così per il tuo locale?</a>
+  </aside>
+  {% endif %}
   {% include '_legal_footer.html' %}
 </body>
 </html>
