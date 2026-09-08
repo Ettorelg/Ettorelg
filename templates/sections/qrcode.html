@@ -29,7 +29,7 @@
   <div class="qr-product"><div class="qr-product-photos"><figure><img src="{{ url_for('static', filename='qr-table-stand-nfc.png') }}" alt="Fronte del supporto QR da tavolo con NFC"><figcaption>Fronte QR / NFC</figcaption></figure><figure><img src="{{ url_for('static', filename='qr-table-stand-back.png') }}" alt="Retro del supporto QR da tavolo con spazio per il numero"><figcaption>Retro numerato</figcaption></figure></div><div><h4>Supporto QR da tavolo</h4><small>Supporto stampato in 3D. Scegli se indicare il numero del tavolo sul retro e se aggiungere l'NFC integrato. Per quantità maggiori prepariamo un prezzo dedicato.</small></div></div>
   <div class="qr-features"><span class="qr-pill">Stampa 3D</span><span class="qr-pill">Numero tavolo opzionale</span><span class="qr-pill">NFC opzionale</span><span class="qr-pill">Sconti per pacchetti</span></div>
   <div class="qr-quote">
-    <label>Numero tavolo sul retro<select id="quoteTableNumber"><option value="Sì">Sì, numerato</option><option value="No">No, senza numero</option></select></label>
+    <label>Numerazione sul retro (opzionale)<select id="quoteTableNumber"><option value="No">No, solo quantità</option><option value="Sì">Sì, inserisci i numeri tavolo</option></select></label>
     <label id="quoteRangesLabel">Numeri tavolo<input id="quoteTableRanges" type="text" maxlength="160" placeholder="Es. 1-30, 90-120" autocomplete="off"></label>
     <label>NFC integrato<select id="quoteNfc"><option value="No">No, solo QR</option><option value="Sì">Sì, aggiungi NFC</option></select></label>
     <label id="quoteQuantityLabel">Quantità<input id="quoteQuantity" type="number" min="1" max="10000" value="1" inputmode="numeric"></label>
