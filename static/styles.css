@@ -49,6 +49,22 @@ body {
   color: var(--primary);
 }
 
+.brand-logo-img {
+  display: block;
+  width: 180px;
+  max-width: 42vw;
+  height: 72px;
+  object-fit: contain;
+  object-position: left center;
+  border-radius: 10px;
+}
+
+.brand-logo-img.footer-logo {
+  width: 160px;
+  height: 64px;
+  margin-bottom: 10px;
+}
+
 .nav-actions {
   display: flex;
   align-items: center;

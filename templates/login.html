@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" type="image/svg+xml">
+    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-logo.jpg') }}" type="image/jpeg">
     <title>Login - Menu Online</title>
     <style>
         * { box-sizing: border-box; }
@@ -39,7 +39,7 @@
         }
         .logo {
             display: block;
-            width: 132px;
+            width: 210px;
             max-width: 80%;
             margin: 0 auto 20px;
         }
@@ -92,14 +92,14 @@
         @media (max-width: 480px) {
             body { justify-content: flex-start; padding: 14px; }
             .login-card { padding: 28px 20px; }
-            .logo { width: 116px; }
+            .logo { width: 185px; }
             .btn { min-height: 46px; }
         }
     </style>
 </head>
 <body>
     <div class="login-card">
-        <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
+        <img src="{{ url_for('static', filename='alpha-menu-logo.jpg') }}" alt="Alpha Menu" class="logo">
         {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

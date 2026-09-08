@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="it">
   <head>
-  <link rel="icon" href="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" type="image/svg+xml">
+  <link rel="icon" href="{{ url_for('static', filename='alpha-menu-logo.jpg') }}" type="image/jpeg">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Menu Online | Ristoranti & Bar</title>
@@ -16,7 +16,7 @@
   <body>
     <header class="hero">
       <nav class="nav">
-        <div class="logo">Menu<span>Cloud</span></div>
+        <img class="brand-logo-img" src="{{ url_for('static', filename='alpha-menu-logo.jpg') }}" alt="Alpha Menu">
         <div class="nav-actions">
           <a class="nav-link" href="#funzionalita">Funzionalità</a>
           <a class="nav-link" href="#demo">Demo</a>
@@ -187,7 +187,7 @@
 
     <footer class="footer">
       <div>
-        <div class="logo">Menu<span>Cloud</span></div>
+        <img class="brand-logo-img footer-logo" src="{{ url_for('static', filename='alpha-menu-logo.jpg') }}" alt="Alpha Menu">
         <p>Digitalizza il tuo menu e sorprendi i clienti.</p>
       </div>
       <div>

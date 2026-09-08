@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" type="image/svg+xml">
+    <link rel="icon" href="{{ url_for('static', filename='alpha-menu-logo.jpg') }}" type="image/jpeg">
     <title>Registrazione - Menu Online</title>
     <style>
         * { box-sizing: border-box; }
@@ -37,7 +37,7 @@
             box-shadow: 0 10px 35px rgba(0,0,0,.12);
             text-align: center;
         }
-        .logo { display: block; width: 124px; max-width: 42%; margin: 0 auto 13px; }
+        .logo { display: block; width: 210px; max-width: 70%; margin: 0 auto 13px; }
         .subtitle { margin: 0 0 22px; color: #52657a; font-size: 14px; }
         .form-group { text-align: left; margin-bottom: 14px; }
         .plan-group { padding: 15px; border: 2px solid #007bff; border-radius: 12px; background: #f2f8ff; }
@@ -97,14 +97,14 @@
         @media (max-width:480px) {
             body { align-items: flex-start; padding: 14px; }
             .register-card { padding: 24px 18px; }
-            .logo { width: 110px; }
+            .logo { width: 185px; }
             .btn { min-height: 46px; }
         }
     </style>
 </head>
 <body>
     <div class="register-card">
-        <img src="{{ url_for('static', filename='alpha-menu-icon-am.svg') }}" alt="Alpha Menu" class="logo">
+        <img src="{{ url_for('static', filename='alpha-menu-logo.jpg') }}" alt="Alpha Menu" class="logo">
         <p class="subtitle">Prova tutte le funzioni Professional per 14 giorni, senza carta di credito.</p>
         {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
         <form id="registrationForm" method="POST">
