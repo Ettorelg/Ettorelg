@@ -458,6 +458,23 @@ def normalize_table_number_ranges(value: str | None) -> tuple[str, int] | None:
     return ", ".join(f"{start}-{end}" if start != end else str(start) for start, end in intervals), quantity
 
 
+def qr_quote_price(quantity: int, numbered: bool, nfc: bool) -> dict:
+    """Prezzi in centesimi: uno sconto composto del 10% per ciascun blocco di 10."""
+    base_cents = 500 if numbered and nfc else 450 if numbered or nfc else 400
+    discount_steps = quantity // 10
+    unit_cents = base_cents
+    for _ in range(discount_steps):
+        # Arrotondamento commerciale al centesimo, identico a Math.round nel browser.
+        unit_cents = (unit_cents * 9 + 5) // 10
+    return {
+        "base_cents": base_cents,
+        "discount_steps": discount_steps,
+        "discount_percent": round((1 - (unit_cents / base_cents)) * 100, 1),
+        "unit_cents": unit_cents,
+        "total_cents": unit_cents * quantity,
+    }
+
+
 def send_transactional_email(recipient: str, subject: str, body: str, reply_to: str | None = None) -> bool:
     """Invia email di servizio; gli errori non interrompono le operazioni del cliente."""
     if not email_configured() or not valid_email_address(recipient):
@@ -3012,6 +3029,7 @@ def api_richieste_qr():
         return jsonify({"error": "Dati del preventivo non validi."}), 400
     if ranges:
         numeri_tavolo, quantity = ranges
+    quote = qr_quote_price(quantity, numero_tavolo == "Sì", nfc == "Sì")
     recipient = os.environ.get("QR_ORDER_RECIPIENT", "").strip()
     if not recipient or not email_configured():
         return jsonify({"error": "Il servizio richieste non è ancora configurato. Contatta Alpha System."}), 503
@@ -3032,7 +3050,7 @@ def api_richieste_qr():
     sent = send_transactional_email(
         recipient,
         f"Richiesta preventivo QR – {row[2]}",
-        f"Nuova richiesta Alpha Menu\n\nCliente: {row[0]}\nAttività: {row[2]}\nEmail: {row[1] or 'non indicata'}\nProdotto: {prodotto}\nNumero tavolo sul retro: {numero_tavolo}\nNumeri tavolo: {numeri_tavolo if ranges else 'non previsto'}\nNFC integrato: {nfc}\nQuantità: {quantity}\nMenu: {menu_url}",
+        f"Nuova richiesta Alpha Menu\n\nCliente: {row[0]}\nAttività: {row[2]}\nEmail: {row[1] or 'non indicata'}\nProdotto: {prodotto}\nNumero tavolo sul retro: {numero_tavolo}\nNumeri tavolo: {numeri_tavolo if ranges else 'non previsto'}\nNFC integrato: {nfc}\nQuantità: {quantity}\nPrezzo base unitario: € {quote['base_cents'] / 100:.2f}\nSconto composto: {quote['discount_steps']} × 10% ({quote['discount_percent']:.1f}%)\nPrezzo unitario scontato: € {quote['unit_cents'] / 100:.2f}\nTotale indicativo IVA esclusa: € {quote['total_cents'] / 100:.2f}\nMenu: {menu_url}",
         reply_to=row[1] or None,
     )
     if not sent:
