@@ -2977,15 +2977,14 @@ def api_richieste_qr():
     if not session.get("user_id") or session.get("is_admin"):
         return jsonify({"error": "Accesso richiesto."}), 401
     data = request.get_json(silent=True) or {}
-    formato = (data.get("formato") or "").strip()
-    configurazione = (data.get("configurazione") or "").strip()
-    allowed_formats = {"Da tavolo", "Adesivo / vetrofania", "Porta conto", "Altro formato"}
-    allowed_configurations = {"Solo QR", "QR + NFC integrato"}
+    prodotto = (data.get("prodotto") or "").strip()
+    numero_tavolo = (data.get("numero_tavolo") or "").strip()
+    nfc = (data.get("nfc") or "").strip()
     try:
         quantity = int(data.get("quantita", 0))
     except (TypeError, ValueError):
         quantity = 0
-    if formato not in allowed_formats or configurazione not in allowed_configurations or not 1 <= quantity <= 10000:
+    if prodotto != "Supporto QR da tavolo stampato in 3D" or numero_tavolo not in {"Sì", "No"} or nfc not in {"Sì", "No"} or not 1 <= quantity <= 10000:
         return jsonify({"error": "Dati del preventivo non validi."}), 400
     recipient = os.environ.get("QR_ORDER_RECIPIENT", "").strip()
     if not recipient or not email_configured():
@@ -3007,7 +3006,7 @@ def api_richieste_qr():
     sent = send_transactional_email(
         recipient,
         f"Richiesta preventivo QR – {row[2]}",
-        f"Nuova richiesta Alpha Menu\n\nCliente: {row[0]}\nAttività: {row[2]}\nEmail: {row[1] or 'non indicata'}\nFormato: {formato}\nConfigurazione: {configurazione}\nQuantità: {quantity}\nMenu: {menu_url}",
+        f"Nuova richiesta Alpha Menu\n\nCliente: {row[0]}\nAttività: {row[2]}\nEmail: {row[1] or 'non indicata'}\nProdotto: {prodotto}\nNumero tavolo sul retro: {numero_tavolo}\nNFC integrato: {nfc}\nQuantità: {quantity}\nMenu: {menu_url}",
         reply_to=row[1] or None,
     )
     if not sent:
