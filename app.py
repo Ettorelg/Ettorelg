@@ -424,9 +424,38 @@ def smtp_configured() -> bool:
     return all(os.environ.get(name) for name in ("SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM"))
 
 
+def email_configured() -> bool:
+    provider = os.environ.get("EMAIL_PROVIDER", "smtp").strip().lower()
+    if provider == "resend":
+        return all(os.environ.get(name, "").strip() for name in ("RESEND_API_KEY", "EMAIL_FROM"))
+    return provider == "smtp" and smtp_configured()
+
+
 def send_transactional_email(recipient: str, subject: str, body: str, reply_to: str | None = None) -> bool:
     """Invia email di servizio; gli errori non interrompono le operazioni del cliente."""
-    if not smtp_configured() or not recipient:
+    if not email_configured() or not recipient:
+        return False
+    subject = subject.replace("\r", " ").replace("\n", " ")[:180]
+    if reply_to:
+        reply_to = reply_to.replace("\r", "").replace("\n", "")[:254]
+    if os.environ.get("EMAIL_PROVIDER", "smtp").strip().lower() == "resend":
+        payload = {"from": os.environ["EMAIL_FROM"].strip(), "to": [recipient],
+                   "subject": subject, "text": body}
+        if reply_to:
+            payload["reply_to"] = reply_to
+        try:
+            response = requests.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": "Bearer " + os.environ["RESEND_API_KEY"].strip()},
+                json=payload, timeout=20,
+            )
+            if response.status_code == 200 and response.json().get("id"):
+                app.logger.info("Email transazionale accettata da Resend")
+                return True
+            app.logger.error("Invio Resend non accettato (HTTP %s)", response.status_code)
+        except (requests.RequestException, ValueError):
+            # Non registrare credenziali, destinatari o link di recupero nei log.
+            app.logger.error("Invio Resend fallito: rete o risposta non valida")
         return False
     message = EmailMessage()
     message["From"] = os.environ["SMTP_FROM"]
@@ -436,8 +465,8 @@ def send_transactional_email(recipient: str, subject: str, body: str, reply_to: 
         message["Reply-To"] = reply_to.replace("\r", "").replace("\n", "")[:254]
     message.set_content(body)
     host = os.environ["SMTP_HOST"]
-    port = int(os.environ.get("SMTP_PORT", "587"))
     try:
+        port = int(os.environ.get("SMTP_PORT", "587"))
         if port == 465:
             with smtplib.SMTP_SSL(host, port, timeout=15) as server:
                 server.login(os.environ["SMTP_USERNAME"], os.environ["SMTP_PASSWORD"])
@@ -457,7 +486,7 @@ def send_transactional_email(recipient: str, subject: str, body: str, reply_to: 
 
 def maybe_send_license_expiry_email(user_id: int) -> None:
     """Invia al massimo un promemoria per ciascuna soglia: 14, 7, 3 e 1 giorno."""
-    if not smtp_configured():
+    if not email_configured():
         return
     conn = psycopg2.connect(**build_db_config())
     try:
@@ -511,7 +540,7 @@ def process_daily_license_reminders() -> None:
     """Esegue una sola scansione al giorno, anche con più processi applicativi."""
     global _last_daily_reminder_check
     today = date.today()
-    if not smtp_configured():
+    if not email_configured():
         return
     conn = psycopg2.connect(**build_db_config())
     completed = False
@@ -863,7 +892,7 @@ def run_daily_reminder_check():
     # Il webhook PayPal deve rispondere rapidamente e non viene rallentato dalla scansione email.
     global _last_daily_reminder_check
     today = date.today()
-    if request.endpoint != "paypal_webhook" and _last_daily_reminder_check != today and smtp_configured():
+    if request.endpoint != "paypal_webhook" and _last_daily_reminder_check != today and email_configured():
         _last_daily_reminder_check = today
 
         def background_check():
@@ -2952,7 +2981,7 @@ def api_richieste_qr():
     if formato not in allowed_formats or configurazione not in allowed_configurations or not 1 <= quantity <= 10000:
         return jsonify({"error": "Dati del preventivo non validi."}), 400
     recipient = os.environ.get("QR_ORDER_RECIPIENT", "").strip()
-    if not recipient or not smtp_configured():
+    if not recipient or not email_configured():
         return jsonify({"error": "Il servizio richieste non è ancora configurato. Contatta Alpha System."}), 503
     conn = psycopg2.connect(**build_db_config())
     try:
