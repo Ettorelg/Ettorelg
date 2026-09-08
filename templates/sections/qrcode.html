@@ -7,7 +7,7 @@
   .qr-service-head{display:flex;gap:14px;justify-content:space-between;align-items:flex-start}.qr-service h3{margin:0 0 6px;color:#f2f5ff}.qr-service p{margin:0;color:#c2cae4;line-height:1.5}.qr-price{white-space:nowrap;font-size:1.1rem;font-weight:800;color:#9ff4d9}
   .qr-features{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.qr-pill{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.13);font-size:.82rem;color:#e7ecff}
   .qr-product{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:center;margin:18px 0}.qr-product-photos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0}.qr-product-photos figure{margin:0}.qr-product-photos img{width:100%;height:142px;border-radius:13px;object-fit:cover;border:1px solid rgba(255,255,255,.18);background:#eee}.qr-product-photos figcaption{margin-top:4px;text-align:center;color:#aab4d6;font-size:.72rem}.qr-product h4{margin:0 0 5px;color:#fff}.qr-product small{display:block;color:#aab4d6;line-height:1.45}
-  .qr-quote{display:grid;grid-template-columns:1fr 1fr 120px auto;gap:10px;align-items:end}.qr-quote label{display:grid;gap:6px;color:#c2cae4;font-size:.84rem;font-weight:700}.qr-quote select,.qr-quote input{box-sizing:border-box;width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#151727;color:#f2f5ff;font:inherit}.qr-quote .quote-number-toggle{display:flex;align-items:center;gap:9px;min-height:42px;padding:10px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:#151727}.qr-quote .quote-number-toggle input{width:17px;height:17px;margin:0;padding:0;accent-color:#9ff4d9}.qr-note{margin-top:11px!important;font-size:.85rem}.qr-total{margin-top:14px;padding:13px 15px;border:1px solid rgba(159,244,217,.38);border-radius:12px;background:rgba(18,93,76,.24);color:#e8fff7}.qr-total strong{display:block;font-size:1.15rem;color:#9ff4d9}.qr-total small{color:#c2e5db}
+  .qr-quote{display:grid;grid-template-columns:1fr 1fr 120px auto;gap:10px;align-items:end}.qr-quote label{display:grid;gap:6px;color:#c2cae4;font-size:.84rem;font-weight:700}.qr-quote select,.qr-quote input{box-sizing:border-box;width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#151727;color:#f2f5ff;font:inherit}.qr-note{margin-top:11px!important;font-size:.85rem}.qr-total{margin-top:14px;padding:13px 15px;border:1px solid rgba(159,244,217,.38);border-radius:12px;background:rgba(18,93,76,.24);color:#e8fff7}.qr-total strong{display:block;font-size:1.15rem;color:#9ff4d9}.qr-total small{color:#c2e5db}
   @media(max-width:700px){.qr-layout{grid-template-columns:1fr}.qr-image{width:min(100%,280px);height:auto;margin:auto}.qr-service-head{flex-direction:column}.qr-product{grid-template-columns:1fr}.qr-product-photos{width:min(100%,320px);margin:auto}.qr-product-photos img{height:180px}.qr-quote{grid-template-columns:1fr 1fr}.qr-quote .qr-button{grid-column:1/-1;text-align:center}}@media(max-width:420px){.qr-quote{grid-template-columns:1fr}}
 </style>
 <section class="qr-card">
@@ -29,7 +29,7 @@
   <div class="qr-product"><div class="qr-product-photos"><figure><img src="{{ url_for('static', filename='qr-table-stand-nfc.png') }}" alt="Fronte del supporto QR da tavolo con NFC"><figcaption>Fronte QR / NFC</figcaption></figure><figure><img src="{{ url_for('static', filename='qr-table-stand-back.png') }}" alt="Retro del supporto QR da tavolo con spazio per il numero"><figcaption>Retro numerato</figcaption></figure></div><div><h4>Supporto QR da tavolo</h4><small>Supporto stampato in 3D. Scegli se indicare il numero del tavolo sul retro e se aggiungere l'NFC integrato. Per quantità maggiori prepariamo un prezzo dedicato.</small></div></div>
   <div class="qr-features"><span class="qr-pill">Stampa 3D</span><span class="qr-pill">Numero tavolo opzionale</span><span class="qr-pill">NFC opzionale</span><span class="qr-pill">Sconti per pacchetti</span></div>
   <div class="qr-quote">
-    <label class="quote-number-toggle"><input id="quoteTableNumber" type="checkbox"> Aggiungi numero tavolo sul retro</label>
+    <label>Tipo QR<select id="quoteTableNumber"><option value="No">QR senza numero</option><option value="Sì">QR numerati</option></select></label>
     <label id="quoteRangesLabel">Numeri tavolo<input id="quoteTableRanges" type="text" maxlength="160" placeholder="Es. 1-30, 90-120" autocomplete="off"></label>
     <label>NFC integrato<select id="quoteNfc"><option value="No">No, solo QR</option><option value="Sì">Sì, aggiungi NFC</option></select></label>
     <label id="quoteQuantityLabel">Quantità<input id="quoteQuantity" type="number" min="1" max="10000" value="1" inputmode="numeric"></label>
@@ -54,7 +54,7 @@
     const euro = new Intl.NumberFormat("it-IT", {style: "currency", currency: "EUR"});
     const updateTotal = () => {
       const count = Math.max(1, Number(quantity.value) || 1);
-      const base = tableNumber.checked && nfc.value === "Sì" ? 500 : tableNumber.checked || nfc.value === "Sì" ? 450 : 400;
+      const base = tableNumber.value === "Sì" && nfc.value === "Sì" ? 500 : tableNumber.value === "Sì" || nfc.value === "Sì" ? 450 : 400;
       const rates = Array.from({length: Math.floor(count / 10)}, (_, index) => Math.max(0, 10 - index)).filter(Boolean);
       let unit = base;
       for (const rate of rates) unit = Math.round(unit * (100 - rate) / 100);
@@ -74,7 +74,7 @@
       return intervals.reduce((total, [start, end]) => total + end - start + 1, 0);
     };
     const updateNumbering = () => {
-      const numbered = tableNumber.checked;
+      const numbered = tableNumber.value === "Sì";
       tableRangesLabel.hidden = !numbered;
       quantity.readOnly = numbered;
       quantityLabel.firstChild.textContent = numbered ? "Quantità (calcolata dai numeri)" : "Quantità";
@@ -91,8 +91,8 @@
     updateNumbering();
     const quoteData = () => ({
       prodotto: "Supporto QR da tavolo stampato in 3D",
-      numero_tavolo: tableNumber.checked ? "Sì" : "No",
-      numeri_tavolo: tableNumber.checked ? tableRanges.value : "",
+      numero_tavolo: tableNumber.value,
+      numeri_tavolo: tableNumber.value === "Sì" ? tableRanges.value : "",
       nfc: document.getElementById("quoteNfc").value,
       quantita: Math.max(1, Number(quantity.value) || 1)
     });
