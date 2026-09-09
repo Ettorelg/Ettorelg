@@ -57,6 +57,17 @@ class LicenseAndTrialTests(unittest.TestCase):
         self.assertIn("COUNT(*) FROM prodotti", guide_block)
         self.assertIn("COUNT(*) FROM lingue_negozio", guide_block)
 
+    def test_billing_data_requires_tax_and_delivery_identifiers(self):
+        complete = load_function("billing_data_complete", {})
+        data = {"ragione_sociale":"Ristorante Srl","indirizzo":"Via Roma 1","cap":"00100","citta":"Roma","provincia":"RM","nazione":"Italia","email_amministrativa":"amministrazione@example.it","partita_iva":"12345678901","codice_fiscale":"","codice_sdi":"ABC1234","pec":""}
+        self.assertTrue(complete(data))
+        data["codice_sdi"] = ""
+        self.assertFalse(complete(data))
+        data["pec"] = "ristorante@pec.it"
+        data["partita_iva"] = ""
+        data["codice_fiscale"] = "RSSMRA80A01H501U"
+        self.assertTrue(complete(data))
+
 
 class PayPalTests(unittest.TestCase):
     def test_cancel_uses_live_endpoint_and_accepts_204(self):

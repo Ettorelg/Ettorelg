@@ -936,6 +936,17 @@ def init_db() -> None:
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS eventi_commerciali_evento_data ON eventi_commerciali (evento,created_at DESC)")
                 cur.execute("""
+                    CREATE TABLE IF NOT EXISTS dati_fatturazione (
+                        id_utente INTEGER PRIMARY KEY REFERENCES utenti(id) ON DELETE CASCADE,
+                        ragione_sociale TEXT NOT NULL, partita_iva TEXT NOT NULL DEFAULT '',
+                        codice_fiscale TEXT NOT NULL DEFAULT '', indirizzo TEXT NOT NULL,
+                        cap TEXT NOT NULL, citta TEXT NOT NULL, provincia TEXT NOT NULL,
+                        nazione TEXT NOT NULL DEFAULT 'Italia', codice_sdi TEXT NOT NULL DEFAULT '',
+                        pec TEXT NOT NULL DEFAULT '', email_amministrativa TEXT NOT NULL,
+                        telefono TEXT NOT NULL DEFAULT '', updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
                     CREATE TABLE IF NOT EXISTS consensi_utenti (
                         id BIGSERIAL PRIMARY KEY,
                         id_utente INTEGER NOT NULL REFERENCES utenti(id) ON DELETE CASCADE,
@@ -1088,7 +1099,7 @@ def enforce_current_license():
     public_endpoints = {
         "index", "free_trial", "login", "register", "verify_email", "register_google", "register_apple", "forgot_password", "reset_password", "auth_google", "auth_google_callback",
         "auth_apple", "auth_apple_callback", "logout",
-        "privacy_policy", "terms_of_service", "uploaded_file", "static", "public_menu",
+        "privacy_policy", "terms_of_service", "billing_data", "uploaded_file", "static", "public_menu",
         "paypal_webhook", "pagamento", "paypal_subscription_activate",
         "paypal_subscription_cancel", "paypal_subscription_current",
     }
@@ -1649,6 +1660,10 @@ def pagamento():
     recurring_active = bool(row[2]) and row[3] in ("attivo", "ACTIVE", "prova")
     selected_plan = normalize_license_plan(session.get("renewal_plan") if selection_requested else row[8])
     plan_info = LICENSE_PLANS[selected_plan]
+    requires_payment = (not license_active or selection_requested) and not (renewal_requested and recurring_active)
+    if requires_payment and not billing_data_complete(billing_data_for_user(user_id)):
+        destination = "pagamento_rinnovo" if renewal_requested else "pagamento_scelta" if choice_requested else "pagamento"
+        return redirect(url_for("billing_data", return_to=destination))
     return render_template(
         "pagamento.html", username=row[0], email=row[1], subscription_id=row[2],
         subscription_status=row[3], trial_until=row[4], next_billing=row[5],
@@ -1665,6 +1680,8 @@ def paypal_subscription_activate():
     user_id = session.get("pending_user_id") or session.get("user_id")
     if not user_id or session.get("is_admin"):
         return jsonify({"error": "Sessione di registrazione non valida."}), 401
+    if not billing_data_complete(billing_data_for_user(user_id)):
+        return jsonify({"error": "Completa i dati di fatturazione prima di procedere al pagamento."}), 400
     payload = request.get_json(silent=True) or {}
     renewal_requested = bool(payload.get("renewal"))
     selection_requested = renewal_requested or bool(payload.get("choice"))
@@ -2201,6 +2218,82 @@ def api_account_get():
         conn.close()
 
 
+def billing_data_for_user(user_id: int) -> dict | None:
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT ragione_sociale,partita_iva,codice_fiscale,indirizzo,cap,citta,provincia,
+                       nazione,codice_sdi,pec,email_amministrativa,telefono
+                FROM dati_fatturazione WHERE id_utente=%s
+            """, (user_id,))
+            row = cur.fetchone()
+        if not row:
+            return None
+        keys = ("ragione_sociale","partita_iva","codice_fiscale","indirizzo","cap","citta","provincia","nazione","codice_sdi","pec","email_amministrativa","telefono")
+        return dict(zip(keys, row))
+    finally:
+        conn.close()
+
+
+def billing_data_complete(data: dict | None) -> bool:
+    if not data:
+        return False
+    required = ("ragione_sociale", "indirizzo", "cap", "citta", "provincia", "nazione", "email_amministrativa")
+    return (all((data.get(field) or "").strip() for field in required)
+            and bool((data.get("partita_iva") or "").strip() or (data.get("codice_fiscale") or "").strip())
+            and bool((data.get("codice_sdi") or "").strip() or (data.get("pec") or "").strip()))
+
+
+@app.route("/dati-fatturazione", methods=["GET", "POST"])
+def billing_data():
+    user_id = session.get("pending_user_id") or session.get("user_id")
+    if not user_id or session.get("is_admin"):
+        return redirect(url_for("login"))
+    existing = billing_data_for_user(user_id) or {}
+    return_to = request.values.get("return_to") or "account"
+    if return_to not in ("account", "pagamento", "pagamento_rinnovo", "pagamento_scelta"):
+        return_to = "account"
+    if request.method == "GET":
+        return render_template("billing_data.html", item=existing, return_to=return_to)
+    fields = ("ragione_sociale","partita_iva","codice_fiscale","indirizzo","cap","citta","provincia","nazione","codice_sdi","pec","email_amministrativa","telefono")
+    data = {field: (request.form.get(field) or "").strip() for field in fields}
+    data["partita_iva"] = re.sub(r"\s+", "", data["partita_iva"]).upper()
+    data["codice_fiscale"] = re.sub(r"\s+", "", data["codice_fiscale"]).upper()
+    data["codice_sdi"] = re.sub(r"\s+", "", data["codice_sdi"]).upper()
+    data["pec"] = data["pec"].lower()
+    data["email_amministrativa"] = data["email_amministrativa"].lower()
+    if not billing_data_complete(data):
+        return render_template("billing_data.html", item=data, return_to=return_to, error="Compila i campi obbligatori, almeno Partita IVA o Codice fiscale e almeno Codice SDI o PEC."), 400
+    if not valid_email_address(data["email_amministrativa"]) or (data["pec"] and not valid_email_address(data["pec"])):
+        return render_template("billing_data.html", item=data, return_to=return_to, error="Controlla l’indirizzo email amministrativo e la PEC."), 400
+    if data["nazione"].lower() == "italia" and data["partita_iva"] and not re.fullmatch(r"\d{11}", data["partita_iva"]):
+        return render_template("billing_data.html", item=data, return_to=return_to, error="La Partita IVA italiana deve contenere 11 cifre."), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO dati_fatturazione
+                      (id_utente,ragione_sociale,partita_iva,codice_fiscale,indirizzo,cap,citta,provincia,nazione,codice_sdi,pec,email_amministrativa,telefono)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (id_utente) DO UPDATE SET ragione_sociale=EXCLUDED.ragione_sociale,
+                      partita_iva=EXCLUDED.partita_iva,codice_fiscale=EXCLUDED.codice_fiscale,indirizzo=EXCLUDED.indirizzo,
+                      cap=EXCLUDED.cap,citta=EXCLUDED.citta,provincia=EXCLUDED.provincia,nazione=EXCLUDED.nazione,
+                      codice_sdi=EXCLUDED.codice_sdi,pec=EXCLUDED.pec,email_amministrativa=EXCLUDED.email_amministrativa,
+                      telefono=EXCLUDED.telefono,updated_at=NOW()
+                """, (user_id, *(data[field] for field in fields)))
+    finally:
+        conn.close()
+    if return_to == "pagamento_rinnovo":
+        return redirect(url_for("pagamento", rinnovo=1))
+    if return_to == "pagamento_scelta":
+        return redirect(url_for("pagamento", scelta=1))
+    if return_to == "pagamento":
+        return redirect(url_for("pagamento"))
+    return redirect(url_for("dashboard_user") + "#account")
+
+
 @app.route("/api/guida-iniziale", methods=["GET", "POST"])
 def api_initial_guide():
     if "user_id" not in session:
@@ -2446,7 +2539,8 @@ def api_admin_users_list():
             cur.execute("""
                 SELECT u.id, u.username, COALESCE(u.email, ''), u.admin, COALESCE(n.nome, ''),
                        COALESCE(l.stato, 'sospesa'), l.data_inizio, l.data_scadenza, COALESCE(l.piano, 'professional'),
-                       COALESCE(a.stato, ''), COALESCE(a.subscription_id, '')
+                       COALESCE(a.stato, ''), COALESCE(a.subscription_id, ''),
+                       EXISTS(SELECT 1 FROM dati_fatturazione df WHERE df.id_utente=u.id)
                 FROM utenti u
                 LEFT JOIN negozi n ON n.id_utente = u.id
                 LEFT JOIN licenze_utenti l ON l.id_utente = u.id
@@ -2466,10 +2560,21 @@ def api_admin_users_list():
                               "piano": normalize_license_plan(row[8]),
                               "in_prova": row[9] == "prova_locale",
                               "fonte_pagamento": row[9],
-                              "paypal_collegato": bool(row[10])})
+                              "paypal_collegato": bool(row[10]), "fatturazione_presente": bool(row[11])})
         return jsonify({"items": items, "current_user_id": session["user_id"]})
     finally:
         conn.close()
+
+
+@app.get("/api/admin/utenti/<int:user_id>/dati-fatturazione")
+def api_admin_user_billing(user_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    data = billing_data_for_user(user_id)
+    if not data:
+        return jsonify({"error": "Il cliente non ha ancora inserito i dati di fatturazione."}), 404
+    return jsonify({"item": data, "completi": billing_data_complete(data)})
 
 
 @app.get("/api/admin/monitoraggio")
