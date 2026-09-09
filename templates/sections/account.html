@@ -29,6 +29,15 @@
   <section class="account-card">
     <div class="account-head"><div><h3>Dati di fatturazione</h3><p class="account-sub">Ragione sociale, Partita IVA o Codice fiscale, indirizzo, SDI/PEC e contatti amministrativi.</p></div><a class="account-btn" href="/dati-fatturazione?return_to=account">Gestisci dati fiscali</a></div>
   </section>
+  <section class="account-card">
+    <div class="account-head"><div><h3>Privacy e i tuoi dati</h3><p class="account-sub">Scarica una copia dei dati oppure invia una richiesta di accesso, rettifica, limitazione o cancellazione. Ogni richiesta riceve un riferimento tracciabile.</p></div><a class="account-btn" href="/api/privacy/esporta">Scarica i miei dati</a></div>
+    <div class="account-grid">
+      <div class="account-field"><label for="privacyType">Tipo di richiesta</label><select id="privacyType"><option value="accesso">Accesso ai dati</option><option value="portabilita">Portabilità</option><option value="rettifica">Rettifica</option><option value="cancellazione">Cancellazione account e dati</option><option value="limitazione">Limitazione del trattamento</option><option value="opposizione">Opposizione</option></select></div>
+      <div class="account-field"><label for="privacyDetails">Dettagli (facoltativi)</label><input id="privacyDetails" maxlength="2000" placeholder="Specifica la richiesta"></div>
+    </div>
+    <div class="account-actions"><button class="account-btn" id="sendPrivacyRequest" type="button">Invia richiesta</button></div>
+    <div id="privacyMessage" class="account-message"></div><div id="privacyRequests" class="account-note" style="margin-top:15px"></div>
+  </section>
   <section class="account-card" id="subscriptionCard" style="display:none">
     <h3>Abbonamento</h3>
     <p class="account-sub" id="subscriptionSummary"></p>
@@ -39,6 +48,7 @@
 <script>
 (()=>{
  const form=document.getElementById('accountForm'), msg=document.getElementById('accountMessage');
+ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const show=(text,error=false)=>{msg.textContent=text;msg.className='account-message '+(error?'error':'ok')};
  async function loadAccount(){
    try{
@@ -69,6 +79,8 @@
      subscriptionMessage.textContent=d.message;subscriptionMessage.className='account-message ok';await loadSubscription();
    }catch(e){subscriptionMessage.textContent=e.message;subscriptionMessage.className='account-message error'}finally{cancelSubscription.disabled=false}
  });
+ async function loadPrivacyRequests(){try{const r=await fetch('/api/privacy/richieste'),d=await r.json();if(!r.ok)throw new Error(d.error||'Errore');privacyRequests.innerHTML=d.items.length?'<strong>Richieste inviate</strong><br>'+d.items.map(x=>`${esc(x.riferimento)} · ${esc(x.tipo)} · <strong>${esc(x.stato.replace('_',' '))}</strong>${x.note?` · ${esc(x.note)}`:''}`).join('<br>'):'Nessuna richiesta inviata.'}catch(e){privacyRequests.textContent='Impossibile caricare le richieste.'}}
+ sendPrivacyRequest.addEventListener('click',async()=>{if(privacyType.value==='cancellazione'&&!confirm('La richiesta di cancellazione sarà verificata prima di eliminare i dati. Vuoi inviarla?'))return;sendPrivacyRequest.disabled=true;try{const r=await fetch('/api/privacy/richieste',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo:privacyType.value,dettagli:privacyDetails.value.trim()})}),d=await r.json();if(!r.ok)throw new Error(d.error||'Invio non riuscito.');privacyDetails.value='';privacyMessage.textContent='Richiesta ricevuta. Riferimento: '+d.riferimento;privacyMessage.className='account-message ok';await loadPrivacyRequests()}catch(e){privacyMessage.textContent=e.message;privacyMessage.className='account-message error'}finally{sendPrivacyRequest.disabled=false}});
  form.addEventListener('submit',async e=>{
    e.preventDefault();
    if(newPassword.value!==confirmPassword.value){show('Le nuove password non coincidono.',true);return}
@@ -83,7 +95,7 @@
    }catch(err){show(err.message,true)}
    finally{button.disabled=false;button.textContent='Salva modifiche'}
  });
- loadAccount();loadSubscription();
+ loadAccount();loadSubscription();loadPrivacyRequests();
 })();
 </script>
 

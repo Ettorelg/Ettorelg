@@ -68,6 +68,14 @@ class LicenseAndTrialTests(unittest.TestCase):
         data["codice_fiscale"] = "RSSMRA80A01H501U"
         self.assertTrue(complete(data))
 
+    def test_privacy_requests_are_tracked_and_export_excludes_credentials(self):
+        self.assertIn("CREATE TABLE IF NOT EXISTS richieste_privacy", SOURCE)
+        self.assertIn('@app.route("/api/privacy/richieste", methods=["GET", "POST"])', SOURCE)
+        export_block = SOURCE[SOURCE.index('def api_privacy_export('):SOURCE.index('@app.route("/api/guida-iniziale"')]
+        self.assertIn('as_attachment=True', export_block)
+        self.assertNotIn('password', export_block.lower())
+        self.assertNotIn('token', export_block.lower())
+
 
 class PayPalTests(unittest.TestCase):
     def test_cancel_uses_live_endpoint_and_accepts_204(self):

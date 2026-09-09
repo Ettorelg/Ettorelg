@@ -959,6 +959,20 @@ def init_db() -> None:
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS consensi_utenti_utente_data ON consensi_utenti (id_utente, accepted_at DESC)")
                 cur.execute("""
+                    CREATE TABLE IF NOT EXISTS richieste_privacy (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_utente INTEGER NOT NULL REFERENCES utenti(id) ON DELETE CASCADE,
+                        tipo TEXT NOT NULL CHECK (tipo IN ('accesso', 'portabilita', 'rettifica', 'cancellazione', 'limitazione', 'opposizione')),
+                        dettagli TEXT NOT NULL DEFAULT '',
+                        stato TEXT NOT NULL DEFAULT 'ricevuta' CHECK (stato IN ('ricevuta', 'in_lavorazione', 'completata', 'rifiutata')),
+                        note_admin TEXT NOT NULL DEFAULT '',
+                        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                        completed_at TIMESTAMP WITH TIME ZONE
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS richieste_privacy_stato_data ON richieste_privacy (stato,created_at DESC)")
+                cur.execute("""
                     CREATE TABLE IF NOT EXISTS licenze_utenti (
                         id SERIAL PRIMARY KEY,
                         id_utente INTEGER NOT NULL UNIQUE REFERENCES utenti(id) ON DELETE CASCADE,
@@ -2294,6 +2308,89 @@ def billing_data():
     return redirect(url_for("dashboard_user") + "#account")
 
 
+@app.route("/api/privacy/richieste", methods=["GET", "POST"])
+def api_privacy_requests():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    user_id = session["user_id"]
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        if request.method == "POST":
+            data = request.get_json(silent=True) or {}
+            request_type = (data.get("tipo") or "").strip().lower()
+            details = (data.get("dettagli") or "").strip()
+            allowed = {"accesso", "portabilita", "rettifica", "cancellazione", "limitazione", "opposizione"}
+            if request_type not in allowed:
+                return jsonify({"error": "Seleziona un tipo di richiesta valido."}), 400
+            if len(details) > 2000:
+                return jsonify({"error": "I dettagli non possono superare 2.000 caratteri."}), 400
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT username,COALESCE(email,'') FROM utenti WHERE id=%s", (user_id,))
+                    account = cur.fetchone()
+                    cur.execute("""
+                        INSERT INTO richieste_privacy (id_utente,tipo,dettagli)
+                        VALUES (%s,%s,%s) RETURNING id,created_at
+                    """, (user_id, request_type, details))
+                    created = cur.fetchone()
+            reference = f"PRIV-{created[0]}"
+            if account and account[1]:
+                send_transactional_email(account[1], f"Richiesta privacy ricevuta · {reference}",
+                    f"Ciao {account[0]},\n\nabbiamo ricevuto la tua richiesta {request_type}.\nRiferimento: {reference}.\nTi aggiorneremo dopo la verifica dell'identità e della richiesta.")
+            send_transactional_email(os.getenv("PRIVACY_EMAIL", "alphasystemsrl@gmail.com"),
+                f"Nuova richiesta privacy · {reference}",
+                f"Cliente: {account[0] if account else user_id}\nTipo: {request_type}\nDettagli: {details or '—'}")
+            return jsonify({"ok": True, "riferimento": reference}), 201
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id,tipo,dettagli,stato,note_admin,created_at,updated_at
+                FROM richieste_privacy WHERE id_utente=%s ORDER BY created_at DESC
+            """, (user_id,))
+            items = [{"id": r[0], "riferimento": f"PRIV-{r[0]}", "tipo": r[1], "dettagli": r[2],
+                      "stato": r[3], "note": r[4], "data": r[5].isoformat(), "aggiornata": r[6].isoformat()}
+                     for r in cur.fetchall()]
+        return jsonify({"items": items})
+    finally:
+        conn.close()
+
+
+@app.get("/api/privacy/esporta")
+def api_privacy_export():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    user_id = session["user_id"]
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        result = {"esportato_il": datetime.now().astimezone().isoformat(), "account": {}, "dati_fatturazione": billing_data_for_user(user_id), "licenza": None, "consensi": [], "richieste_privacy": [], "negozi": []}
+        with conn.cursor() as cur:
+            cur.execute("SELECT id,username,email,admin FROM utenti WHERE id=%s", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Account non trovato."}), 404
+            result["account"] = {"id": row[0], "username": row[1], "email": row[2], "admin": row[3]}
+            cur.execute("SELECT stato,data_inizio,data_scadenza,piano,piano_programmato,cambio_piano_il FROM licenze_utenti WHERE id_utente=%s", (user_id,))
+            license_row = cur.fetchone()
+            if license_row:
+                result["licenza"] = dict(zip(("stato","data_inizio","data_scadenza","piano","piano_programmato","cambio_piano_il"), license_row))
+            cur.execute("SELECT tipo,versione,accettato,accepted_at FROM consensi_utenti WHERE id_utente=%s ORDER BY accepted_at", (user_id,))
+            result["consensi"] = [dict(zip(("tipo","versione","accettato","data"), x)) for x in cur.fetchall()]
+            cur.execute("SELECT id,tipo,dettagli,stato,note_admin,created_at,updated_at FROM richieste_privacy WHERE id_utente=%s ORDER BY created_at", (user_id,))
+            result["richieste_privacy"] = [dict(zip(("id","tipo","dettagli","stato","note","data","aggiornata"), x)) for x in cur.fetchall()]
+            cur.execute("SELECT id,nome,slug,indirizzo,citta,cap,provincia,email,telefono,nazione,descrizione_breve,descrizione_estesa FROM negozi WHERE id_utente=%s", (user_id,))
+            for shop in cur.fetchall():
+                item = dict(zip(("id","nome","slug","indirizzo","citta","cap","provincia","email","telefono","nazione","descrizione_breve","descrizione_estesa"), shop))
+                cur.execute("SELECT id,nome FROM categorie WHERE id_negozio=%s ORDER BY nome", (shop[0],))
+                item["categorie"] = [{"id": x[0], "nome": x[1]} for x in cur.fetchall()]
+                cur.execute("SELECT id,nome,descrizione,prezzo,note,disponibile FROM prodotti WHERE id_negozio=%s ORDER BY nome", (shop[0],))
+                item["prodotti"] = [{"id": x[0], "nome": x[1], "ingredienti": x[2], "prezzo": str(x[3]), "note": x[4], "disponibile": x[5]} for x in cur.fetchall()]
+                result["negozi"].append(item)
+        payload = json.dumps(result, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+        return send_file(io.BytesIO(payload), mimetype="application/json", as_attachment=True,
+                         download_name=f"alpha-menu-dati-{date.today().isoformat()}.json")
+    finally:
+        conn.close()
+
+
 @app.route("/api/guida-iniziale", methods=["GET", "POST"])
 def api_initial_guide():
     if "user_id" not in session:
@@ -2575,6 +2672,62 @@ def api_admin_user_billing(user_id: int):
     if not data:
         return jsonify({"error": "Il cliente non ha ancora inserito i dati di fatturazione."}), 404
     return jsonify({"item": data, "completi": billing_data_complete(data)})
+
+
+@app.get("/api/admin/privacy/richieste")
+def api_admin_privacy_requests():
+    denied = require_admin()
+    if denied:
+        return denied
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT r.id,r.tipo,r.dettagli,r.stato,r.note_admin,r.created_at,r.updated_at,
+                       u.id,u.username,COALESCE(u.email,'')
+                FROM richieste_privacy r JOIN utenti u ON u.id=r.id_utente
+                ORDER BY CASE r.stato WHEN 'ricevuta' THEN 0 WHEN 'in_lavorazione' THEN 1 ELSE 2 END,r.created_at DESC
+            """)
+            items = [{"id": r[0], "riferimento": f"PRIV-{r[0]}", "tipo": r[1], "dettagli": r[2],
+                      "stato": r[3], "note": r[4], "data": r[5].isoformat(), "aggiornata": r[6].isoformat(),
+                      "id_utente": r[7], "cliente": r[8], "email": r[9]} for r in cur.fetchall()]
+        return jsonify({"items": items})
+    finally:
+        conn.close()
+
+
+@app.patch("/api/admin/privacy/richieste/<int:request_id>")
+def api_admin_privacy_request_update(request_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    data = request.get_json(silent=True) or {}
+    status = (data.get("stato") or "").strip()
+    notes = (data.get("note") or "").strip()
+    if status not in {"ricevuta", "in_lavorazione", "completata", "rifiutata"}:
+        return jsonify({"error": "Stato non valido."}), 400
+    if len(notes) > 2000:
+        return jsonify({"error": "Le note non possono superare 2.000 caratteri."}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE richieste_privacy SET stato=%s,note_admin=%s,updated_at=NOW(),
+                      completed_at=CASE WHEN %s IN ('completata','rifiutata') THEN NOW() ELSE NULL END
+                    WHERE id=%s RETURNING id_utente
+                """, (status, notes, status, request_id))
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "Richiesta non trovata."}), 404
+                cur.execute("SELECT username,COALESCE(email,'') FROM utenti WHERE id=%s", (row[0],))
+                account = cur.fetchone()
+        if account and account[1]:
+            send_transactional_email(account[1], f"Aggiornamento richiesta privacy · PRIV-{request_id}",
+                f"Ciao {account[0]},\n\nla tua richiesta PRIV-{request_id} è ora: {status.replace('_', ' ')}.\n\n{notes}")
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
 
 
 @app.get("/api/admin/monitoraggio")
