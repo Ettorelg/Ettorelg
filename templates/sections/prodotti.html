@@ -855,7 +855,7 @@
   
     const saved = await res.json();
     await loadProducts();
-    showToast(id ? "Prodotto aggiornato." : "Prodotto creato.");
+    showToast(id ? "Prodotto aggiornato." : (saved.traduzione_avviata ? "Prodotto creato. Traduzione automatica avviata." : "Prodotto creato."));
 
     if (saveAndNew) {
       resetForm(true);

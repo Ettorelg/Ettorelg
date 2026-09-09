@@ -270,8 +270,8 @@ def remaining_product_slots(user_id: int, shop_id: int) -> int | None:
 PAYPAL_CURRENCY = "EUR"
 PAYPAL_TRIAL_DAYS = 14
 APP_TRIAL_DAYS = 14
-LEGAL_TERMS_VERSION = "2026-08-26"
-LEGAL_PRIVACY_VERSION = "2026-08-26"
+LEGAL_TERMS_VERSION = "2026-09-09"
+LEGAL_PRIVACY_VERSION = "2026-09-09"
 LICENSE_PLANS = {
     "base": {"name": "Base", "price": "79.00", "product_limit": 100},
     "professional": {"name": "Professional", "price": "129.00", "product_limit": None},
@@ -672,7 +672,8 @@ def process_daily_license_reminders() -> None:
 
 
 SUPPORTED_MENU_LANGUAGES = {
-    "en": "English", "fr": "Français", "de": "Deutsch", "es": "Español"
+    "en": "English", "fr": "Français", "de": "Deutsch", "es": "Español",
+    "pt": "Português", "nl": "Nederlands", "pl": "Polski", "ro": "Română", "zh": "中文"
 }
 
 MENU_UI = {
@@ -681,6 +682,11 @@ MENU_UI = {
     "fr": {"venue": "Notre établissement", "contacts": "Contacts", "show": "VOIR LE MENU", "back": "Retour aux informations", "hours": "Horaires d'ouverture", "closed": "Fermé", "empty": "Le menu sera bientôt disponible.", "categories": "Catégories du menu", "days": ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]},
     "de": {"venue": "Unser Lokal", "contacts": "Kontakte", "show": "MENÜ ANZEIGEN", "back": "Zurück zu den Informationen", "hours": "Öffnungszeiten", "closed": "Geschlossen", "empty": "Das Menü ist bald verfügbar.", "categories": "Menükategorien", "days": ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]},
     "es": {"venue": "Nuestro local", "contacts": "Contactos", "show": "VER EL MENÚ", "back": "Volver a la información", "hours": "Horario de apertura", "closed": "Cerrado", "empty": "El menú estará disponible pronto.", "categories": "Categorías del menú", "days": ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]},
+    "pt": {"venue": "O nosso espaço", "contacts": "Contactos", "show": "VER MENU", "back": "Voltar às informações", "hours": "Horário de funcionamento", "closed": "Fechado", "empty": "O menu estará disponível em breve.", "categories": "Categorias do menu", "days": ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]},
+    "nl": {"venue": "Onze zaak", "contacts": "Contact", "show": "BEKIJK MENU", "back": "Terug naar informatie", "hours": "Openingstijden", "closed": "Gesloten", "empty": "Het menu is binnenkort beschikbaar.", "categories": "Menucategorieën", "days": ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"]},
+    "pl": {"venue": "Nasz lokal", "contacts": "Kontakt", "show": "ZOBACZ MENU", "back": "Powrót do informacji", "hours": "Godziny otwarcia", "closed": "Zamknięte", "empty": "Menu będzie dostępne wkrótce.", "categories": "Kategorie menu", "days": ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"]},
+    "ro": {"venue": "Localul nostru", "contacts": "Contacte", "show": "VEZI MENIUL", "back": "Înapoi la informații", "hours": "Program", "closed": "Închis", "empty": "Meniul va fi disponibil în curând.", "categories": "Categorii meniu", "days": ["Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă", "Duminică"]},
+    "zh": {"venue": "我们的餐厅", "contacts": "联系方式", "show": "查看菜单", "back": "返回信息", "hours": "营业时间", "closed": "休息", "empty": "菜单即将上线。", "categories": "菜单分类", "days": ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]},
 }
 
 for _code, (_call, _whatsapp, _book, _booking_message) in {
@@ -689,6 +695,11 @@ for _code, (_call, _whatsapp, _book, _booking_message) in {
     "fr": ("Appeler", "Écrire sur WhatsApp", "Réserver", "Bonjour, je voudrais réserver une table."),
     "de": ("Anrufen", "Über WhatsApp schreiben", "Reservieren", "Hallo, ich möchte einen Tisch reservieren."),
     "es": ("Llamar", "Escribir por WhatsApp", "Reservar", "Hola, me gustaría reservar una mesa."),
+    "pt": ("Ligar", "Escrever no WhatsApp", "Reservar", "Olá, gostaria de reservar uma mesa."),
+    "nl": ("Bellen", "WhatsApp sturen", "Reserveren", "Hallo, ik wil graag een tafel reserveren."),
+    "pl": ("Zadzwoń", "Napisz na WhatsApp", "Zarezerwuj", "Dzień dobry, chcę zarezerwować stolik."),
+    "ro": ("Sună", "Scrie pe WhatsApp", "Rezervă", "Bună ziua, aș dori să rezerv o masă."),
+    "zh": ("致电", "WhatsApp 联系", "预订", "您好，我想预订一张桌子。"),
 }.items():
     MENU_UI[_code]["call"] = _call
     MENU_UI[_code]["whatsapp"] = _whatsapp
@@ -701,6 +712,11 @@ for _code, (_cover, _print, _sold_out) in {
     "fr": ("Couvert", "Imprimer le menu A4", "Épuisé"),
     "de": ("Gedeck", "A4-Menü drucken", "Ausverkauft"),
     "es": ("Cubierto", "Imprimir menú A4", "Agotado"),
+    "pt": ("Couvert", "Imprimir menu A4", "Esgotado"),
+    "nl": ("Couvert", "A4-menu afdrukken", "Uitverkocht"),
+    "pl": ("Opłata za nakrycie", "Drukuj menu A4", "Wyprzedane"),
+    "ro": ("Taxă de masă", "Tipărește meniul A4", "Indisponibil"),
+    "zh": ("餐位费", "打印 A4 菜单", "售罄"),
 }.items():
     MENU_UI[_code]["cover"] = _cover
     MENU_UI[_code]["print"] = _print
@@ -728,6 +744,33 @@ def google_translate_texts(texts: list[str], target: str) -> list[str]:
 
 def google_enabled() -> bool:
     return bool(os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"))
+
+
+def translate_new_product(shop_id: int, product_id: int, fields: list[tuple[str, str]]) -> int:
+    """Traduce un nuovo prodotto nelle lingue già abilitate per il negozio."""
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT codice FROM lingue_negozio WHERE id_negozio=%s ORDER BY codice", (shop_id,))
+                languages = [row[0] for row in cur.fetchall() if row[0] in SUPPORTED_MENU_LANGUAGES]
+                entries = [(field, value) for field, value in fields if value]
+                total = 0
+                for language in languages:
+                    translated = google_translate_texts([value for _, value in entries], language)
+                    for (field, original), translated_text in zip(entries, translated):
+                        if original.isupper():
+                            translated_text = translated_text.upper()
+                        cur.execute("""
+                            INSERT INTO traduzioni_menu (id_negozio,tipo,id_entita,campo,lingua,testo,testo_originale)
+                            VALUES (%s,'prodotto',%s,%s,%s,%s,%s)
+                            ON CONFLICT (id_negozio,tipo,id_entita,campo,lingua)
+                            DO UPDATE SET testo=EXCLUDED.testo,testo_originale=EXCLUDED.testo_originale,updated_at=NOW()
+                        """, (shop_id, product_id, field, language, translated_text, original))
+                        total += 1
+                return total
+    finally:
+        conn.close()
 
 
 @app.context_processor
@@ -1357,6 +1400,22 @@ def auth_google_callback():
     if not email or not google_sub:
         return render_template("login.html", error="Google non ha restituito un indirizzo email valido.", google_enabled=True)
 
+    link_user_id = session.pop("google_link_user_id", None)
+    if link_user_id:
+        conn = psycopg2.connect(**build_db_config())
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id FROM utenti WHERE google_sub=%s AND id<>%s", (google_sub, link_user_id))
+                    if cur.fetchone():
+                        session["account_google_message"] = "Questo account Google è già collegato a un altro cliente."
+                    else:
+                        cur.execute("UPDATE utenti SET google_sub=%s WHERE id=%s", (google_sub, link_user_id))
+                        session["account_google_message"] = f"Account Google {email} collegato correttamente."
+            return redirect(url_for("dashboard_user") + "#account")
+        finally:
+            conn.close()
+
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
@@ -1620,6 +1679,7 @@ def paypal_subscription_activate():
             plan_row = cur.fetchone()
     finally:
         conn.close()
+
     if renewal_requested and plan_row and plan_row[1] and plan_row[2] in ("attivo", "ACTIVE", "prova"):
         return jsonify({"error": "Il rinnovo automatico PayPal è già attivo: non è stato creato un secondo abbonamento."}), 409
     selected_plan = normalize_license_plan(session.get("renewal_plan") if selection_requested else (plan_row[0] if plan_row else None))
@@ -1667,6 +1727,18 @@ def paypal_subscription_activate():
         return jsonify({"ok": True, "redirect": url_for("dashboard_user")})
     finally:
         conn.close()
+
+
+@app.get("/account/collega-google")
+def account_link_google():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    if not google_enabled():
+        session["account_google_message"] = "Accesso Google non configurato."
+        return redirect(url_for("dashboard_user") + "#account")
+    session["google_link_user_id"] = session["user_id"]
+    callback = url_for("auth_google_callback", _external=True, _scheme="https")
+    return google.authorize_redirect(callback)
 
 
 @app.post("/api/paypal/pending-plan")
@@ -2121,7 +2193,8 @@ def api_account_get():
             return jsonify({"error": "Account non trovato."}), 404
         return jsonify({"item": {
             "username": row[0], "email": row[1], "google_collegato": bool(row[2]),
-            "password_impostata": bool(row[3]), "admin": bool(row[4])
+            "password_impostata": bool(row[3]), "admin": bool(row[4]),
+            "google_disponibile": google_enabled(), "google_messaggio": session.pop("account_google_message", None)
         }})
     finally:
         conn.close()
@@ -3623,7 +3696,7 @@ def api_prodotti_create():
     image_file = request.files.get("immagine")
     image_path = ""
     if image_file and image_file.filename:
-        if get_user_license_plan(user_id) == "base":
+        if get_user_license_plan(session["user_id"]) == "base":
             return jsonify({"error": "Le foto dei prodotti richiedono la licenza Professional."}), 403
         if not is_allowed_image(image_file.filename):
             return jsonify({"error": "Formato immagine non valido (png/jpg/webp)"}), 400
@@ -3666,7 +3739,20 @@ def api_prodotti_create():
                         VALUES (%s, %s, TRUE, 0)
                     """, (new_id, image_path))
 
-        return jsonify({"ok": True, "id": new_id})
+        translation_started = False
+        if get_user_license_plan(session["user_id"]) == "professional":
+            translation_fields = [("nome", nome), ("descrizione", descrizione), ("note", note)]
+            translation_fields += [(f"etichetta_{i}", value) for i, value in enumerate(etichette)]
+            translation_fields += [(f"allergene_{i}", value) for i, value in enumerate(allergeni_auto)]
+            user_id = session["user_id"]
+            def background_translation():
+                try:
+                    translate_new_product(shop_id, new_id, translation_fields)
+                except (RuntimeError, requests.RequestException, psycopg2.Error) as error:
+                    record_operational_error("traduzione", str(error), user_id)
+            threading.Thread(target=background_translation, name=f"translate-product-{new_id}", daemon=True).start()
+            translation_started = True
+        return jsonify({"ok": True, "id": new_id, "traduzione_avviata": translation_started})
     except psycopg2.Error as error:
         return jsonify({
             "error": "Errore database durante il salvataggio del prodotto.",

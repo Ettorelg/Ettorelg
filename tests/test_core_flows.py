@@ -41,6 +41,11 @@ class LicenseAndTrialTests(unittest.TestCase):
         self.assertIn("APP_TRIAL_DAYS", verify_block)
         self.assertIn("email_verificata=TRUE", verify_block)
 
+    def test_ten_menu_languages_are_available(self):
+        assignment = next(n for n in TREE.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "SUPPORTED_MENU_LANGUAGES" for t in n.targets))
+        languages = ast.literal_eval(assignment.value)
+        self.assertEqual(len(languages) + 1, 10)  # nove aggiuntive più l'italiano
+
 
 class PayPalTests(unittest.TestCase):
     def test_cancel_uses_live_endpoint_and_accepts_204(self):

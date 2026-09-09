@@ -23,6 +23,9 @@
       <div class="account-actions"><button class="account-btn" type="submit">Salva modifiche</button><a class="account-logout" href="/logout">Esci dall’account</a></div>
     </form>
   </section>
+  <section class="account-card">
+    <div class="account-head"><div><h3>Accesso con Google</h3><p class="account-sub">Collega il tuo account Google per entrare più velocemente senza digitare la password.</p></div><a class="account-btn" id="linkGoogle" href="/account/collega-google">Collega Google</a></div>
+  </section>
   <section class="account-card" id="subscriptionCard" style="display:none">
     <h3>Abbonamento</h3>
     <p class="account-sub" id="subscriptionSummary"></p>
@@ -40,6 +43,8 @@
      const x=d.item;accountUsername.value=x.username||'';accountEmail.value=x.email||'';
      accountRole.textContent=x.admin?'AMMINISTRATORE':'UTENTE';
      googleStatus.textContent=x.google_collegato?'GOOGLE COLLEGATO':'GOOGLE NON COLLEGATO';
+     linkGoogle.textContent=x.google_collegato?'Ricollega Google':'Collega Google';linkGoogle.style.display=x.google_disponibile?'inline-block':'none';
+     if(x.google_messaggio)show(x.google_messaggio,x.google_messaggio.includes('altro')||x.google_messaggio.includes('non configurato'));
      if(!x.password_impostata){currentPasswordField.style.display='none';passwordHelp.textContent='Account creato con Google: puoi impostare una password per accedere anche manualmente.'}
    }catch(e){show(e.message,true)}
  }
