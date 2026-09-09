@@ -753,6 +753,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS google_sub TEXT")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS apple_sub TEXT")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS password_impostata BOOLEAN NOT NULL DEFAULT TRUE")
+                cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS email_verificata BOOLEAN NOT NULL DEFAULT TRUE")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS lingue_negozio (
                         id SERIAL PRIMARY KEY,
@@ -828,6 +829,16 @@ def init_db() -> None:
                     )
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS reset_password_utente ON reset_password (id_utente,scade_il DESC)")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS verifiche_email (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_utente INTEGER NOT NULL REFERENCES utenti(id) ON DELETE CASCADE,
+                        token_hash TEXT NOT NULL UNIQUE,
+                        scade_il TIMESTAMP WITH TIME ZONE NOT NULL,
+                        usato_il TIMESTAMP WITH TIME ZONE
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS verifiche_email_utente ON verifiche_email (id_utente,scade_il DESC)")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS consensi_utenti (
                         id BIGSERIAL PRIMARY KEY,
@@ -979,7 +990,7 @@ def enforce_current_license():
     if not user_id or session.get("is_admin"):
         return None
     public_endpoints = {
-        "index", "free_trial", "login", "register", "register_google", "register_apple", "forgot_password", "reset_password", "auth_google", "auth_google_callback",
+        "index", "free_trial", "login", "register", "verify_email", "register_google", "register_apple", "forgot_password", "reset_password", "auth_google", "auth_google_callback",
         "auth_apple", "auth_apple_callback", "logout",
         "privacy_policy", "terms_of_service", "uploaded_file", "static", "public_menu",
         "paypal_webhook", "pagamento", "paypal_subscription_activate",
@@ -1011,7 +1022,7 @@ def uploaded_file(filename: str):
 
 @app.route("/")
 def index():
-    return redirect("/login")
+    return render_template("index.html")
 
 
 @app.get("/prova-gratuita")
@@ -1050,7 +1061,7 @@ def login():
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT u.id, u.username, u.password, u.admin, l.stato, l.data_scadenza
+                SELECT u.id, u.username, u.password, u.admin, l.stato, l.data_scadenza, u.email_verificata
                 FROM utenti u
                 LEFT JOIN licenze_utenti l ON l.id_utente = u.id
                 WHERE LOWER(u.email) = LOWER(%s)
@@ -1063,8 +1074,10 @@ def login():
         record_login_failure(email)
         return render_template("login.html", error="Email o password errati.", google_enabled=google_enabled())
 
-    user_id, username_db, _, is_admin, status, expiry = row
+    user_id, username_db, _, is_admin, status, expiry, email_verified = row
     clear_login_failures(email)
+    if not email_verified:
+        return render_template("email_verification_pending.html", email=email)
     if not is_admin and not license_is_active(status, expiry):
         session.clear()
         session.update(pending_user_id=user_id, pending_username=username_db)
@@ -1171,26 +1184,64 @@ def register():
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO utenti (username, email, password, admin) VALUES (%s, %s, %s, FALSE) RETURNING id",
+                    "INSERT INTO utenti (username, email, password, admin, email_verificata) VALUES (%s, %s, %s, FALSE, FALSE) RETURNING id",
                     (business_name, email, hash_password(password)),
                 )
                 user_id = cur.fetchone()[0]
                 record_registration_consents(cur, user_id, consent["marketing"])
-                trial_end = date.today() + timedelta(days=APP_TRIAL_DAYS)
-                cur.execute(
-                    "INSERT INTO licenze_utenti (id_utente, stato, data_inizio, data_scadenza, piano) VALUES (%s, 'attiva', CURRENT_DATE, %s, 'professional')",
-                    (user_id, trial_end),
-                )
-                cur.execute(
-                    "INSERT INTO abbonamenti_paypal (id_utente, plan_id, stato, trial_fino, prossimo_addebito) VALUES (%s, %s, 'prova_locale', %s, %s)",
-                    (user_id, paypal_plan_id("professional"), trial_end, trial_end),
-                )
-        session.clear()
-        session.update(user_id=user_id, username=business_name, is_admin=False)
-        trigger_license_expiry_email(user_id)
-        return redirect(url_for("dashboard_user"))
+                raw_token = secrets.token_urlsafe(40)
+                token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+                cur.execute("INSERT INTO verifiche_email (id_utente,token_hash,scade_il) VALUES (%s,%s,NOW()+INTERVAL '24 hours')", (user_id, token_hash))
+                verify_url = request.url_root.rstrip("/") + url_for("verify_email", token=raw_token)
+                if not send_transactional_email(
+                    email,
+                    "Conferma la tua email per iniziare la prova Alpha Menu",
+                    f"Ciao {business_name},\n\nconferma il tuo indirizzo email entro 24 ore:\n{verify_url}\n\nI 14 giorni gratuiti inizieranno soltanto dopo la conferma.\n\nAlpha Menu – Alpha System S.r.l.",
+                ):
+                    raise RuntimeError("Invio email non riuscito")
+        return render_template("email_verification_pending.html", email=email)
     except psycopg2.IntegrityError:
         return render_template("register.html", error="Email o nome dell’attività già utilizzati.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
+    except RuntimeError:
+        return render_template("register.html", error="Non è stato possibile inviare l’email di conferma. Riprova tra qualche minuto.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base")), 502
+    finally:
+        conn.close()
+
+
+@app.get("/verifica-email/<token>")
+def verify_email(token: str):
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT v.id,u.id,u.username,u.email_verificata
+                    FROM verifiche_email v JOIN utenti u ON u.id=v.id_utente
+                    WHERE v.token_hash=%s AND v.usato_il IS NULL AND v.scade_il>NOW()
+                    FOR UPDATE
+                """, (token_hash,))
+                row = cur.fetchone()
+                if not row:
+                    return render_template("email_verification_pending.html", invalid=True), 400
+                verification_id, user_id, username, already_verified = row
+                if not already_verified:
+                    trial_end = date.today() + timedelta(days=APP_TRIAL_DAYS)
+                    cur.execute("UPDATE utenti SET email_verificata=TRUE WHERE id=%s", (user_id,))
+                    cur.execute("""
+                        INSERT INTO licenze_utenti (id_utente,stato,data_inizio,data_scadenza,piano)
+                        VALUES (%s,'attiva',CURRENT_DATE,%s,'professional')
+                        ON CONFLICT (id_utente) DO NOTHING
+                    """, (user_id, trial_end))
+                    cur.execute("""
+                        INSERT INTO abbonamenti_paypal (id_utente,plan_id,stato,trial_fino,prossimo_addebito)
+                        VALUES (%s,%s,'prova_locale',%s,%s)
+                        ON CONFLICT (id_utente) DO NOTHING
+                    """, (user_id, paypal_plan_id("professional"), trial_end, trial_end))
+                cur.execute("UPDATE verifiche_email SET usato_il=NOW() WHERE id=%s", (verification_id,))
+        session.clear()
+        session.update(user_id=user_id, username=username, is_admin=False)
+        return render_template("email_verification_pending.html", verified=True)
     finally:
         conn.close()
 

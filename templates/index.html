@@ -27,28 +27,28 @@
 
       <div class="hero-content">
         <div>
-          <p class="pill">Nuovo: menu dinamici con QR personalizzato</p>
-          <h1>Il menu online che racconta il tuo locale</h1>
+          <p class="pill">Prova Professional gratuita per 14 giorni</p>
+          <h1>Il menu digitale del tuo locale, pronto in circa 1 minuto</h1>
           <p class="subtitle">
-            Crea un’esperienza digitale elegante per clienti di ristoranti, bar e bistrot. Aggiorna i
-            piatti in tempo reale, gestisci le lingue e ricevi ordini al tavolo.
+            Carica una foto o un PDF del menu: Alpha Menu riconosce prodotti, prezzi e allergeni.
+            Aggiorna tutto in autonomia e condividilo con un QR Code.
           </p>
           <div class="hero-cta">
-            <button class="btn btn-primary" type="button" data-action="signup">Inizia gratis</button>
-            <button class="btn btn-secondary" type="button" data-action="demo">Richiedi demo</button>
+            <a class="btn btn-primary" href="{{ url_for('register') }}">Inizia gratis</a>
+            <a class="btn btn-secondary" href="/menu/alpha-system-srl-2">Guarda la demo</a>
           </div>
           <div class="stats">
             <div>
-              <strong>1.200+</strong>
-              <span>locali attivi</span>
+              <strong>14 giorni</strong>
+              <span>gratis, senza carta</span>
             </div>
             <div>
-              <strong>45s</strong>
-              <span>per pubblicare un menu</span>
+              <strong>1 minuto</strong>
+              <span>da foto o PDF</span>
             </div>
             <div>
-              <strong>4,9★</strong>
-              <span>valutazione media</span>
+              <strong>5 lingue</strong>
+              <span>nel piano Professional</span>
             </div>
           </div>
         </div>
@@ -87,9 +87,7 @@
               <strong>€ 9</strong>
             </div>
           </div>
-          <button class="btn btn-primary full" type="button" data-action="order">
-            Ordina dal tavolo
-          </button>
+          <a class="btn btn-primary full" href="/menu/alpha-system-srl-2">Apri il menu dimostrativo</a>
         </div>
       </div>
     </header>
@@ -102,28 +100,28 @@
         </div>
         <div class="grid">
           <article>
-            <h3>Editor drag & drop</h3>
-            <p>Organizza sezioni, foto e allergeni con un editor semplice anche da mobile.</p>
+            <h3>Importazione intelligente</h3>
+            <p>Parti da una foto o da un PDF e riduci drasticamente il tempo di inserimento.</p>
           </article>
           <article>
             <h3>Multilingua immediato</h3>
-            <p>Traduce il menu in oltre 12 lingue e attiva la lingua automatica via browser.</p>
+            <p>Traduzione automatica in 5 lingue nel piano Professional.</p>
           </article>
           <article>
-            <h3>Ordini al tavolo</h3>
-            <p>Ricevi richieste direttamente in cucina, senza app per il cliente.</p>
+            <h3>Allergeni automatici</h3>
+            <p>Rilevamento assistito dal nome e dagli ingredienti, sempre verificabile dal gestore.</p>
           </article>
           <article>
-            <h3>Analisi e vendite</h3>
-            <p>Scopri i piatti più richiesti e invia promozioni mirate con i QR dinamici.</p>
+            <h3>Statistiche utili</h3>
+            <p>Scopri quali categorie e prodotti attirano maggiormente l’attenzione dei clienti.</p>
           </article>
         </div>
       </section>
 
       <section class="section highlight" id="demo">
         <div class="section-header">
-          <h2>Un menu che si adatta al momento</h2>
-          <p>Attiva modalità brunch, happy hour o take-away con un solo click.</p>
+          <h2>Mostra il menu giusto al momento giusto</h2>
+          <p>Programma la visibilità di categorie, sottocategorie, prodotti e promozioni.</p>
         </div>
         <div class="timeline">
           <div>
@@ -148,38 +146,28 @@
         </div>
         <div class="pricing">
           <article class="price-card">
-            <h3>Starter</h3>
-            <p class="price">€ 19<span>/mese</span></p>
+            <h3>Base</h3>
+            <p class="price">79 € + IVA<span>/anno</span></p>
             <ul>
-              <li>Menu digitale illimitato</li>
-              <li>QR personalizzato</li>
-              <li>Supporto via chat</li>
+              <li>Fino a 100 prodotti</li>
+              <li>Importazione da foto/PDF e allergeni</li>
+              <li>Categorie, disponibilità e QR Code</li>
+              <li>Logo, copertina, colori e orari</li>
+              <li>Branding promozionale Alpha Menu</li>
             </ul>
-            <button class="btn btn-secondary" type="button" data-action="plan-starter">
-              Scegli Starter
-            </button>
+            <a class="btn btn-secondary" href="{{ url_for('register') }}">Prova gratis</a>
           </article>
           <article class="price-card featured">
-            <h3>Pro</h3>
-            <p class="price">€ 39<span>/mese</span></p>
+            <h3>Professional ⭐</h3>
+            <p class="price">129 € + IVA<span>/anno</span></p>
             <ul>
-              <li>Ordini al tavolo</li>
-              <li>Analisi vendite avanzate</li>
-              <li>Promozioni automatiche</li>
+              <li>Tutto il piano Base</li>
+              <li>Prodotti illimitati e foto</li>
+              <li>Traduzione automatica in 5 lingue</li>
+              <li>Statistiche e piatti più visualizzati</li>
+              <li>Stampa A4 e QR senza branding promozionale</li>
             </ul>
-            <button class="btn btn-primary" type="button" data-action="plan-pro">Scegli Pro</button>
-          </article>
-          <article class="price-card">
-            <h3>Enterprise</h3>
-            <p class="price">Su misura</p>
-            <ul>
-              <li>Multi-location</li>
-              <li>Account dedicato</li>
-              <li>Integrazioni personalizzate</li>
-            </ul>
-            <button class="btn btn-secondary" type="button" data-action="contact">
-              Parla con noi
-            </button>
+            <a class="btn btn-primary" href="{{ url_for('register') }}">Inizia la prova Professional</a>
           </article>
         </div>
       </section>
@@ -192,17 +180,16 @@
       </div>
       <div>
         <h4>Contatti</h4>
-        <p>info@menucloud.it</p>
-        <p>+39 02 1234 5678</p>
+        <p><a href="mailto:alphasystemsrl@gmail.com">alphasystemsrl@gmail.com</a></p>
       </div>
       <div>
         <h4>Risorse</h4>
-        <p>Centro assistenza</p>
-        <p>Guide rapide</p>
+        <p><a href="{{ url_for('privacy_policy') }}">Privacy</a></p>
+        <p><a href="{{ url_for('terms_of_service') }}">Termini d’uso</a></p>
       </div>
     </footer>
 
-    <div class="modal" id="action-modal" aria-hidden="true">
+    <div class="modal" id="action-modal" aria-hidden="true" hidden>
       <div class="modal-overlay" data-close="true"></div>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <button class="modal-close" type="button" data-close="true" aria-label="Chiudi">
