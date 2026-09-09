@@ -4,6 +4,8 @@
   <link rel="icon" href="{{ url_for('static', filename='alpha-menu-favicon.png') }}" type="image/png">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b1220" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>Menu Online | Ristoranti & Bar</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -35,7 +37,7 @@
           </p>
           <div class="hero-cta">
             <a class="btn btn-primary" href="{{ url_for('register') }}">Inizia gratis</a>
-            <a class="btn btn-secondary" href="/menu/alpha-system-srl-2">Guarda la demo</a>
+            <a class="btn btn-secondary" href="#demo">Guarda la demo</a>
           </div>
           <div class="stats">
             <div>
@@ -55,36 +57,36 @@
         <div class="hero-card" aria-label="Anteprima menu">
           <div class="card-header">
             <div>
-              <h3>Osteria Mare Blu</h3>
-              <p>Menu digitale · 4 sezioni</p>
+              <h3>Alpha System srl</h3>
+              <p>Menu dimostrativo reale</p>
             </div>
             <span class="badge">Aperto</span>
           </div>
           <div class="card-section">
-            <h4>Specialità del giorno</h4>
+              <h4>Antipasti</h4>
             <div class="menu-item">
               <div>
-                <p>Risotto ai frutti di mare</p>
-                <span>Riso Carnaroli, cozze, vongole, gamberi</span>
+                <p>Tagliere siciliano</p>
+                <span>Selezione di salumi, formaggi e specialità locali</span>
               </div>
-              <strong>€ 16</strong>
+              <strong>€ 12</strong>
             </div>
             <div class="menu-item">
               <div>
-                <p>Frittura leggera</p>
-                <span>Calamari e verdure, salsa agrumata</span>
+                <p>Bruschette miste</p>
+                <span>Pomodoro, basilico e condimenti della casa</span>
               </div>
-              <strong>€ 14</strong>
+              <strong>€ 7</strong>
             </div>
           </div>
           <div class="card-section">
-            <h4>Cocktail</h4>
+            <h4>Pizze</h4>
             <div class="menu-item">
               <div>
-                <p>Negroni Mediterraneo</p>
-                <span>Gin al rosmarino, vermouth, arancia</span>
+                <p>Pizza Margherita</p>
+                <span>Pomodoro, mozzarella e basilico</span>
               </div>
-              <strong>€ 9</strong>
+              <strong>€ 8</strong>
             </div>
           </div>
           <a class="btn btn-primary full" href="/menu/alpha-system-srl-2">Apri il menu dimostrativo</a>
@@ -120,22 +122,17 @@
 
       <section class="section highlight" id="demo">
         <div class="section-header">
-          <h2>Mostra il menu giusto al momento giusto</h2>
-          <p>Programma la visibilità di categorie, sottocategorie, prodotti e promozioni.</p>
+          <p class="section-kicker">DEMO REALE</p>
+          <h2>Guarda Alpha Menu in funzione</h2>
+          <p>Questa è l’anteprima del menu Alpha System: esplora categorie, prodotti, immagini e allergeni senza lasciare la pagina.</p>
         </div>
-        <div class="timeline">
-          <div>
-            <h4>Mattina</h4>
-            <p>Colazioni, caffetteria, pasticceria.</p>
+        <div class="demo-shell">
+          <div class="demo-toolbar">
+            <div class="demo-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div><strong>Menu Alpha System</strong><small>Anteprima interattiva</small></div>
+            <a href="/menu/alpha-system-srl-2" target="_blank" rel="noopener">Apri a schermo intero ↗</a>
           </div>
-          <div>
-            <h4>Pomeriggio</h4>
-            <p>Snack leggeri, insalate e centrifughe.</p>
-          </div>
-          <div>
-            <h4>Sera</h4>
-            <p>Menu degustazione e cocktail d’autore.</p>
-          </div>
+          <iframe class="demo-frame" src="/menu/alpha-system-srl-2" title="Anteprima del menu Alpha System" loading="lazy"></iframe>
         </div>
       </section>
 
@@ -237,5 +234,6 @@
     </div>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/service-worker.js');</script>
   </body>
 </html>
