@@ -2186,7 +2186,7 @@ def api_admin_users_list():
             cur.execute("""
                 SELECT u.id, u.username, COALESCE(u.email, ''), u.admin, COALESCE(n.nome, ''),
                        COALESCE(l.stato, 'sospesa'), l.data_inizio, l.data_scadenza, COALESCE(l.piano, 'professional'),
-                       COALESCE(a.stato, '')
+                       COALESCE(a.stato, ''), COALESCE(a.subscription_id, '')
                 FROM utenti u
                 LEFT JOIN negozi n ON n.id_utente = u.id
                 LEFT JOIN licenze_utenti l ON l.id_utente = u.id
@@ -2205,8 +2205,131 @@ def api_admin_users_list():
                               "in_scadenza": days is not None and 0 <= days <= 30,
                               "piano": normalize_license_plan(row[8]),
                               "in_prova": row[9] == "prova_locale",
-                              "fonte_pagamento": row[9]})
+                              "fonte_pagamento": row[9],
+                              "paypal_collegato": bool(row[10])})
         return jsonify({"items": items, "current_user_id": session["user_id"]})
+    finally:
+        conn.close()
+
+
+def admin_paypal_subscription_row(user_id: int):
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT u.username, a.subscription_id, COALESCE(a.plan_id, ''), COALESCE(a.stato, ''),
+                       a.prossimo_addebito, a.cancellato_il
+                FROM utenti u
+                LEFT JOIN abbonamenti_paypal a ON a.id_utente=u.id
+                WHERE u.id=%s
+            """, (user_id,))
+            return cur.fetchone()
+    finally:
+        conn.close()
+
+
+def paypal_admin_snapshot(user_id: int) -> tuple[dict | None, tuple | None]:
+    row = admin_paypal_subscription_row(user_id)
+    if not row or not row[1]:
+        return None, row
+    details = paypal_get_subscription(row[1])
+    return details, row
+
+
+@app.get("/api/admin/paypal/abbonamenti/<int:user_id>")
+def api_admin_paypal_subscription_status(user_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    try:
+        details, row = paypal_admin_snapshot(user_id)
+    except requests.RequestException as error:
+        status_code = error.response.status_code if getattr(error, "response", None) is not None else None
+        return jsonify({"error": f"PayPal non ha restituito lo stato dell'abbonamento{f' (HTTP {status_code})' if status_code else ''}."}), 502
+    if not row:
+        return jsonify({"error": "Utente non trovato."}), 404
+    local = {
+        "subscription_id": row[1] or "",
+        "plan_id": row[2],
+        "stato": row[3] or "nessun abbonamento",
+        "prossimo_addebito": row[4].isoformat() if row[4] else None,
+        "cancellato_il": row[5].isoformat() if row[5] else None,
+    }
+    remote = None
+    if details:
+        next_billing = details.get("billing_info", {}).get("next_billing_time")
+        next_billing_date = parse_paypal_date(next_billing)
+        remote = {
+            "stato": details.get("status", "SCONOSCIUTO"),
+            "plan_id": details.get("plan_id", ""),
+            "prossimo_addebito": next_billing_date.isoformat() if next_billing_date else None,
+        }
+    return jsonify({"ok": True, "cliente": row[0], "locale": local, "paypal": remote})
+
+
+@app.post("/api/admin/paypal/abbonamenti/<int:user_id>/sincronizza")
+def api_admin_paypal_subscription_sync(user_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    try:
+        details, row = paypal_admin_snapshot(user_id)
+    except requests.RequestException as error:
+        status_code = error.response.status_code if getattr(error, "response", None) is not None else None
+        return jsonify({"error": f"Sincronizzazione PayPal non riuscita{f' (HTTP {status_code})' if status_code else ''}."}), 502
+    if not row:
+        return jsonify({"error": "Utente non trovato."}), 404
+    if not details:
+        return jsonify({"error": "Questo cliente non ha un abbonamento PayPal collegato."}), 404
+    remote_status = (details.get("status") or "").upper()
+    local_status = {
+        "ACTIVE": "attivo", "APPROVAL_PENDING": "in_attesa", "APPROVED": "in_attesa",
+        "SUSPENDED": "sospeso", "CANCELLED": "cancellato", "EXPIRED": "scaduto",
+    }.get(remote_status, remote_status.lower() or "sconosciuto")
+    next_billing = parse_paypal_date(details.get("billing_info", {}).get("next_billing_time"))
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE abbonamenti_paypal
+                    SET plan_id=%s, stato=%s, prossimo_addebito=%s,
+                        cancellato_il=CASE WHEN %s IN ('cancellato','scaduto') THEN COALESCE(cancellato_il,NOW()) ELSE NULL END,
+                        updated_at=NOW()
+                    WHERE id_utente=%s
+                """, (details.get("plan_id"), local_status, next_billing, local_status, user_id))
+                if remote_status == "ACTIVE":
+                    cur.execute("""
+                        UPDATE licenze_utenti SET stato='attiva',
+                            data_scadenza=COALESCE(%s, data_scadenza), updated_at=NOW()
+                        WHERE id_utente=%s
+                    """, (next_billing, user_id))
+        return jsonify({"ok": True, "stato": remote_status, "prossimo_addebito": next_billing.isoformat() if next_billing else None})
+    finally:
+        conn.close()
+
+
+@app.post("/api/admin/paypal/abbonamenti/<int:user_id>/disdici")
+def api_admin_paypal_subscription_cancel(user_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    row = admin_paypal_subscription_row(user_id)
+    if not row:
+        return jsonify({"error": "Utente non trovato."}), 404
+    if not row[1]:
+        return jsonify({"error": "Questo cliente non ha un abbonamento PayPal collegato."}), 404
+    try:
+        paypal_cancel_subscription_by_id(row[1], "Disdetta richiesta dal Superadmin")
+    except (requests.RequestException, RuntimeError) as error:
+        app.logger.warning("Disdetta PayPal Superadmin non riuscita per utente %s: %s", user_id, error)
+        return jsonify({"error": "PayPal non ha confermato la disdetta. Nessuna modifica locale è stata effettuata."}), 502
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE abbonamenti_paypal SET stato='cancellato', cancellato_il=NOW(), updated_at=NOW() WHERE id_utente=%s", (user_id,))
+        return jsonify({"ok": True, "message": "Rinnovo PayPal disdetto. La licenza resta valida fino alla scadenza corrente."})
     finally:
         conn.close()
 
