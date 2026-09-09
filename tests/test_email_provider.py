@@ -14,7 +14,7 @@ class EmailProviderTests(unittest.TestCase):
         names = {"smtp_configured", "email_configured", "valid_email_address", "send_transactional_email"}
         module = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names], type_ignores=[])
         self.http = SimpleNamespace(post=Mock(), RequestException=ConnectionError)
-        self.scope = {"os": os, "re": re, "requests": self.http, "app": SimpleNamespace(logger=Mock())}
+        self.scope = {"os": os, "re": re, "requests": self.http, "app": SimpleNamespace(logger=Mock()), "record_operational_error": Mock()}
         exec(compile(module, "app.py", "exec"), self.scope)
         self.env = patch.dict(os.environ, {"EMAIL_PROVIDER": "resend", "RESEND_API_KEY": "test-key", "EMAIL_FROM": "Menu <menu@example.com>"}, clear=True)
         self.env.start()

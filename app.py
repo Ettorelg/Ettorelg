@@ -507,9 +507,11 @@ def send_transactional_email(recipient: str, subject: str, body: str, reply_to: 
                 app.logger.info("Email transazionale accettata da Resend")
                 return True
             app.logger.error("Invio Resend non accettato (HTTP %s)", response.status_code)
+            record_operational_error("email", f"Resend ha rifiutato l'invio: HTTP {response.status_code}")
         except (requests.RequestException, ValueError):
             # Non registrare credenziali, destinatari o link di recupero nei log.
             app.logger.error("Invio Resend fallito: rete o risposta non valida")
+            record_operational_error("email", "Resend non raggiungibile o risposta non valida")
         return False
     message = EmailMessage()
     message["From"] = os.environ["SMTP_FROM"]
@@ -535,7 +537,41 @@ def send_transactional_email(recipient: str, subject: str, body: str, reply_to: 
         return True
     except (OSError, smtplib.SMTPException, ValueError):
         app.logger.exception("Invio email transazionale non riuscito")
+        record_operational_error("email", "Invio SMTP non riuscito")
         return False
+
+
+def record_operational_error(area: str, message: str, user_id: int | None = None, severity: str = "errore") -> None:
+    """Registra un errore consultabile senza salvare token, password o payload sensibili."""
+    try:
+        conn = psycopg2.connect(**build_db_config())
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("INSERT INTO errori_operativi (area,gravita,messaggio,id_utente) VALUES (%s,%s,%s,%s)",
+                                (area[:40], severity[:16], str(message)[:500], user_id))
+        finally:
+            conn.close()
+    except Exception:
+        app.logger.error("Impossibile registrare errore operativo nell'area %s", area)
+
+
+def record_commercial_event(event: str, user_id: int | None = None, source: str | None = None) -> None:
+    try:
+        conn = psycopg2.connect(**build_db_config())
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("INSERT INTO eventi_commerciali (evento,id_utente,provenienza) VALUES (%s,%s,%s)",
+                                (event[:40], user_id, (source or "diretto")[:120]))
+        finally:
+            conn.close()
+    except Exception:
+        app.logger.warning("Evento commerciale non registrato: %s", event)
+
+
+def commercial_source() -> str:
+    return (request.args.get("utm_source") or request.headers.get("Referer") or "diretto")[:120]
 
 
 def maybe_send_license_expiry_email(user_id: int) -> None:
@@ -840,6 +876,22 @@ def init_db() -> None:
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS verifiche_email_utente ON verifiche_email (id_utente,scade_il DESC)")
                 cur.execute("""
+                    CREATE TABLE IF NOT EXISTS errori_operativi (
+                        id BIGSERIAL PRIMARY KEY, area TEXT NOT NULL, gravita TEXT NOT NULL DEFAULT 'errore',
+                        messaggio TEXT NOT NULL, id_utente INTEGER REFERENCES utenti(id) ON DELETE SET NULL,
+                        risolto BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS errori_operativi_data ON errori_operativi (created_at DESC)")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS eventi_commerciali (
+                        id BIGSERIAL PRIMARY KEY, evento TEXT NOT NULL,
+                        id_utente INTEGER REFERENCES utenti(id) ON DELETE SET NULL,
+                        provenienza TEXT NOT NULL DEFAULT 'diretto', created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS eventi_commerciali_evento_data ON eventi_commerciali (evento,created_at DESC)")
+                cur.execute("""
                     CREATE TABLE IF NOT EXISTS consensi_utenti (
                         id BIGSERIAL PRIMARY KEY,
                         id_utente INTEGER NOT NULL REFERENCES utenti(id) ON DELETE CASCADE,
@@ -1015,6 +1067,19 @@ def enforce_current_license():
     return redirect(url_for("pagamento"))
 
 
+@app.errorhandler(Exception)
+def handle_unexpected_error(error):
+    if getattr(error, "code", None):
+        return error
+    path = request.path.lower()
+    area = "importazione" if "import" in path else "caricamento" if "upload" in path or "immagin" in path else "applicazione"
+    record_operational_error(area, f"Errore interno su {request.method} {request.path}", session.get("user_id"), "critico")
+    app.logger.exception("Errore applicativo non gestito")
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Errore interno. L'amministratore è stato avvisato nel pannello di monitoraggio."}), 500
+    return "Errore interno. Riprova tra qualche minuto.", 500
+
+
 @app.route("/uploads/<path:filename>")
 def uploaded_file(filename: str):
     return send_from_directory(UPLOAD_ROOT, filename)
@@ -1022,11 +1087,17 @@ def uploaded_file(filename: str):
 
 @app.route("/")
 def index():
+    source = commercial_source()
+    session["commercial_source"] = source
+    record_commercial_event("visita_landing", source=source)
     return render_template("index.html")
 
 
 @app.get("/prova-gratuita")
 def free_trial():
+    source = commercial_source()
+    session["commercial_source"] = source
+    record_commercial_event("visita_prova", source=source)
     return render_template("free_trial.html")
 
 
@@ -1199,6 +1270,7 @@ def register():
                     f"Ciao {business_name},\n\nconferma il tuo indirizzo email entro 24 ore:\n{verify_url}\n\nI 14 giorni gratuiti inizieranno soltanto dopo la conferma.\n\nAlpha Menu – Alpha System S.r.l.",
                 ):
                     raise RuntimeError("Invio email non riuscito")
+        record_commercial_event("registrazione", user_id, session.get("commercial_source") or commercial_source())
         return render_template("email_verification_pending.html", email=email)
     except psycopg2.IntegrityError:
         return render_template("register.html", error="Email o nome dell’attività già utilizzati.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
@@ -1239,8 +1311,10 @@ def verify_email(token: str):
                         ON CONFLICT (id_utente) DO NOTHING
                     """, (user_id, paypal_plan_id("professional"), trial_end, trial_end))
                 cur.execute("UPDATE verifiche_email SET usato_il=NOW() WHERE id=%s", (verification_id,))
+        source = session.get("commercial_source")
         session.clear()
         session.update(user_id=user_id, username=username, is_admin=False)
+        record_commercial_event("trial_avviato", user_id, source)
         return render_template("email_verification_pending.html", verified=True)
     finally:
         conn.close()
@@ -1589,6 +1663,7 @@ def paypal_subscription_activate():
                 username = cur.fetchone()[0]
         session.clear()
         session.update(user_id=user_id, username=username, is_admin=False)
+        record_commercial_event(f"conversione_{selected_plan}", user_id)
         return jsonify({"ok": True, "redirect": url_for("dashboard_user")})
     finally:
         conn.close()
@@ -2270,6 +2345,35 @@ def api_admin_users_list():
         conn.close()
 
 
+@app.get("/api/admin/monitoraggio")
+def api_admin_monitoring():
+    denied = require_admin()
+    if denied:
+        return denied
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT evento,COUNT(*) FROM eventi_commerciali
+                WHERE created_at>=NOW()-INTERVAL '30 days' GROUP BY evento
+            """)
+            metrics = {row[0]: row[1] for row in cur.fetchall()}
+            cur.execute("""
+                SELECT provenienza,COUNT(*) FROM eventi_commerciali
+                WHERE created_at>=NOW()-INTERVAL '30 days' AND evento IN ('registrazione','trial_avviato')
+                GROUP BY provenienza ORDER BY COUNT(*) DESC LIMIT 10
+            """)
+            sources = [{"nome": row[0], "totale": row[1]} for row in cur.fetchall()]
+            cur.execute("""
+                SELECT area,gravita,messaggio,created_at FROM errori_operativi
+                WHERE risolto=FALSE ORDER BY created_at DESC LIMIT 30
+            """)
+            errors = [{"area": row[0], "gravita": row[1], "messaggio": row[2], "data": row[3].isoformat()} for row in cur.fetchall()]
+        return jsonify({"metriche_30_giorni": metrics, "provenienze": sources, "errori_aperti": errors})
+    finally:
+        conn.close()
+
+
 def admin_paypal_subscription_row(user_id: int):
     conn = psycopg2.connect(**build_db_config())
     try:
@@ -2303,6 +2407,7 @@ def api_admin_paypal_subscription_status(user_id: int):
         details, row = paypal_admin_snapshot(user_id)
     except requests.RequestException as error:
         status_code = error.response.status_code if getattr(error, "response", None) is not None else None
+        record_operational_error("paypal", f"Lettura abbonamento fallita HTTP {status_code or 'rete'}", user_id)
         return jsonify({"error": f"PayPal non ha restituito lo stato dell'abbonamento{f' (HTTP {status_code})' if status_code else ''}."}), 502
     if not row:
         return jsonify({"error": "Utente non trovato."}), 404
@@ -2334,6 +2439,7 @@ def api_admin_paypal_subscription_sync(user_id: int):
         details, row = paypal_admin_snapshot(user_id)
     except requests.RequestException as error:
         status_code = error.response.status_code if getattr(error, "response", None) is not None else None
+        record_operational_error("paypal", f"Sincronizzazione fallita HTTP {status_code or 'rete'}", user_id)
         return jsonify({"error": f"Sincronizzazione PayPal non riuscita{f' (HTTP {status_code})' if status_code else ''}."}), 502
     if not row:
         return jsonify({"error": "Utente non trovato."}), 404
@@ -2385,6 +2491,7 @@ def api_admin_paypal_subscription_cancel(user_id: int):
             paypal_cancel_subscription_by_id(row[1], "Disdetta richiesta dal Superadmin")
     except (requests.RequestException, RuntimeError) as error:
         app.logger.warning("Disdetta PayPal Superadmin non riuscita per utente %s: %s", user_id, error)
+        record_operational_error("paypal", f"Disdetta non confermata: {error}", user_id, "critico")
         return jsonify({"error": f"Disdetta non confermata: {error} Nessuna modifica locale è stata effettuata."}), 502
     conn = psycopg2.connect(**build_db_config())
     try:
