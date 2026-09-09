@@ -381,16 +381,23 @@ def paypal_cancel_subscription_by_id(subscription_id: str, reason: str) -> None:
     """Disattiva il rinnovo PayPal prima di revocare l'accesso locale."""
     if not subscription_id:
         return
-    if not paypal_configured():
-        raise RuntimeError("PayPal non è configurato: impossibile disdire l'abbonamento in sicurezza.")
+    # Per la disdetta non serve l'ID di un piano: sono sufficienti le
+    # credenziali API. Legare questo controllo a paypal_configured() bloccava
+    # abbonamenti validi quando uno dei due piani commerciali non era salvato.
+    if not os.environ.get("PAYPAL_CLIENT_ID") or not os.environ.get("PAYPAL_CLIENT_SECRET"):
+        raise RuntimeError("Credenziali PayPal non configurate.")
     response = requests.post(
         f"{paypal_base_url()}/v1/billing/subscriptions/{subscription_id}/cancel",
         headers={"Authorization": f"Bearer {paypal_access_token()}", "Content-Type": "application/json"},
         json={"reason": reason}, timeout=20,
     )
-    # PayPal può rispondere 422 se l'abbonamento era già terminato o cancellato.
-    if response.status_code not in (200, 204, 422):
-        raise RuntimeError("PayPal non ha confermato la disdetta dell'abbonamento.")
+    if response.status_code not in (200, 204):
+        try:
+            paypal_error = response.json().get("message") or response.json().get("name")
+        except (ValueError, AttributeError):
+            paypal_error = None
+        detail = f"HTTP {response.status_code}" + (f" · {paypal_error}" if paypal_error else "")
+        raise RuntimeError(f"PayPal non ha confermato la disdetta ({detail}).")
 
 
 def paypal_verify_webhook(payload: dict) -> bool:
@@ -2320,16 +2327,21 @@ def api_admin_paypal_subscription_cancel(user_id: int):
     if not row[1]:
         return jsonify({"error": "Questo cliente non ha un abbonamento PayPal collegato."}), 404
     try:
-        paypal_cancel_subscription_by_id(row[1], "Disdetta richiesta dal Superadmin")
+        details = paypal_get_subscription(row[1])
+        remote_status = (details.get("status") or "").upper()
+        already_closed = remote_status in ("CANCELLED", "EXPIRED")
+        if not already_closed:
+            paypal_cancel_subscription_by_id(row[1], "Disdetta richiesta dal Superadmin")
     except (requests.RequestException, RuntimeError) as error:
         app.logger.warning("Disdetta PayPal Superadmin non riuscita per utente %s: %s", user_id, error)
-        return jsonify({"error": "PayPal non ha confermato la disdetta. Nessuna modifica locale è stata effettuata."}), 502
+        return jsonify({"error": f"Disdetta non confermata: {error} Nessuna modifica locale è stata effettuata."}), 502
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
             with conn.cursor() as cur:
                 cur.execute("UPDATE abbonamenti_paypal SET stato='cancellato', cancellato_il=NOW(), updated_at=NOW() WHERE id_utente=%s", (user_id,))
-        return jsonify({"ok": True, "message": "Rinnovo PayPal disdetto. La licenza resta valida fino alla scadenza corrente."})
+        message = "L'abbonamento risultava già terminato su PayPal. Stato locale sincronizzato." if already_closed else "Rinnovo PayPal disdetto. La licenza resta valida fino alla scadenza corrente."
+        return jsonify({"ok": True, "message": message})
     finally:
         conn.close()
 
