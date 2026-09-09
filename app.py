@@ -10,6 +10,7 @@ import secrets
 import smtplib
 import threading
 import time
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from urllib.parse import urlencode
@@ -276,6 +277,13 @@ LICENSE_PLANS = {
     "base": {"name": "Base", "price": "79.00", "product_limit": 100},
     "professional": {"name": "Professional", "price": "129.00", "product_limit": None},
 }
+VAT_RATE = Decimal("0.22")
+
+
+def plan_price_with_vat(plan: str) -> str:
+    """Prezzo PayPal lordo: il listino pubblico resta espresso al netto dell'IVA."""
+    net = Decimal(LICENSE_PLANS[normalize_license_plan(plan)]["price"])
+    return str((net * (Decimal("1.00") + VAT_RATE)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 def record_registration_consents(cur, user_id: int, marketing: bool = False) -> None:
@@ -424,6 +432,11 @@ def paypal_verify_webhook(payload: dict) -> bool:
 
 def parse_paypal_date(value, fallback=None):
     if not value:
+        return fallback
+    try:
+        # PayPal usa timestamp ISO 8601, normalmente con suffisso Z.
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).date()
+    except (TypeError, ValueError):
         return fallback
 
 
@@ -1684,7 +1697,7 @@ def pagamento():
         license_active=license_active, renewal_requested=renewal_requested, choice_requested=choice_requested, selection_requested=selection_requested,
         recurring_active=recurring_active,
         paypal_configured=paypal_configured(selected_plan), paypal_client_id=os.environ.get("PAYPAL_CLIENT_ID", ""),
-        paypal_plan_id=paypal_plan_id(selected_plan), price=plan_info["price"], plan=selected_plan, plan_name=plan_info["name"],
+        paypal_plan_id=paypal_plan_id(selected_plan), price=plan_info["price"], price_with_vat=plan_price_with_vat(selected_plan), plan=selected_plan, plan_name=plan_info["name"],
         currency=PAYPAL_CURRENCY, trial_days=0,
     )
 
@@ -2057,7 +2070,7 @@ def api_admin_create_paypal_base_plan():
             json={
                 "product_id": product_id,
                 "name": "Alpha Menu Base annuale",
-                "description": "Piano Base Alpha Menu, 79 EUR ogni anno più IVA",
+                "description": f"Piano Base Alpha Menu, 79 EUR + IVA ({plan_price_with_vat('base')} EUR) ogni anno",
                 "status": "ACTIVE",
                 "billing_cycles": [
                     {
@@ -2072,7 +2085,7 @@ def api_admin_create_paypal_base_plan():
                         "tenure_type": "REGULAR",
                         "sequence": 2,
                         "total_cycles": 0,
-                        "pricing_scheme": {"fixed_price": {"value": LICENSE_PLANS["base"]["price"], "currency_code": PAYPAL_CURRENCY}},
+                        "pricing_scheme": {"fixed_price": {"value": plan_price_with_vat("base"), "currency_code": PAYPAL_CURRENCY}},
                     },
                 ],
                 "payment_preferences": {
@@ -2155,12 +2168,12 @@ def api_admin_create_annual_paypal_plans():
                 json={
                     "product_id": product_id,
                     "name": f"Alpha Menu {info['name']} annuale",
-                    "description": f"{info['name']} · {info['price']} EUR ogni anno, senza periodo di prova PayPal",
+                    "description": f"{info['name']} · {info['price']} EUR + IVA ({plan_price_with_vat(plan)} EUR) ogni anno, senza periodo di prova PayPal",
                     "status": "ACTIVE",
                     "billing_cycles": [{
                         "frequency": {"interval_unit": "YEAR", "interval_count": 1},
                         "tenure_type": "REGULAR", "sequence": 1, "total_cycles": 0,
-                        "pricing_scheme": {"fixed_price": {"value": info["price"], "currency_code": PAYPAL_CURRENCY}},
+                        "pricing_scheme": {"fixed_price": {"value": plan_price_with_vat(plan), "currency_code": PAYPAL_CURRENCY}},
                     }],
                     "payment_preferences": {"auto_bill_outstanding": True, "setup_fee": {"value": "0", "currency_code": PAYPAL_CURRENCY}, "setup_fee_failure_action": "CONTINUE", "payment_failure_threshold": 3},
                 }, timeout=25,

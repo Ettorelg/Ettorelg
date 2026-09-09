@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from decimal import Decimal, ROUND_HALF_UP
 from unittest.mock import Mock, patch
 
 
@@ -78,6 +79,25 @@ class LicenseAndTrialTests(unittest.TestCase):
 
 
 class PayPalTests(unittest.TestCase):
+    def test_paypal_dates_use_fallback_and_parse_iso_timestamp(self):
+        parse = load_function("parse_paypal_date", {"datetime": datetime})
+        fallback = date(2027, 1, 1)
+        self.assertEqual(parse(None, fallback), fallback)
+        self.assertEqual(parse("2027-02-03T10:15:00Z", fallback), date(2027, 2, 3))
+        self.assertEqual(parse("not-a-date", fallback), fallback)
+
+    def test_paypal_charge_includes_italian_vat(self):
+        scope = {
+            "Decimal": Decimal,
+            "ROUND_HALF_UP": ROUND_HALF_UP,
+            "LICENSE_PLANS": {"base": {"price": "79.00"}, "professional": {"price": "129.00"}},
+            "VAT_RATE": Decimal("0.22"),
+            "normalize_license_plan": lambda value: value,
+        }
+        gross = load_function("plan_price_with_vat", scope)
+        self.assertEqual(gross("base"), "96.38")
+        self.assertEqual(gross("professional"), "157.38")
+
     def test_cancel_uses_live_endpoint_and_accepts_204(self):
         response = Mock(status_code=204)
         http = SimpleNamespace(post=Mock(return_value=response))

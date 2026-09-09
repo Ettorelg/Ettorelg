@@ -71,7 +71,7 @@
     {% endif %}
     {% if not (renewal_requested and recurring_active) %}<section class="offer">
         <strong>{{ plan_name }}</strong>
-        <div>{{ price }} € + IVA ogni anno.</div>
+        <div>{{ price }} € + IVA ogni anno. <strong>Totale addebitato: {{ price_with_vat }} €.</strong></div>
         <div><strong>Cliente Alpha System?</strong> La configurazione iniziale è gratuita.</div>
         <ul>
             {% if plan == 'base' %}
@@ -100,7 +100,7 @@
     {% else %}
         <div id="paypal-button-container"></div>
         <div id="payment-error" class="error"></div>
-        <p class="small">Autorizzando PayPal accetti l'addebito immediato di {{ price }} € + IVA e il rinnovo automatico annuale allo stesso prezzo, salvo variazioni comunicate secondo i Termini. Puoi disdire il rinnovo dalla gestione del tuo account prima della scadenza.</p>
+        <p class="small">Autorizzando PayPal accetti l'addebito immediato di {{ price_with_vat }} € ({{ price }} € + IVA 22%) e il rinnovo automatico annuale allo stesso importo, salvo variazioni comunicate secondo i Termini. Puoi disdire il rinnovo dalla gestione del tuo account prima della scadenza.</p>
     {% endif %}
 </main>
 {% include '_legal_footer.html' %}
