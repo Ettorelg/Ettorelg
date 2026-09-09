@@ -2281,6 +2281,7 @@ def api_admin_license_update(user_id: int):
     expiry_raw = data.get("data_scadenza")
     raw_plan = (data.get("piano") or "").strip().lower()
     confirm_paypal_cancel = data.get("conferma_annullamento_paypal") is True
+    force_manual = data.get("forza_gestione_manuale") is True
     if raw_plan not in {"trial", *LICENSE_PLANS}:
         return jsonify({"error": "Piano licenza non valido."}), 400
     is_trial = raw_plan == "trial"
@@ -2300,12 +2301,19 @@ def api_admin_license_update(user_id: int):
                 converted_from_trial = bool(subscription and subscription[1] == "prova_locale" and not is_trial)
                 active_paypal_subscription = bool(subscription and subscription[0] and subscription[1] not in {"cancellato", "scaduto"})
                 if active_paypal_subscription and not confirm_paypal_cancel:
-                    return jsonify({"error": "Questo cliente ha un abbonamento PayPal attivo. Conferma per annullarlo e passare alla gestione manuale."}), 409
-                if active_paypal_subscription:
+                    return jsonify({
+                        "error": "Questo cliente ha un abbonamento PayPal attivo. Conferma per annullarlo e passare alla gestione manuale.",
+                        "codice": "conferma_annullamento_paypal",
+                    }), 409
+                if active_paypal_subscription and not force_manual:
                     try:
                         paypal_cancel_subscription_by_id(subscription[0], "Passaggio a licenza gestita manualmente dall'amministratore")
-                    except RuntimeError as error:
-                        return jsonify({"error": str(error)}), 502
+                    except (requests.RequestException, RuntimeError) as error:
+                        app.logger.warning("Disdetta PayPal non confermata per utente %s: %s", user_id, error)
+                        return jsonify({
+                            "error": "PayPal non ha confermato la disdetta. Verifica e annulla l'abbonamento dal pannello PayPal; poi puoi forzare il passaggio alla gestione manuale.",
+                            "codice": "disdetta_paypal_non_confermata",
+                        }), 409
                 if converted_from_trial:
                     status = "attiva"
                     expiry = annual_expiry()
@@ -2339,6 +2347,7 @@ def api_admin_license_update(user_id: int):
             "piano": plan,
             "data_scadenza": expiry.isoformat(),
             "conversione_trial": converted_from_trial,
+            "gestione_forzata": bool(active_paypal_subscription and force_manual),
         })
     finally:
         conn.close()
