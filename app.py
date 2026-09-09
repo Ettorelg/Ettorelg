@@ -2346,6 +2346,42 @@ def api_admin_paypal_subscription_cancel(user_id: int):
         conn.close()
 
 
+@app.post("/api/admin/paypal/abbonamenti/<int:user_id>/scollega-test")
+def api_admin_paypal_subscription_unlink_test(user_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    row = admin_paypal_subscription_row(user_id)
+    if not row:
+        return jsonify({"error": "Utente non trovato."}), 404
+    subscription_id = row[1]
+    if not subscription_id:
+        return jsonify({"error": "Questo cliente non ha un abbonamento PayPal collegato."}), 404
+    try:
+        paypal_get_subscription(subscription_id)
+    except requests.HTTPError as error:
+        status_code = error.response.status_code if error.response is not None else None
+        if status_code != 404:
+            return jsonify({"error": f"Impossibile verificare l'abbonamento su PayPal (HTTP {status_code or 'errore di rete'}). Collegamento non rimosso."}), 502
+    except (requests.RequestException, RuntimeError):
+        return jsonify({"error": "Impossibile verificare l'abbonamento su PayPal. Collegamento non rimosso."}), 502
+    else:
+        return jsonify({"error": "L'abbonamento esiste nell'ambiente PayPal attivo. Devi disdirlo prima di scollegarlo."}), 409
+
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE abbonamenti_paypal
+                    SET subscription_id=NULL, stato='manuale', cancellato_il=NOW(), updated_at=NOW()
+                    WHERE id_utente=%s
+                """, (user_id,))
+        return jsonify({"ok": True, "message": "Abbonamento di test scollegato. La licenza locale non è stata modificata."})
+    finally:
+        conn.close()
+
+
 @app.post("/api/admin/utenti")
 def api_admin_users_create():
     denied = require_admin()
