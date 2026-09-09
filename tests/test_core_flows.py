@@ -46,6 +46,17 @@ class LicenseAndTrialTests(unittest.TestCase):
         languages = ast.literal_eval(assignment.value)
         self.assertEqual(len(languages) + 1, 10)  # nove aggiuntive più l'italiano
 
+    def test_new_manual_accounts_start_with_initial_guide(self):
+        register_block = SOURCE[SOURCE.index('def register():'):SOURCE.index('@app.get("/verifica-email/')]
+        self.assertIn("guida_iniziale_vista", register_block)
+        self.assertIn("FALSE, FALSE, FALSE", register_block)
+
+    def test_guide_progress_is_based_on_saved_data(self):
+        guide_block = SOURCE[SOURCE.index('def api_initial_guide('):SOURCE.index('@app.put("/api/account")')]
+        self.assertIn("COUNT(*) FROM categorie", guide_block)
+        self.assertIn("COUNT(*) FROM prodotti", guide_block)
+        self.assertIn("COUNT(*) FROM lingue_negozio", guide_block)
+
 
 class PayPalTests(unittest.TestCase):
     def test_cancel_uses_live_endpoint_and_accepts_204(self):

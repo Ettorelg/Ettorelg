@@ -833,6 +833,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS apple_sub TEXT")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS password_impostata BOOLEAN NOT NULL DEFAULT TRUE")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS email_verificata BOOLEAN NOT NULL DEFAULT TRUE")
+                cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS guida_iniziale_vista BOOLEAN NOT NULL DEFAULT TRUE")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS lingue_negozio (
                         id SERIAL PRIMARY KEY,
@@ -1298,7 +1299,7 @@ def register():
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO utenti (username, email, password, admin, email_verificata) VALUES (%s, %s, %s, FALSE, FALSE) RETURNING id",
+                    "INSERT INTO utenti (username, email, password, admin, email_verificata, guida_iniziale_vista) VALUES (%s, %s, %s, FALSE, FALSE, FALSE) RETURNING id",
                     (business_name, email, hash_password(password)),
                 )
                 user_id = cur.fetchone()[0]
@@ -1439,7 +1440,7 @@ def auth_google_callback():
                             break
                         suffix += 1
                         username = f"{base[:65]}-{suffix}"
-                    cur.execute("INSERT INTO utenti (username, email, google_sub, password, admin, password_impostata) VALUES (%s, %s, %s, %s, FALSE, FALSE) RETURNING id", (username, email, google_sub, hash_password(os.urandom(32).hex())))
+                    cur.execute("INSERT INTO utenti (username, email, google_sub, password, admin, password_impostata, guida_iniziale_vista) VALUES (%s, %s, %s, %s, FALSE, FALSE, FALSE) RETURNING id", (username, email, google_sub, hash_password(os.urandom(32).hex())))
                     user_id = cur.fetchone()[0]
                     is_admin = False
                 if is_new_user:
@@ -1574,8 +1575,8 @@ def auth_apple_callback():
                         username = f"{base[:65]}-{suffix}"
                     cur.execute(
                         """
-                        INSERT INTO utenti (username,email,apple_sub,password,admin,password_impostata)
-                        VALUES (%s,%s,%s,%s,FALSE,FALSE) RETURNING id
+                        INSERT INTO utenti (username,email,apple_sub,password,admin,password_impostata,guida_iniziale_vista)
+                        VALUES (%s,%s,%s,%s,FALSE,FALSE,FALSE) RETURNING id
                         """,
                         (username, email, apple_sub, hash_password(os.urandom(32).hex())),
                     )
@@ -2200,6 +2201,59 @@ def api_account_get():
         conn.close()
 
 
+@app.route("/api/guida-iniziale", methods=["GET", "POST"])
+def api_initial_guide():
+    if "user_id" not in session:
+        return jsonify({"error": "unauthorized"}), 401
+    user_id = session["user_id"]
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        if request.method == "POST":
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE utenti SET guida_iniziale_vista=TRUE WHERE id=%s", (user_id,))
+            return jsonify({"ok": True})
+        with conn.cursor() as cur:
+            cur.execute("SELECT COALESCE(guida_iniziale_vista,TRUE) FROM utenti WHERE id=%s", (user_id,))
+            user_row = cur.fetchone()
+            cur.execute("""
+                SELECT id, nome, indirizzo, citta, cap, provincia, descrizione_breve, descrizione_estesa,
+                       COALESCE(logo_url,''), COALESCE(copertina_url,'')
+                FROM negozi WHERE id_utente=%s
+            """, (user_id,))
+            shop = cur.fetchone()
+            shop_id = shop[0] if shop else None
+            categories = products = languages = hours = 0
+            if shop_id:
+                cur.execute("SELECT COUNT(*) FROM categorie WHERE id_negozio=%s", (shop_id,))
+                categories = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM prodotti WHERE id_negozio=%s", (shop_id,))
+                products = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM lingue_negozio WHERE id_negozio=%s", (shop_id,))
+                languages = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM orari_negozio WHERE id_negozio=%s AND aperto=TRUE", (shop_id,))
+                hours = cur.fetchone()[0]
+        essential_shop = bool(shop and all(shop[index] for index in range(1, 8)))
+        branding = bool(shop and shop[8] and shop[9])
+        steps = {
+            "locale": essential_shop,
+            "immagine_orari": branding and hours > 0,
+            "categorie": categories > 0,
+            "prodotti": products > 0,
+            "lingue": languages > 0,
+            "pubblicazione": products > 0 and categories > 0,
+        }
+        return jsonify({
+            "mostra_automaticamente": bool(user_row and not user_row[0]),
+            "passaggi": steps,
+            "completati": sum(1 for value in steps.values() if value),
+            "totale": len(steps),
+            "conteggi": {"categorie": categories, "prodotti": products, "lingue": languages},
+        })
+    finally:
+        conn.close()
+
+
 @app.put("/api/account")
 def api_account_update():
     if "user_id" not in session:
@@ -2630,7 +2684,7 @@ def api_admin_users_create():
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute("INSERT INTO utenti (username, email, password, admin) VALUES (%s, %s, %s, %s) RETURNING id", (username, email, hash_password(password), is_admin))
+                cur.execute("INSERT INTO utenti (username, email, password, admin, guida_iniziale_vista) VALUES (%s, %s, %s, %s, %s) RETURNING id", (username, email, hash_password(password), is_admin, is_admin))
                 user_id = cur.fetchone()[0]
                 cur.execute("INSERT INTO licenze_utenti (id_utente, data_scadenza, piano) VALUES (%s, %s, %s)", (user_id, annual_expiry(), plan))
         return jsonify({"ok": True, "id": user_id}), 201
