@@ -37,7 +37,31 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE", "true").lower() == "true",
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(days=30),
+    SESSION_REFRESH_EACH_REQUEST=True,
 )
+
+
+@app.before_request
+def keep_authenticated_session_active():
+    """Mantiene l'accesso nell'app installata, senza rendere persistenti i flussi anonimi."""
+    if session.get("user_id"):
+        session.permanent = True
+
+
+@app.get("/manifest.webmanifest")
+def pwa_manifest():
+    response = send_from_directory(app.static_folder, "manifest.webmanifest", mimetype="application/manifest+json")
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return response
+
+
+@app.get("/service-worker.js")
+def pwa_service_worker():
+    response = send_from_directory(app.static_folder, "service-worker.js", mimetype="application/javascript")
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["Service-Worker-Allowed"] = "/"
+    return response
 
 @app.after_request
 def security_headers(response):

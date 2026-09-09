@@ -1,0 +1,21 @@
+{
+  "name": "Alpha Menu",
+  "short_name": "Alpha Menu",
+  "description": "Gestisci il menu digitale del tuo locale",
+  "lang": "it-IT",
+  "id": "/dashboard_user",
+  "start_url": "/dashboard_user#home",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    {"src": "/static/app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "/static/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ],
+  "shortcuts": [
+    {"name": "Prodotti", "url": "/dashboard_user#prodotti"},
+    {"name": "Menu online", "url": "/dashboard_user#menu_online"}
+  ]
+}

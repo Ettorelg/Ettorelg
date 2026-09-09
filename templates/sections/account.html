@@ -27,6 +27,9 @@
     <div class="account-head"><div><h3>Accesso con Google</h3><p class="account-sub">Collega il tuo account Google per entrare più velocemente senza digitare la password.</p></div><a class="account-btn" id="linkGoogle" href="/account/collega-google">Collega Google</a></div>
   </section>
   <section class="account-card">
+    <div class="account-head"><div><h3>App Alpha Menu</h3><p class="account-sub">Installa la dashboard sul telefono o sul computer. Se accedi con Google resterai collegato anche dopo aver chiuso l’app.</p><p class="account-note" id="installAppHelp">Su iPhone usa Condividi → Aggiungi alla schermata Home.</p></div><button class="account-btn" id="installApp" type="button">Installa Alpha Menu</button></div>
+  </section>
+  <section class="account-card">
     <div class="account-head"><div><h3>Dati di fatturazione</h3><p class="account-sub">Ragione sociale, Partita IVA o Codice fiscale, indirizzo, SDI/PEC e contatti amministrativi.</p></div><a class="account-btn" href="/dati-fatturazione?return_to=account">Gestisci dati fiscali</a></div>
   </section>
   <section class="account-card">
@@ -48,6 +51,10 @@
 <script>
 (()=>{
  const form=document.getElementById('accountForm'), msg=document.getElementById('accountMessage');
+ const installButton=document.getElementById('installApp'),installHelp=document.getElementById('installAppHelp');
+ const syncInstallButton=()=>{installButton.style.display=window.alphaMenuInstallPrompt?'inline-block':'none'};
+ syncInstallButton();window.addEventListener('alphamenu-install-ready',syncInstallButton);
+ installButton.addEventListener('click',async()=>{if(await window.installAlphaMenu?.()){installHelp.textContent='Alpha Menu è pronta nella schermata Home.';syncInstallButton()}});
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const show=(text,error=false)=>{msg.textContent=text;msg.className='account-message '+(error?'error':'ok')};
  async function loadAccount(){

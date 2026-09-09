@@ -20,6 +20,21 @@ def load_function(name, scope):
 
 
 class LicenseAndTrialTests(unittest.TestCase):
+    def test_authenticated_sessions_are_persistent_for_the_installed_app(self):
+        self.assertIn('PERMANENT_SESSION_LIFETIME=timedelta(days=30)', SOURCE)
+        keep_alive = SOURCE[SOURCE.index('def keep_authenticated_session_active'):SOURCE.index('@app.get("/manifest.webmanifest")')]
+        self.assertIn('session.get("user_id")', keep_alive)
+        self.assertIn('session.permanent = True', keep_alive)
+
+    def test_pwa_files_and_safe_cache_policy_exist(self):
+        root = Path(__file__).resolve().parents[1]
+        manifest = (root / "static" / "manifest.webmanifest").read_text(encoding="utf-8")
+        worker = (root / "static" / "service-worker.js").read_text(encoding="utf-8")
+        self.assertIn('"display": "standalone"', manifest)
+        self.assertIn('"start_url": "/dashboard_user#home"', manifest)
+        self.assertNotIn("dashboard_user", worker)
+        self.assertNotIn("/api/", worker)
+
     def test_license_requires_active_status_and_non_expired_date(self):
         active = load_function("license_is_active", {"date": date, "datetime": datetime})
         self.assertTrue(active("attiva", date.today()))

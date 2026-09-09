@@ -4,6 +4,11 @@
   <link rel="icon" href="{{ url_for('static', filename='alpha-menu-favicon.png') }}" type="image/png">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/static/app-icon-192.png" />
   <title>Dashboard</title>
   <style>
     :root{
@@ -285,6 +290,22 @@
       if(!btn) return;
       loadSection(btn.dataset.section);
     });
+
+    window.alphaMenuInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault();
+      window.alphaMenuInstallPrompt = event;
+      window.dispatchEvent(new Event('alphamenu-install-ready'));
+    });
+    window.installAlphaMenu = async () => {
+      const prompt = window.alphaMenuInstallPrompt;
+      if (!prompt) return false;
+      prompt.prompt();
+      await prompt.userChoice;
+      window.alphaMenuInstallPrompt = null;
+      return true;
+    };
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js');
 
     // boot: da hash o home
     const initial = (window.location.hash || "").replace("#","") || "home";
