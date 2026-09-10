@@ -35,6 +35,19 @@ class LicenseAndTrialTests(unittest.TestCase):
         self.assertNotIn("dashboard_user", worker)
         self.assertNotIn("/api/", worker)
 
+    def test_customer_dashboard_keeps_all_sections_visible_and_logout_in_account(self):
+        root = Path(__file__).resolve().parents[1]
+        dashboard = (root / "templates" / "dashboard_user.html").read_text(encoding="utf-8")
+        home = (root / "templates" / "sections" / "home.html").read_text(encoding="utf-8")
+        account = (root / "templates" / "sections" / "account.html").read_text(encoding="utf-8")
+        self.assertNotIn('class="logout-button"', dashboard)
+        self.assertNotIn("btn.disabled = locked", dashboard)
+        for section in ("attivita", "categorie", "prodotti", "menu_online", "lingue", "statistiche", "licenze", "account"):
+            self.assertIn(f"loadSection('{section}')", home)
+        self.assertLess(home.index('id="setupCard"'), home.index('class="home-hero"'))
+        self.assertIn("hidden=complete", home)
+        self.assertIn('href="/logout"', account)
+
     def test_license_requires_active_status_and_non_expired_date(self):
         active = load_function("license_is_active", {"date": date, "datetime": datetime})
         self.assertTrue(active("attiva", date.today()))
