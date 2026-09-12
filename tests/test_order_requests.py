@@ -410,6 +410,18 @@ def test_order_operations_are_on_fulfillment_page_not_settings():
     assert 'id="addOrderButton"' in fulfillment
     assert 'id="manualOrderForm"' in fulfillment
     assert 'id="historyPeriod"' in fulfillment
+
+
+def test_order_forms_pair_reference_and_notes_and_manual_products_are_searchable():
+    root = Path(__file__).resolve().parents[1] / "templates"
+    fulfillment = (root / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    public = (root / "public_menu.html").read_text(encoding="utf-8")
+    assert 'class="manual-extra-fields"' in fulfillment
+    assert 'class="order-details" id="orderDetails"' in public
+    assert "search.type='search'" in fulfillment
+    assert "node(productLabel,'datalist')" in fulfillment
+    assert "manualProductChoices.get(search.value.trim())" in fulfillment
+    assert "Scegli ogni articolo dai suggerimenti" in fulfillment
     assert '<option value="anno">Anno</option>' in fulfillment
 
 
