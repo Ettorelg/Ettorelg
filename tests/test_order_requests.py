@@ -431,6 +431,15 @@ def test_fulfillment_page_always_shows_product_totals_and_completed_orders():
     assert "load({silent:true})},5000" in html
 
 
+def test_fulfillment_big_product_number_switches_between_total_pending_and_done():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert "quantityMode='total'" in html
+    assert "[['total','Totale'],['pending','Da preparare'],['done','Evasi']]" in html
+    assert "amounts[quantityMode]/1000" in html
+    assert "number.dataset[mode]" in html
+    assert "button.addEventListener('click',()=>selectQuantityMode(mode))" in html
+
+
 def test_fulfillment_page_keeps_separate_product_and_order_views():
     html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
     assert 'id="summaryView" type="button" aria-pressed="true"' in html

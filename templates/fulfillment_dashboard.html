@@ -25,6 +25,7 @@
     #status{min-height:24px;color:#c4d6ef;margin:12px 0}
     .group{margin:12px 0 28px;border:1px solid #426286;border-radius:17px;background:#15263e;overflow:hidden}.group-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 20px;background:#21416a}.group-head h2{margin:0;font-size:1.15rem}.group-head span{color:#d1e5ff;font-weight:700}
     .prep{padding:16px 20px;border-bottom:1px solid #35516c}.prep strong{display:block;margin-bottom:9px;color:#fff}
+    .prep-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.prep-head strong{margin:0}.quantity-switch{display:flex;gap:6px;flex-wrap:wrap}.quantity-switch button{min-height:34px;padding:5px 11px;border:1px solid #6c90b8;border-radius:8px;background:#203b5a;color:#dcecff;font-size:.82rem;font-weight:800;cursor:pointer}.quantity-switch button[aria-pressed="true"]{border-color:#fff;background:#3875b3;color:#fff;box-shadow:0 0 0 2px #ffffff22}
     .prep-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.prep-item{padding:18px;border:1px solid #5b82ab;border-radius:12px;background:#294d76}.prep-item .prep-total-number{display:block;font-size:clamp(2.5rem,4vw,4.2rem);font-weight:900;line-height:1;letter-spacing:-.04em;color:#fff}.prep-item .prep-name{display:block;min-height:2.4em;margin:9px 0 15px;font-size:1.02rem;font-weight:800;line-height:1.2}.prep-breakdown{display:grid;gap:5px;padding-top:11px;border-top:1px solid #6b91b6}.prep-breakdown span{display:flex;justify-content:space-between;gap:10px;font-size:.9rem}.prep-breakdown b{font-size:1rem}.prep-breakdown .evaded{color:#a9b6c8;text-decoration:line-through}.prep-breakdown .remaining{color:#fff;font-weight:800}.prep-breakdown .all{color:#d7e9ff}
     .order-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:15px}.order-card{padding:17px;border:1px solid #395779;border-left:5px solid #ffbf64;border-radius:12px;background:#1b304b}.order-card.working{border-left-color:#71b7ff}.order-card.done{border-left-color:#8b96a7;background:#263242;color:#b4becd}.order-card.done h3,.order-card.done li,.order-card.done .meta{text-decoration:line-through}.order-card.done .meta{color:#97a5b7}.order-card h3{margin:0 0 4px;font-size:1.02rem}.order-card .meta{color:#b6c8e0;font-size:.8rem}.order-card ul{margin:11px 0;padding-left:21px}.order-card li{margin:4px 0}.order-card p{margin:7px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.88rem}.order-card a{display:inline-block;margin-top:6px;font-weight:750}.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}.actions button{font-size:.8rem;min-height:37px;padding:7px 10px}.actions .finish{background:#1c7653;border-color:#53d5a0}.actions .cancel{background:#693542;border-color:#c57c8a}
     .empty{padding:38px 24px;text-align:center;border:1px dashed #536d8b;border-radius:15px;color:#bdd0e9;background:#172841}
@@ -84,7 +85,7 @@
     const grouping=document.getElementById('grouping');
     const groups=document.getElementById('groups');
     const status=document.getElementById('status');
-    let lastOrders=[],displayMode='totali';
+    let lastOrders=[],displayMode='totali',quantityMode='total';
     const quantityFormat=new Intl.NumberFormat('it-IT',{maximumFractionDigits:3});
     dateField.value=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
     function node(parent,tag,text,className){const element=document.createElement(tag);if(text!==undefined)element.textContent=text;if(className)element.className=className;parent.appendChild(element);return element}
@@ -116,7 +117,12 @@
         node(head,'h2',groupLabel(key));
         const open=items.filter(order=>order.stato!=='evaso').length,done=items.length-open;
         node(head,'span',items.length+' totali · '+open+' da evadere · '+done+' evasi');
-        const prep=node(section,'div',undefined,'prep');prep.hidden=displayMode!=='totali';node(prep,'strong','Da preparare in totale');
+        const prep=node(section,'div',undefined,'prep');prep.hidden=displayMode!=='totali';
+        const prepHead=node(prep,'div',undefined,'prep-head');node(prepHead,'strong','Da preparare in');
+        const quantitySwitch=node(prepHead,'div',undefined,'quantity-switch');quantitySwitch.setAttribute('role','group');quantitySwitch.setAttribute('aria-label','Numero grande dei prodotti');
+        for(const [mode,label] of [['total','Totale'],['pending','Da preparare'],['done','Evasi']]){
+          const button=node(quantitySwitch,'button',label);button.type='button';button.dataset.quantityMode=mode;button.setAttribute('aria-pressed',String(quantityMode===mode));button.addEventListener('click',()=>selectQuantityMode(mode));
+        }
         const prepList=node(prep,'div',undefined,'prep-list');
         const totals=new Map();
         for(const order of items)for(const product of order.prodotti){
@@ -126,7 +132,8 @@
         }
         for(const [name,amounts] of totals){
           const item=node(prepList,'div',undefined,'prep-item');
-          node(item,'span',quantityFormat.format(amounts.total/1000),'prep-total-number');
+          const bigNumber=node(item,'span',quantityFormat.format(amounts[quantityMode]/1000),'prep-total-number');
+          for(const mode of ['total','pending','done'])bigNumber.dataset[mode]=String(amounts[mode]/1000);
           node(item,'span',name,'prep-name');
           const breakdown=node(item,'div',undefined,'prep-breakdown');
           for(const [label,value,style] of [['Evasi',amounts.done,'evaded'],['Da preparare',amounts.pending,'remaining'],['Totale',amounts.total,'all']]){
@@ -172,6 +179,11 @@
         if(fingerprint!==lastFingerprint){lastFingerprint=fingerprint;render(result.ordini);if(silent&&historyPanel.open)loadHistory()}
         status.textContent='Dal '+displayDate(result.da)+' al '+displayDate(result.a)+' · '+result.ordini.length+' ordini · aggiornamento automatico attivo';
       }catch(error){if(current===requestNumber)status.textContent=error.message+' · Nuovo tentativo automatico tra 5 secondi.'}
+    }
+    function selectQuantityMode(mode){
+      quantityMode=mode;
+      for(const number of groups.querySelectorAll('.prep-total-number'))number.textContent=quantityFormat.format(Number(number.dataset[mode]));
+      for(const button of groups.querySelectorAll('.quantity-switch button'))button.setAttribute('aria-pressed',String(button.dataset.quantityMode===mode));
     }
     function selectDisplayMode(mode){displayMode=mode;document.getElementById('summaryView').setAttribute('aria-pressed',String(mode==='totali'));document.getElementById('ordersView').setAttribute('aria-pressed',String(mode==='ordini'));render(lastOrders)}
     document.getElementById('summaryView').addEventListener('click',()=>selectDisplayMode('totali'));
