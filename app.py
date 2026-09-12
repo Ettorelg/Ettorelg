@@ -55,8 +55,8 @@ def restrict_employee_access():
     employee_id = session.get("employee_id")
     if not employee_id:
         return None
-    allowed = {"employee_orders", "api_ordini_evasione", "logout", "static", "pwa_manifest", "pwa_service_worker"}
-    if request.endpoint not in allowed or (request.endpoint == "api_ordini_evasione" and request.method != "GET"):
+    allowed = {"employee_orders", "api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti", "api_crea_ordine_menu", "logout", "static", "pwa_manifest", "pwa_service_worker"}
+    if request.endpoint not in allowed or (request.endpoint in {"api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti"} and request.method != "GET") or (request.endpoint == "api_crea_ordine_menu" and request.path != "/api/ordini/manuale"):
         if request.path.startswith("/api/"):
             return jsonify({"error": "Accesso non consentito al dipendente."}), 403
         return redirect(url_for("employee_orders"))
@@ -3870,9 +3870,9 @@ def api_statistiche_ordini():
 
 @app.route("/api/ordini/configurazione", methods=["GET", "PUT"])
 def api_ordini_configurazione():
-    if "user_id" not in session:
+    if "user_id" not in session and "employee_id" not in session:
         return jsonify({"error": "Accesso richiesto."}), 401
-    shop_id = get_user_shop_id(session["user_id"])
+    shop_id = session.get("employee_shop_id") if session.get("employee_id") else get_user_shop_id(session["user_id"])
     if not shop_id:
         return jsonify({"error": "Configura prima il negozio."}), 409
     conn = psycopg2.connect(**build_db_config())
@@ -3974,9 +3974,9 @@ def api_disponibilita_ordini(slug: str):
 
 @app.get("/api/ordini/clienti")
 def api_ordini_clienti():
-    if "user_id" not in session:
+    if "user_id" not in session and "employee_id" not in session:
         return jsonify({"error": "Accesso richiesto."}), 401
-    shop_id = get_user_shop_id(session["user_id"])
+    shop_id = session.get("employee_shop_id") if session.get("employee_id") else get_user_shop_id(session["user_id"])
     if not shop_id:
         return jsonify({"error": "Configura prima il negozio."}), 409
     query = str(request.args.get("q") or "").strip()[:80]
@@ -4016,9 +4016,9 @@ def api_crea_ordine_menu(slug: str | None = None):
     manual = slug is None
     shop_id_manual = None
     if manual:
-        if "user_id" not in session:
+        if "user_id" not in session and "employee_id" not in session:
             return jsonify({"error": "Accesso richiesto."}), 401
-        shop_id_manual = get_user_shop_id(session["user_id"])
+        shop_id_manual = session.get("employee_shop_id") if session.get("employee_id") else get_user_shop_id(session["user_id"])
         if not shop_id_manual:
             return jsonify({"error": "Configura prima il negozio."}), 409
     data = request.get_json(silent=True) or {}
@@ -4626,10 +4626,10 @@ def api_richieste_qr():
 
 @app.get("/api/prodotti")
 def api_prodotti_list():
-    if "user_id" not in session:
+    if "user_id" not in session and "employee_id" not in session:
         return jsonify({"error": "unauthorized"}), 401
 
-    shop_id = get_user_shop_id(session["user_id"])
+    shop_id = session.get("employee_shop_id") if session.get("employee_id") else get_user_shop_id(session["user_id"])
     if not shop_id:
         return jsonify({"items": []})
 

@@ -1,4 +1,4 @@
-"""Controlli di regressione per il ruolo dipendente di sola lettura."""
+"""Controlli di regressione per il ruolo dipendente limitato agli ordini."""
 from pathlib import Path
 import unittest
 
@@ -16,14 +16,16 @@ class EmployeeAccessTests(unittest.TestCase):
         guard = APP[start:end]
         self.assertIn('"api_ordini_evasione"', guard)
         self.assertIn('"employee_orders"', guard)
+        self.assertIn('"api_crea_ordine_menu"', guard)
+        self.assertIn('request.path != "/api/ordini/manuale"', guard)
         self.assertNotIn('"api_aggiorna_ordine"', guard)
         self.assertNotIn('"dashboard_user"', guard)
         self.assertIn("d.attivo", guard)
         self.assertIn("license_is_active", guard)
 
-    def test_employee_view_is_read_only(self):
+    def test_employee_view_can_add_but_not_change_existing_orders(self):
         self.assertIn("/api/ordini/evasione", EMPLOYEE_VIEW)
-        self.assertNotIn("/api/ordini/manuale", EMPLOYEE_VIEW)
+        self.assertIn("/api/ordini/manuale", EMPLOYEE_VIEW)
         self.assertNotIn("method:'PATCH'", EMPLOYEE_VIEW)
         self.assertIn("setInterval(load,15000)", EMPLOYEE_VIEW)
 
