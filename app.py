@@ -1073,6 +1073,17 @@ def init_db() -> None:
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS ordini_menu_negozio_data ON ordini_menu (id_negozio, creato_il DESC)")
                 cur.execute("""
+                    CREATE TABLE IF NOT EXISTS clienti_ordini_salvati (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                        nome VARCHAR(120) NOT NULL,
+                        telefono VARCHAR(40) NOT NULL,
+                        telefono_chiave VARCHAR(40) NOT NULL,
+                        aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        UNIQUE (id_negozio, telefono_chiave)
+                    )
+                """)
+                cur.execute("""
                     CREATE TABLE IF NOT EXISTS righe_ordini_menu (
                         id BIGSERIAL PRIMARY KEY,
                         id_ordine BIGINT NOT NULL REFERENCES ordini_menu(id) ON DELETE CASCADE,
@@ -3764,6 +3775,44 @@ def api_disponibilita_ordini(slug: str):
         conn.close()
 
 
+@app.get("/api/ordini/clienti")
+def api_ordini_clienti():
+    if "user_id" not in session:
+        return jsonify({"error": "Accesso richiesto."}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    query = str(request.args.get("q") or "").strip()[:80]
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT id,nome,telefono FROM clienti_ordini_salvati
+                           WHERE id_negozio=%s AND (%s='' OR nome ILIKE %s OR telefono ILIKE %s)
+                           ORDER BY aggiornato_il DESC,id DESC LIMIT 20""", (shop_id, query, f"%{query}%", f"%{query}%"))
+            return jsonify({"clienti": [{"id": row[0], "nome": row[1], "telefono": row[2]} for row in cur.fetchall()]})
+    finally:
+        conn.close()
+
+
+@app.delete("/api/ordini/clienti/<int:cliente_id>")
+def api_ordini_elimina_cliente(cliente_id: int):
+    if "user_id" not in session:
+        return jsonify({"error": "Accesso richiesto."}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM clienti_ordini_salvati WHERE id=%s AND id_negozio=%s RETURNING id", (cliente_id, shop_id))
+                if not cur.fetchone():
+                    return jsonify({"error": "Cliente non trovato nella rubrica."}), 404
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
 @app.post("/api/ordini/manuale")
 @app.post("/api/menu/<slug>/ordini")
 def api_crea_ordine_menu(slug: str | None = None):
@@ -3776,6 +3825,9 @@ def api_crea_ordine_menu(slug: str | None = None):
         if not shop_id_manual:
             return jsonify({"error": "Configura prima il negozio."}), 409
     data = request.get_json(silent=True) or {}
+    save_customer = data.get("salva_cliente", False) if manual else False
+    if manual and not isinstance(save_customer, bool):
+        return jsonify({"error": "Scelta di salvataggio cliente non valida."}), 400
     mode = "asporto" if manual else str(data.get("modalita") or "asporto")
     if mode not in {"asporto", "tavolo"}:
         return jsonify({"error": "Modalità d'ordine non valida."}), 400
@@ -3902,6 +3954,13 @@ def api_crea_ordine_menu(slug: str | None = None):
                             (id_ordine,id_prodotto,nome_prodotto,quantita,prezzo_unitario,totale_riga)
                         VALUES (%s,%s,%s,%s,%s,%s)
                     """, (order_id, product_id, row[1] + (" (kg)" if row[3] == "kg" else ""), quantity, row[2], line_totals[product_id]))
+                if manual and save_customer:
+                    phone_key = "".join(character for character in phone if character.isdigit())
+                    cur.execute("""INSERT INTO clienti_ordini_salvati (id_negozio,nome,telefono,telefono_chiave)
+                                   VALUES (%s,%s,%s,%s)
+                                   ON CONFLICT (id_negozio,telefono_chiave)
+                                   DO UPDATE SET nome=EXCLUDED.nome,telefono=EXCLUDED.telefono,aggiornato_il=NOW()""",
+                                (shop_id, name, phone, phone_key))
         return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine registrato." if manual else ("Ordine al tavolo inviato." if mode == "tavolo" else "Ordine da asporto inviato. Il locale deve ancora confermarlo.")}), 201
     finally:
         conn.close()

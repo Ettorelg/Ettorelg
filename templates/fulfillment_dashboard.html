@@ -27,8 +27,10 @@
     .group.summary .prep{padding:22px 20px;border-bottom:0}.group.summary .prep strong{font-size:1.08rem;margin-bottom:14px}.group.summary .prep-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}.group.summary .prep-list span{padding:16px 17px;border:1px solid #5b82ab;border-radius:12px;background:#294d76;font-size:1.02rem}.group.summary .order-grid{display:none}
     .order-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:15px}.order-card{padding:17px;border:1px solid #395779;border-left:5px solid #ffbf64;border-radius:12px;background:#1b304b}.order-card.working{border-left-color:#71b7ff}.order-card h3{margin:0 0 4px;font-size:1.02rem}.order-card .meta{color:#b6c8e0;font-size:.8rem}.order-card ul{margin:11px 0;padding-left:21px}.order-card li{margin:4px 0}.order-card p{margin:7px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.88rem}.order-card a{display:inline-block;margin-top:6px;font-weight:750}.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}.actions button{font-size:.8rem;min-height:37px;padding:7px 10px}.actions .finish{background:#1c7653;border-color:#53d5a0}.actions .cancel{background:#693542;border-color:#c57c8a}
     .empty{padding:38px 24px;text-align:center;border:1px dashed #536d8b;border-radius:15px;color:#bdd0e9;background:#172841}
+    .manual-order{margin:18px 0;border:1px solid #527aa5;border-radius:16px;background:#182b45;padding:18px}.manual-order summary{cursor:pointer;font-weight:850;font-size:1.06rem;color:#fff}.manual-order form{display:grid;gap:13px;margin-top:17px}.manual-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.manual-order label{display:grid;gap:5px;color:#c5d6ee;font-size:.85rem;font-weight:700}.manual-order input:not([type=checkbox]),.manual-order select,.manual-order textarea{width:100%;min-height:42px;padding:9px 11px;border:1px solid #5b7798;border-radius:9px;background:#0e1a2d;color:#fff;font:inherit}.manual-order textarea{min-height:74px}.manual-order [hidden]{display:none!important}.manual-order button{min-height:40px;padding:8px 12px;border:1px solid #79b3f6;border-radius:9px;background:#2b609b;color:#fff;font-weight:750;cursor:pointer}.manual-order button:disabled{opacity:.5}.customer-save{display:flex!important;align-items:center;gap:9px}.customer-save input{width:18px;height:18px;accent-color:#6ca6ec}.customer-results{display:grid;gap:6px;max-height:220px;overflow:auto}.customer-result{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid #395779;border-radius:9px}.customer-result span{min-width:0;overflow-wrap:anywhere}.manual-lines{display:grid;gap:8px}.manual-line{display:grid;grid-template-columns:minmax(0,1fr) 125px auto;gap:8px;align-items:end}.manual-hint{margin:0;color:#aec2df;font-size:.83rem}.manual-feedback{min-height:20px;margin:0;color:#b9e9ca;font-weight:700}
     @media(max-width:760px){.topbar{position:static;align-items:flex-start;flex-direction:column}.metrics{grid-template-columns:1fr 1fr}.order-grid{grid-template-columns:1fr}.toolbar>*{flex:1}.toolbar label{min-width:140px}}
-    @media(max-width:480px){.metrics{grid-template-columns:1fr}.toplinks a{font-size:.76rem}.toolbar button{width:100%}}
+    @media(max-width:760px){.manual-fields{grid-template-columns:1fr 1fr}}
+    @media(max-width:480px){.metrics{grid-template-columns:1fr}.toplinks a{font-size:.76rem}.toolbar button{width:100%}.manual-fields{grid-template-columns:1fr}.manual-line{grid-template-columns:minmax(0,1fr) 90px auto}}
   </style>
 </head>
 <body>
@@ -47,6 +49,28 @@
       <label>Raggruppa per<select id="grouping"><option value="giorno">Giorno</option><option value="fascia">Fascia oraria (15 minuti)</option></select></label>
       <button id="refresh" type="button">Aggiorna</button>
     </div>
+    <details class="manual-order" id="manualOrderPanel">
+      <summary>＋ Inserisci un ordine manuale</summary>
+      <form id="manualOrderForm">
+        <label>Cerca un cliente salvato (facoltativo)<input id="customerSearch" type="search" autocomplete="off" placeholder="Nome o telefono"></label>
+        <div id="customerResults" class="customer-results" role="list"></div>
+        <div class="manual-fields">
+          <label>Nome cliente *<input name="nome" minlength="2" maxlength="120" required autocomplete="off"></label>
+          <label>Telefono *<input name="telefono" type="tel" minlength="6" maxlength="40" required autocomplete="off"></label>
+          <label>Data richiesta *<input id="manualDate" name="data_richiesta" type="date" required></label>
+          <label id="manualSlotField" hidden>Fascia di ritiro *<select id="manualSlot" name="ora_richiesta"><option value="">Scegli una fascia</option></select></label>
+          <label>Riferimento ritiro<input name="riferimento" maxlength="80" placeholder="Es. Banco"></label>
+        </div>
+        <label>Note<textarea name="note" maxlength="500" rows="2"></textarea></label>
+        <label class="customer-save"><input name="salva_cliente" type="checkbox"> Salva o aggiorna questo cliente in rubrica</label>
+        <p class="manual-hint">Se non selezioni la casella, il contatto non viene aggiunto alla rubrica. Nome e telefono restano comunque nell'ordine e nel suo storico.</p>
+        <strong>Articoli</strong>
+        <div id="manualLines" class="manual-lines"></div>
+        <div><button id="manualAddLine" type="button">＋ Aggiungi articolo</button></div>
+        <div><button id="manualSubmit" type="submit">Registra ordine</button></div>
+        <p id="manualFeedback" class="manual-feedback" role="status"></p>
+      </form>
+    </details>
     <div class="metrics" aria-label="Riepilogo ordini aperti"><div class="metric featured"><b id="articleCount">0</b><span>Quantità complessiva articoli da preparare</span></div><div class="metric"><b id="pendingCount">0</b><span>Ordini da evadere</span></div><div class="metric"><b id="workingCount">0</b><span>Ordini in lavorazione</span></div></div>
     <div class="view-toggle" role="group" aria-label="Tipo di visualizzazione"><button id="summaryView" type="button" aria-pressed="true">Da preparare in totale</button><button id="ordersView" type="button" aria-pressed="false">Singoli ordini da evadere</button></div>
     <p id="status" role="status"></p>
@@ -141,6 +165,108 @@
     function selectDisplayMode(mode){displayMode=mode;summaryView.setAttribute('aria-pressed',String(mode==='totali'));ordersView.setAttribute('aria-pressed',String(mode==='ordini'));render(lastOrders)}
     summaryView.addEventListener('click',()=>selectDisplayMode('totali'));
     ordersView.addEventListener('click',()=>selectDisplayMode('ordini'));
+    const manualPanel=document.getElementById('manualOrderPanel');
+    const manualForm=document.getElementById('manualOrderForm');
+    const manualDate=document.getElementById('manualDate');
+    const manualSlotField=document.getElementById('manualSlotField');
+    const manualSlot=document.getElementById('manualSlot');
+    const manualLines=document.getElementById('manualLines');
+    const manualFeedback=document.getElementById('manualFeedback');
+    const customerSearch=document.getElementById('customerSearch');
+    const customerResults=document.getElementById('customerResults');
+    const todayRome=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
+    manualDate.min=todayRome;
+    manualDate.max=new Date(Date.parse(todayRome+'T12:00:00Z')+365*86400000).toISOString().slice(0,10);
+    manualDate.value=todayRome;
+    let manualConfig={enabled:false,start:'',end:'',minutes:15};
+    let manualProducts=[];
+    let manualSettingsLoaded=false;
+    function renderManualSlots(){
+      manualSlotField.hidden=!manualConfig.enabled;
+      manualSlot.required=manualConfig.enabled;
+      manualSlot.replaceChildren(new Option('Scegli una fascia',''));
+      if(!manualConfig.enabled||!manualDate.value)return;
+      const start=Number(manualConfig.start.slice(0,2))*60+Number(manualConfig.start.slice(3));
+      const end=Number(manualConfig.end.slice(0,2))*60+Number(manualConfig.end.slice(3));
+      const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date()).split(':').map(Number);
+      const currentMinute=parts[0]*60+parts[1];
+      for(let minute=start;minute<end;minute+=manualConfig.minutes){
+        if(manualDate.value===todayRome&&minute<=currentMinute)continue;
+        const label=value=>String(Math.floor(value/60)).padStart(2,'0')+':'+String(value%60).padStart(2,'0');
+        manualSlot.add(new Option(label(minute)+'–'+label(minute+manualConfig.minutes),label(minute)));
+      }
+    }
+    manualDate.addEventListener('change',renderManualSlots);
+    function addManualLine(){
+      const row=node(manualLines,'div',undefined,'manual-line');
+      const productLabel=node(row,'label','Articolo');
+      const select=node(productLabel,'select');select.required=true;
+      for(const product of manualProducts)select.add(new Option(product.nome+' · € '+product.prezzo_euro+(product.unita_prezzo==='kg'?' / kg':''),String(product.id)));
+      const quantityLabel=node(row,'label','Quantità');
+      const quantity=node(quantityLabel,'input');quantity.type='number';quantity.min='0.001';quantity.max='999';quantity.step='0.001';quantity.value='1';quantity.required=true;
+      const updateLabel=()=>{const product=manualProducts.find(item=>String(item.id)===select.value);quantityLabel.firstChild.textContent=product?.unita_prezzo==='kg'?'Peso (kg)':'Quantità'};
+      select.addEventListener('change',updateLabel);updateLabel();
+      const remove=node(row,'button','×');remove.type='button';remove.setAttribute('aria-label','Rimuovi articolo');remove.addEventListener('click',()=>row.remove());
+    }
+    document.getElementById('manualAddLine').addEventListener('click',addManualLine);
+    async function loadManualSettings(){
+      const [configResponse,productsResponse]=await Promise.all([fetch('/api/ordini/configurazione'),fetch('/api/prodotti')]);
+      if(!configResponse.ok||!productsResponse.ok)throw new Error('Impossibile caricare le impostazioni o gli articoli.');
+      const config=await configResponse.json(),products=await productsResponse.json();
+      manualConfig={enabled:config.fasce_ritiro_attive,start:config.ritiro_dalle||'',end:config.ritiro_alle||'',minutes:config.minuti_fascia_ritiro||15};
+      manualProducts=(products.items||[]).filter(item=>item.disponibile);
+      manualSettingsLoaded=true;
+      renderManualSlots();
+      manualLines.replaceChildren();
+      if(manualProducts.length)addManualLine();else manualFeedback.textContent='Aggiungi prima un prodotto disponibile nella dashboard del menu.';
+    }
+    let customerRequest=0;
+    async function searchCustomers(){
+      const current=++customerRequest;
+      try{
+        const response=await fetch('/api/ordini/clienti?q='+encodeURIComponent(customerSearch.value.trim()));
+        const data=await response.json();
+        if(current!==customerRequest)return;
+        if(!response.ok)throw new Error(data.error||'Rubrica non disponibile.');
+        customerResults.replaceChildren();
+        for(const customer of data.clienti){
+          const row=node(customerResults,'div',undefined,'customer-result');
+          node(row,'span',customer.nome+' · '+customer.telefono);
+          const use=node(row,'button','Usa');use.type='button';
+          use.addEventListener('click',()=>{manualForm.elements.nome.value=customer.nome;manualForm.elements.telefono.value=customer.telefono;customerSearch.value=customer.nome;customerResults.replaceChildren();manualForm.elements.nome.focus()});
+          const remove=node(row,'button','Elimina');remove.type='button';remove.setAttribute('aria-label','Elimina '+customer.nome+' dalla rubrica');
+          remove.addEventListener('click',async()=>{
+            if(!confirm('Eliminare '+customer.nome+' dalla rubrica? Gli ordini già registrati rimarranno nello storico.'))return;
+            remove.disabled=true;
+            try{const result=await fetch('/api/ordini/clienti/'+customer.id,{method:'DELETE',headers:{'X-CSRF-Token':csrf}});const data=await result.json();if(!result.ok)throw new Error(data.error||'Eliminazione non riuscita.');manualForm.elements.salva_cliente.checked=false;await searchCustomers();manualFeedback.textContent='Cliente eliminato dalla rubrica.'}
+            catch(error){manualFeedback.textContent=error.message;remove.disabled=false}
+          });
+        }
+        if(!data.clienti.length)node(customerResults,'p','Nessun cliente salvato trovato.','manual-hint');
+      }catch(error){if(current===customerRequest)manualFeedback.textContent=error.message}
+    }
+    let customerSearchTimer;
+    customerSearch.addEventListener('input',()=>{clearTimeout(customerSearchTimer);customerSearchTimer=setTimeout(searchCustomers,220)});
+    manualPanel.addEventListener('toggle',()=>{if(manualPanel.open){if(!manualSettingsLoaded)loadManualSettings().catch(error=>{manualFeedback.textContent=error.message});searchCustomers()}});
+    manualForm.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const fields=new FormData(manualForm);
+      const items=[...manualLines.querySelectorAll('.manual-line')].map(row=>({id:Number(row.querySelector('select').value),quantita:row.querySelector('input').value}));
+      if(!items.length){manualFeedback.textContent='Aggiungi almeno un articolo.';return}
+      if(new Set(items.map(item=>item.id)).size!==items.length){manualFeedback.textContent='Ogni articolo può comparire una sola volta: modifica la quantità.';return}
+      const selectedDate=String(fields.get('data_richiesta'));
+      const payload={nome:fields.get('nome'),telefono:fields.get('telefono'),data_richiesta:selectedDate,ora_richiesta:fields.get('ora_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),salva_cliente:fields.has('salva_cliente'),prodotti:items};
+      const submit=document.getElementById('manualSubmit');submit.disabled=true;manualFeedback.textContent='Registrazione in corso…';
+      try{
+        const response=await fetch('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});
+        const result=await response.json();
+        if(!response.ok)throw new Error(result.error||'Registrazione non riuscita.');
+        manualFeedback.textContent='Ordine #'+result.ordine_id+' registrato'+(payload.salva_cliente?' e cliente salvato in rubrica.':'.');
+        manualForm.reset();manualDate.value=selectedDate;renderManualSlots();manualLines.replaceChildren();addManualLine();customerSearch.value='';customerResults.replaceChildren();
+        dateField.value=selectedDate;period.value='giorno';await load();
+      }catch(error){manualFeedback.textContent=error.message}
+      finally{submit.disabled=false}
+    });
     load();setInterval(()=>{if(!document.hidden)load()},30000);
   </script>
 </body>

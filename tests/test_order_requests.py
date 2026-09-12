@@ -140,6 +140,30 @@ def test_owner_can_enter_order_when_online_orders_are_disabled():
     assert status == 201
     order = next(params for sql, params in db.cur.statements if "INSERT INTO ordini_menu" in sql)
     assert order[8] == "titolare"
+    assert not any("INSERT INTO clienti_ordini_salvati" in sql for sql, _ in db.cur.statements)
+
+
+def test_owner_can_explicitly_save_customer_for_future_orders():
+    db = FakeConnection(active=False)
+    data = payload(1)
+    data["salva_cliente"] = True
+    with FLASK.test_request_context("/api/ordini/manuale", method="POST", json=data):
+        session["user_id"] = 11
+        response, status = order_function(db)()
+    assert status == 201
+    saved = next(params for sql, params in db.cur.statements if "INSERT INTO clienti_ordini_salvati" in sql)
+    assert saved == (7, "Mario Rossi", "+39 333 1234567", "393331234567")
+
+
+def test_manual_customer_save_requires_explicit_boolean():
+    db = FakeConnection()
+    data = payload(1)
+    data["salva_cliente"] = "true"
+    with FLASK.test_request_context("/api/ordini/manuale", method="POST", json=data):
+        session["user_id"] = 11
+        response, status = order_function(db)()
+    assert status == 400
+    assert not db.cur.statements
 
 
 def test_order_time_must_be_on_five_minute_boundary():

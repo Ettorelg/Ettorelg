@@ -9,6 +9,7 @@
   .orders-settings label,.orders-manual label{display:grid;gap:5px;color:#c6d3f2;font-size:.86rem}
   .orders-settings input:not([type=checkbox]),.orders-settings select,.orders-manual input,.orders-manual select,.orders-manual textarea{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
   .orders-settings .pickup-toggle{display:flex;align-items:center;gap:9px;margin:12px 0}.orders-settings .pickup-toggle input{width:19px;height:19px;accent-color:#6ea8fe}
+  .orders-manual .pickup-toggle{display:flex;align-items:center;gap:9px}.orders-manual .pickup-toggle input{width:19px;height:19px;min-height:0;padding:0;accent-color:#6ea8fe}
   .pickup-hours{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.pickup-hours[hidden],.orders-manual [hidden]{display:none!important}.pickup-hours label{min-width:140px}
   .orders-settings button,.orders-manual button{border:1px solid #6ea8fe;border-radius:10px;background:#234e86;color:#fff;padding:10px 14px;font:700 .9rem system-ui;cursor:pointer}
   .orders-manual form{display:grid;gap:10px}.orders-manual .manual-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.orders-manual .manual-line{display:flex;gap:8px;margin:8px 0}.orders-manual .manual-line select{flex:1;min-width:0}.orders-manual .manual-line input{width:105px}
@@ -76,6 +77,7 @@
       </div>
       <label>Riferimento <input name="riferimento" maxlength="80"></label>
       <label>Note <textarea name="note" maxlength="500" rows="2"></textarea></label>
+      <label class="pickup-toggle"><input name="salva_cliente" type="checkbox"> Salva o aggiorna il cliente in rubrica per richiamarlo in futuro</label>
       <div id="manualOrderLines"></div>
       <button id="manualAddLine" type="button">+ Aggiungi articolo</button>
       <button type="submit">Registra ordine</button>
@@ -313,7 +315,7 @@
     const products=[...manualLines.querySelectorAll('.manual-line')].map(row=>({id:Number(row.querySelector('select').value),quantita:row.querySelector('input').value}));
     if(!products.length){manualMessage.textContent='Aggiungi almeno un articolo.';return}
     if(new Set(products.map(item=>item.id)).size!==products.length){manualMessage.textContent='Ogni articolo può comparire una sola volta: modifica la quantità.';return}
-    const payload={nome:fields.get('nome'),telefono:fields.get('telefono'),data_richiesta:fields.get('data_richiesta'),ora_richiesta:fields.get('ora_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),prodotti:products};
+    const payload={nome:fields.get('nome'),telefono:fields.get('telefono'),data_richiesta:fields.get('data_richiesta'),ora_richiesta:fields.get('ora_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),salva_cliente:fields.has('salva_cliente'),prodotti:products};
     manualMessage.textContent='Registrazione in corso…';
     try{
       const response=await fetch('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
