@@ -23,11 +23,13 @@ class EmployeeAccessTests(unittest.TestCase):
         self.assertIn("d.attivo", guard)
         self.assertIn("license_is_active", guard)
 
-    def test_employee_view_can_add_and_complete_orders(self):
+    def test_employee_view_can_add_complete_and_cancel_orders(self):
         self.assertIn("/api/ordini/evasione", EMPLOYEE_VIEW)
         self.assertIn("/api/ordini/manuale", EMPLOYEE_VIEW)
         self.assertIn("method:'PATCH'", EMPLOYEE_VIEW)
-        self.assertIn("stato:'evaso'", EMPLOYEE_VIEW)
+        self.assertIn("['evaso','Segna evaso']", EMPLOYEE_VIEW)
+        self.assertIn("['annullato','Annulla']", EMPLOYEE_VIEW)
+        self.assertIn("Annullare l’ordine #", EMPLOYEE_VIEW)
         self.assertIn("setInterval(load,15000)", EMPLOYEE_VIEW)
         self.assertIn('id="summaryView"', EMPLOYEE_VIEW)
         self.assertIn('id="ordersView"', EMPLOYEE_VIEW)

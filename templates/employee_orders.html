@@ -25,7 +25,25 @@ function render(){
     const section=element(groups,'section',undefined,'group');const heading=element(section,'h2',undefined);const parts=key.split('|');heading.textContent=displayDate(parts[0])+(parts[1]?' · '+parts[1]:'')+' · '+orders.length+' ordini';
     if(displayMode==='ordini'){
       const grid=element(section,'div',undefined,'order-grid');
-      for(const order of orders){const card=element(grid,'article',undefined,'order-card'+(order.stato==='evaso'?' done':''));element(card,'h3','#'+order.id+' · '+order.nome+' · '+order.stato.replaceAll('_',' '));element(card,'p',(order.ora_richiesta||'Solo giorno')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto'));const list=element(card,'ul');for(const item of visibleProducts(order))element(list,'li',fmt(Number(item.quantita))+' × '+item.nome);if(order.note)element(card,'p','Note: '+order.note);if(order.stato!=='evaso'){const actions=element(card,'div',undefined,'actions');const finish=element(actions,'button','Segna evaso','finish');finish.type='button';finish.onclick=async()=>{finish.disabled=true;try{const response=await fetch('/api/ordini/'+order.id,{method:'PATCH',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({stato:'evaso'})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Aggiornamento non riuscito.');await load()}catch(error){status.textContent=error.message;finish.disabled=false}}}}
+      for(const order of orders){
+        const card=element(grid,'article',undefined,'order-card'+(order.stato==='evaso'?' done':''));
+        element(card,'h3','#'+order.id+' · '+order.nome+' · '+order.stato.replaceAll('_',' '));
+        element(card,'p',(order.ora_richiesta||'Solo giorno')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto'));
+        const list=element(card,'ul');for(const item of visibleProducts(order))element(list,'li',fmt(Number(item.quantita))+' × '+item.nome);
+        if(order.note)element(card,'p','Note: '+order.note);
+        if(order.stato!=='evaso'){
+          const actions=element(card,'div',undefined,'actions');
+          for(const [target,label] of [['evaso','Segna evaso'],['annullato','Annulla']]){
+            const button=element(actions,'button',label,target==='evaso'?'finish':'cancel');button.type='button';
+            button.onclick=async()=>{
+              if(target==='annullato'&&!confirm('Annullare l’ordine #'+order.id+'?'))return;
+              button.disabled=true;
+              try{const response=await fetch('/api/ordini/'+order.id,{method:'PATCH',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({stato:target})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Aggiornamento non riuscito.');await load()}
+              catch(error){status.textContent=error.message;button.disabled=false}
+            };
+          }
+        }
+      }
     }else{
       const switcher=element(section,'div',undefined,'quantity-switch');for(const [mode,label] of [['total','Totale'],['pending','Da preparare'],['done','Evasi']]){const button=element(switcher,'button',label);button.type='button';button.setAttribute('aria-pressed',String(quantityMode===mode));button.onclick=()=>{quantityMode=mode;render()}}
       const sums=new Map();for(const order of orders)for(const item of visibleProducts(order)){const identity=String(item.id_prodotto??(item.categoria+'|'+item.nome));const row=sums.get(identity)||{name:item.nome,category:item.categoria||'Senza categoria',categoryOrder:item.ordine_categoria??999999,productOrder:item.ordine_prodotto??999999,total:0,pending:0,done:0};const quantity=Number(item.quantita);row.total+=quantity;row[order.stato==='evaso'?'done':'pending']+=quantity;sums.set(identity,row)}

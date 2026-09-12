@@ -4362,8 +4362,8 @@ def api_aggiorna_ordine(order_id: int):
     status = (request.get_json(silent=True) or {}).get("stato")
     if status not in {"da_evadere", "in_lavorazione", "evaso", "annullato"}:
         return jsonify({"error": "Stato non valido."}), 400
-    if employee and status != "evaso":
-        return jsonify({"error": "Il dipendente può soltanto segnare un ordine come evaso."}), 403
+    if employee and status not in {"evaso", "annullato"}:
+        return jsonify({"error": "Il dipendente può soltanto evadere o annullare un ordine."}), 403
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
