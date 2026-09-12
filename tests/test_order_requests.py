@@ -349,3 +349,11 @@ def test_order_operations_are_on_fulfillment_page_not_settings():
     assert 'id="manualOrderForm"' in fulfillment
     assert 'id="historyPeriod"' in fulfillment
     assert '<option value="anno">Anno</option>' in fulfillment
+
+
+def test_add_order_opens_a_dialog_without_inline_manual_panel():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert '<dialog class="manual-order" id="manualOrderPanel"' in html
+    assert 'manualPanel.showModal()' in html
+    assert 'manualPanel.close()' in html
+    assert 'Nuovo ordine manuale' not in html

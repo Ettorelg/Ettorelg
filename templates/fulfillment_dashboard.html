@@ -8,7 +8,7 @@
   <title>Evasione ordini · Alpha Menu</title>
   <style>
     *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;background:#0d1627;color:#f2f6ff;font:16px/1.45 Inter,system-ui,Arial,sans-serif}
+    body{margin:0;min-height:100vh;background:#0d1627;color:#f2f6ff;font:16px/1.45 Inter,system-ui,Arial,sans-serif}body.modal-open{overflow:hidden}
     button,input,select{font:inherit}
     a{color:#a9d0ff}
     .topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px max(18px,calc((100vw - 1280px)/2));background:#12213a;border-bottom:1px solid #30435d;box-shadow:0 6px 25px #0003}
@@ -28,7 +28,7 @@
     .group.summary .prep{padding:22px 20px;border-bottom:0}.group.summary .prep strong{font-size:1.08rem;margin-bottom:14px}.group.summary .prep-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}.group.summary .prep-list span{padding:16px 17px;border:1px solid #5b82ab;border-radius:12px;background:#294d76;font-size:1.02rem}.group.summary .order-grid{display:none}
     .order-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:15px}.order-card{padding:17px;border:1px solid #395779;border-left:5px solid #ffbf64;border-radius:12px;background:#1b304b}.order-card.working{border-left-color:#71b7ff}.order-card h3{margin:0 0 4px;font-size:1.02rem}.order-card .meta{color:#b6c8e0;font-size:.8rem}.order-card ul{margin:11px 0;padding-left:21px}.order-card li{margin:4px 0}.order-card p{margin:7px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.88rem}.order-card a{display:inline-block;margin-top:6px;font-weight:750}.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}.actions button{font-size:.8rem;min-height:37px;padding:7px 10px}.actions .finish{background:#1c7653;border-color:#53d5a0}.actions .cancel{background:#693542;border-color:#c57c8a}
     .empty{padding:38px 24px;text-align:center;border:1px dashed #536d8b;border-radius:15px;color:#bdd0e9;background:#172841}
-    .manual-order{margin:18px 0;border:1px solid #527aa5;border-radius:16px;background:#182b45;padding:18px}.manual-order summary{cursor:pointer;font-weight:850;font-size:1.06rem;color:#fff}.manual-order form{display:grid;gap:13px;margin-top:17px}.manual-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.manual-order label{display:grid;gap:5px;color:#c5d6ee;font-size:.85rem;font-weight:700}.manual-order input:not([type=checkbox]),.manual-order select,.manual-order textarea{width:100%;min-height:42px;padding:9px 11px;border:1px solid #5b7798;border-radius:9px;background:#0e1a2d;color:#fff;font:inherit}.manual-order textarea{min-height:74px}.manual-order [hidden]{display:none!important}.manual-order button{min-height:40px;padding:8px 12px;border:1px solid #79b3f6;border-radius:9px;background:#2b609b;color:#fff;font-weight:750;cursor:pointer}.manual-order button:disabled{opacity:.5}.customer-save{display:flex!important;align-items:center;gap:9px}.customer-save input{width:18px;height:18px;accent-color:#6ca6ec}.customer-results{display:grid;gap:6px;max-height:220px;overflow:auto}.customer-result{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid #395779;border-radius:9px}.customer-result span{min-width:0;overflow-wrap:anywhere}.manual-lines{display:grid;gap:8px}.manual-line{display:grid;grid-template-columns:minmax(0,1fr) 125px auto;gap:8px;align-items:end}.manual-hint{margin:0;color:#aec2df;font-size:.83rem}.manual-feedback{min-height:20px;margin:0;color:#b9e9ca;font-weight:700}
+    .manual-order{width:min(800px,calc(100vw - 24px));max-height:calc(100dvh - 32px);margin:auto;border:1px solid #79a7d9;border-radius:17px;background:#182b45;color:#f2f6ff;padding:22px;overflow:auto;box-shadow:0 28px 80px #0009}.manual-order::backdrop{background:#050b16c9;backdrop-filter:blur(4px)}.manual-order:not([open]){display:none}.manual-order-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}.manual-order-head h2{margin:0;font-size:1.35rem}.manual-order-head p{margin:5px 0 0;color:#bed0e7;font-size:.85rem}.manual-order .manual-close{width:42px;min-width:42px;height:42px;padding:0;border:1px solid #7698bd;border-radius:9px;background:#213e62;color:#fff;font-size:1.4rem;cursor:pointer}.manual-order form{display:grid;gap:13px}.manual-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.manual-order label{display:grid;gap:5px;color:#c5d6ee;font-size:.85rem;font-weight:700}.manual-order input:not([type=checkbox]),.manual-order select,.manual-order textarea{width:100%;min-height:42px;padding:9px 11px;border:1px solid #5b7798;border-radius:9px;background:#0e1a2d;color:#fff;font:inherit}.manual-order textarea{min-height:74px}.manual-order [hidden]{display:none!important}.manual-order button{min-height:40px;padding:8px 12px;border:1px solid #79b3f6;border-radius:9px;background:#2b609b;color:#fff;font-weight:750;cursor:pointer}.manual-order button:disabled{opacity:.5}.customer-save{display:flex!important;align-items:center;gap:9px}.customer-save input{width:18px;height:18px;accent-color:#6ca6ec}.customer-results{display:grid;gap:6px;max-height:220px;overflow:auto}.customer-result{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid #395779;border-radius:9px}.customer-result span{min-width:0;overflow-wrap:anywhere}.manual-lines{display:grid;gap:8px}.manual-line{display:grid;grid-template-columns:minmax(0,1fr) 125px auto;gap:8px;align-items:end}.manual-hint{margin:0;color:#aec2df;font-size:.83rem}.manual-feedback{min-height:20px;margin:0;color:#b9e9ca;font-weight:700}
     .history{margin-top:34px;border:1px solid #456584;border-radius:16px;background:#172942;padding:18px}.history summary{cursor:pointer;font-size:1.14rem;font-weight:850}.history p{color:#b8c9e1}.history-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:16px 0}.history-controls label{display:grid;gap:5px;color:#bfd0e8;font-size:.84rem;font-weight:700}.history-controls input,.history-controls select{height:42px;padding:8px 10px;border:1px solid #53708d;border-radius:9px;background:#0e1a2d;color:#fff}.history-controls button,.history-pages button,.history-actions button{min-height:42px;padding:8px 12px;border:1px solid #6ca6ec;border-radius:9px;background:#295b94;color:#fff;font-weight:750;cursor:pointer}.history-metrics{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.history-metrics span{padding:8px 11px;border-radius:8px;background:#264468;font-weight:700}.history-list{display:grid;gap:10px}.history-card{padding:15px;border:1px solid #456584;border-radius:11px;background:#1b304b}.history-card h3{margin:0 0 5px}.history-card p{margin:5px 0;color:#c0d1e9}.history-card ul{margin:8px 0;padding-left:20px}.history-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.history-actions button{min-height:35px;font-size:.82rem}.history-actions button:disabled{opacity:.5}.history-pages{display:flex;align-items:center;justify-content:center;gap:12px;margin:15px 0}.history-pages button:disabled{opacity:.5}
     @media(max-width:760px){.topbar{position:static;align-items:flex-start;flex-direction:column}.metrics{grid-template-columns:1fr 1fr}.order-grid{grid-template-columns:1fr}.toolbar-section+.toolbar-section{border-left:0;padding-left:0;border-top:1px solid #476482;padding-top:12px}.toolbar-section{width:100%}.toolbar label{min-width:140px}}
     @media(max-width:760px){.manual-fields{grid-template-columns:1fr 1fr}}
@@ -41,13 +41,13 @@
     <nav class="toplinks" aria-label="Navigazione"><a href="{{ url_for('dashboard_choice') }}">Scelta iniziale</a><a href="{{ url_for('dashboard_user') }}#ordini">Impostazioni ordini</a><a href="{{ url_for('dashboard_user') }}#home">Dashboard menu</a></nav>
   </header>
   <main>
-    <div class="board-heading"><div><h1>Banco evasione ordini</h1><p class="lead">Controlla cosa preparare, aggiungi ordini e consulta lo storico da questa pagina.</p></div><div class="toplinks"><button id="showHistoryButton" type="button" aria-controls="orderHistory" style="min-height:54px;padding:12px 18px;border:1px solid #6ca6ec;border-radius:12px;background:#22436a;color:#fff;font-weight:800;cursor:pointer">Storico e riepilogo</button><button id="addOrderButton" class="add-order-button" type="button" aria-controls="manualOrderPanel" aria-expanded="false">＋ Aggiungi ordine</button></div></div>
+    <div class="board-heading"><div><h1>Banco evasione ordini</h1><p class="lead">Controlla cosa preparare, aggiungi ordini e consulta lo storico da questa pagina.</p></div><div class="toplinks"><button id="showHistoryButton" type="button" aria-controls="orderHistory" style="min-height:54px;padding:12px 18px;border:1px solid #6ca6ec;border-radius:12px;background:#22436a;color:#fff;font-weight:800;cursor:pointer">Storico e riepilogo</button><button id="addOrderButton" class="add-order-button" type="button" aria-controls="manualOrderPanel" aria-expanded="false">+ Aggiungi ordine</button></div></div>
     <div class="toolbar">
       <div class="toolbar-section"><span class="toolbar-title">Quando vuoi vedere gli ordini?</span><button id="previous" type="button" aria-label="Periodo precedente">← Prima</button><label>Data<input id="date" type="date"></label><button id="next" type="button" aria-label="Periodo successivo">Dopo →</button><button id="today" class="today-button" type="button">Oggi</button></div>
       <div class="toolbar-section"><span class="toolbar-title">Come vuoi visualizzarli?</span><label>Intervallo<select id="period"><option value="giorno">Un giorno</option><option value="settimana">Una settimana</option></select></label><label>Raggruppa<select id="grouping"><option value="giorno">Per giorno</option><option value="fascia">Per orario di ritiro</option></select></label><button id="refresh" type="button">Aggiorna</button></div>
     </div>
-    <details class="manual-order" id="manualOrderPanel">
-      <summary>Nuovo ordine manuale</summary>
+    <dialog class="manual-order" id="manualOrderPanel" aria-labelledby="manualOrderTitle">
+      <div class="manual-order-head"><div><h2 id="manualOrderTitle">Aggiungi ordine</h2><p>Inserisci cliente, ritiro e articoli. L'ordine comparirà subito nel banco evasione.</p></div><button id="manualClose" class="manual-close" type="button" aria-label="Chiudi finestra ordine">×</button></div>
       <form id="manualOrderForm">
         <label>Cerca un cliente salvato (facoltativo)<input id="customerSearch" type="search" autocomplete="off" placeholder="Nome o telefono"></label>
         <div id="customerResults" class="customer-results" role="list"></div>
@@ -67,7 +67,7 @@
         <div><button id="manualSubmit" type="submit">Registra ordine</button></div>
         <p id="manualFeedback" class="manual-feedback" role="status"></p>
       </form>
-    </details>
+    </dialog>
     <div class="metrics" aria-label="Riepilogo ordini aperti"><div class="metric featured"><b id="articleCount">0</b><span>Quantità complessiva articoli da preparare</span></div><div class="metric"><b id="pendingCount">0</b><span>Ordini da evadere</span></div><div class="metric"><b id="workingCount">0</b><span>Ordini in lavorazione</span></div></div>
     <div class="view-toggle" role="group" aria-label="Tipo di visualizzazione"><button id="summaryView" type="button" aria-pressed="true">Da preparare in totale</button><button id="ordersView" type="button" aria-pressed="false">Singoli ordini da evadere</button></div>
     <p id="status" role="status"></p>
@@ -169,8 +169,15 @@
     ordersView.addEventListener('click',()=>selectDisplayMode('ordini'));
     const manualPanel=document.getElementById('manualOrderPanel');
     const addOrderButton=document.getElementById('addOrderButton');
-    addOrderButton.addEventListener('click',()=>{manualPanel.open=true;manualPanel.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>document.getElementById('customerSearch').focus({preventScroll:true}),250)});
-    manualPanel.addEventListener('toggle',()=>addOrderButton.setAttribute('aria-expanded',String(manualPanel.open)));
+    addOrderButton.addEventListener('click',()=>{
+      if(!manualPanel.open)manualPanel.showModal();
+      document.body.classList.add('modal-open');addOrderButton.setAttribute('aria-expanded','true');
+      if(!manualSettingsLoaded)loadManualSettings().catch(error=>{manualFeedback.textContent=error.message});
+      searchCustomers();document.getElementById('customerSearch').focus();
+    });
+    document.getElementById('manualClose').addEventListener('click',()=>manualPanel.close());
+    manualPanel.addEventListener('click',event=>{if(event.target===manualPanel)manualPanel.close()});
+    manualPanel.addEventListener('close',()=>{document.body.classList.remove('modal-open');addOrderButton.setAttribute('aria-expanded','false');addOrderButton.focus()});
     const manualForm=document.getElementById('manualOrderForm');
     const manualDate=document.getElementById('manualDate');
     const manualSlotField=document.getElementById('manualSlotField');
@@ -252,7 +259,6 @@
     }
     let customerSearchTimer;
     customerSearch.addEventListener('input',()=>{clearTimeout(customerSearchTimer);customerSearchTimer=setTimeout(searchCustomers,220)});
-    manualPanel.addEventListener('toggle',()=>{if(manualPanel.open){if(!manualSettingsLoaded)loadManualSettings().catch(error=>{manualFeedback.textContent=error.message});searchCustomers()}});
     manualForm.addEventListener('submit',async event=>{
       event.preventDefault();
       const fields=new FormData(manualForm);
