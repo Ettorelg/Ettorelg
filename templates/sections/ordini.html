@@ -5,6 +5,11 @@
   .orders-activation,.orders-filters,.orders-summary,.order-card{border:1px solid rgba(255,255,255,.14);border-radius:15px;background:rgba(255,255,255,.04);padding:16px;margin:12px 0}
   .orders-activation{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
   .orders-activation p{margin:5px 0 0}
+  .orders-settings,.orders-manual{border:1px solid rgba(255,255,255,.14);border-radius:15px;background:rgba(255,255,255,.04);padding:16px;margin:12px 0}
+  .orders-settings label,.orders-manual label{display:grid;gap:5px;color:#c6d3f2;font-size:.86rem}
+  .orders-settings input,.orders-manual input,.orders-manual select,.orders-manual textarea{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
+  .orders-settings button,.orders-manual button{border:1px solid #6ea8fe;border-radius:10px;background:#234e86;color:#fff;padding:10px 14px;font:700 .9rem system-ui;cursor:pointer}
+  .orders-manual form{display:grid;gap:10px}.orders-manual .manual-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.orders-manual .manual-line{display:flex;gap:8px;margin:8px 0}.orders-manual .manual-line select{flex:1;min-width:0}.orders-manual .manual-line input{width:105px}
   .orders-activation button,.order-card button,.orders-filters button{border:1px solid #6ea8fe;border-radius:10px;background:#234e86;color:#fff;padding:10px 14px;font:700 .9rem system-ui;cursor:pointer}
   .orders-activation button.off{background:#5b2e37;border-color:#ef8c9a}
   .orders-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
@@ -25,7 +30,7 @@
   .order-actions button{font-size:.79rem;min-height:38px}
   .order-actions button[disabled]{opacity:.5;cursor:default}
   #ordersMessage{min-height:20px;color:#aee8bd}.orders-pages{display:flex;align-items:center;justify-content:center;gap:12px;margin:20px 0}.orders-pages button{border:1px solid #6ea8fe;border-radius:8px;background:#234e86;color:#fff;padding:9px 12px;cursor:pointer}.orders-pages button:disabled{opacity:.4;cursor:default}
-  @media(max-width:640px){.orders-filters>*{width:100%}.orders-filters button{width:100%}.orders-day-navigation button{width:auto;flex:1}.orders-summary{display:grid;grid-template-columns:1fr 1fr}.orders-activation button{width:100%}}
+  @media(max-width:640px){.orders-filters>*{width:100%}.orders-filters button{width:100%}.orders-day-navigation button{width:auto;flex:1}.orders-summary{display:grid;grid-template-columns:1fr 1fr}.orders-activation button{width:100%}.orders-manual .manual-fields{grid-template-columns:1fr}}
 </style>
 <section class="orders-panel">
   <h2>Ordini del menu</h2>
@@ -34,6 +39,28 @@
     <div><strong>Ricezione ordini online</strong><p id="ordersState">Caricamento…</p></div>
     <button id="ordersToggle" type="button" disabled>Caricamento…</button>
   </div>
+  <div class="orders-settings">
+    <strong>Capacità giornaliera</strong>
+    <p>Numero massimo di ordini per la data richiesta. Imposta 0 per non applicare un limite. Gli ordini annullati liberano un posto.</p>
+    <label>Ordini massimi al giorno <input id="ordersLimit" type="number" min="0" max="10000" step="1" value="0"></label>
+    <button id="ordersSaveLimit" type="button">Salva limite</button>
+  </div>
+  <details class="orders-manual">
+    <summary><strong>Inserisci un ordine manualmente</strong></summary>
+    <form id="manualOrderForm">
+      <div class="manual-fields">
+        <label>Nome cliente <input name="nome" minlength="2" maxlength="120" required></label>
+        <label>Telefono <input name="telefono" type="tel" minlength="6" maxlength="40" required></label>
+        <label>Data richiesta <input name="data_richiesta" id="manualOrderDate" type="date" required></label>
+      </div>
+      <label>Riferimento <input name="riferimento" maxlength="80"></label>
+      <label>Note <textarea name="note" maxlength="500" rows="2"></textarea></label>
+      <div id="manualOrderLines"></div>
+      <button id="manualAddLine" type="button">+ Aggiungi articolo</button>
+      <button type="submit">Registra ordine</button>
+      <p id="manualOrderMessage" role="status"></p>
+    </form>
+  </details>
   <div class="orders-filters">
     <label>Periodo<select id="ordersPeriod"><option value="giorno">Giorno</option><option value="settimana">Settimana</option><option value="mese">Mese</option><option value="anno">Anno</option></select></label>
     <label>Data di riferimento<input id="ordersDate" type="date"></label>
@@ -53,6 +80,7 @@
   const orderMessage = document.getElementById('ordersMessage');
   const orderToggle = document.getElementById('ordersToggle');
   const orderState = document.getElementById('ordersState');
+  const ordersLimit = document.getElementById('ordersLimit');
   let ordersActive = false;
   let ordersPage = 1;
   const ordersPrevious = document.getElementById('ordersPrevious');
@@ -79,6 +107,7 @@
     if(!response.ok) throw new Error('Impossibile caricare la configurazione.');
     const data=await response.json();
     ordersActive=data.attivi;
+    ordersLimit.value=String(data.limite_giornaliero);
     orderState.textContent=ordersActive ? 'Attiva: i clienti possono inviare richieste.' : 'Disattiva: il menu resta consultabile, ma non accetta ordini.';
     orderToggle.textContent=ordersActive ? 'Disattiva nuovi ordini' : 'Attiva ordini';
     orderToggle.classList.toggle('off',ordersActive);
@@ -109,7 +138,7 @@
         const head=orderText(card,'div','', 'order-head');
         const heading=orderText(head,'div','');
         orderText(heading,'strong','#'+order.id+' · '+order.nome+' · '+names[order.stato]);
-        orderText(heading,'small',' '+order.creato_il);
+        orderText(heading,'small','Per il '+order.data_richiesta+' · Inserito '+order.creato_il+(order.origine==='titolare'?' · Inserito dal titolare':''));
         orderText(head,'strong','€ '+Number(order.totale).toFixed(2));
         const list=orderText(card,'ul','');
         for(const product of order.prodotti) orderText(list,'li',product.quantita+' × '+product.nome+' — € '+Number(product.totale).toFixed(2));
@@ -117,6 +146,7 @@
         if(order.note) orderText(card,'p','Note: '+order.note,'details');
         const phone=orderText(card,'a','☎ '+order.telefono,'details');
         phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'');
+        if(order.email_cliente) orderText(card,'p','Google: '+order.email_cliente,'details');
         const actions=orderText(card,'div','', 'order-actions');
         for(const [status,label] of Object.entries({da_evadere:'Da evadere',in_lavorazione:'In lavorazione',evaso:'Segna evaso',annullato:'Annulla'})){
           const button=orderText(actions,'button',label);
@@ -144,6 +174,54 @@
       if(!response.ok) throw new Error(data.error || 'Salvataggio non riuscito.');
       await loadOrdersConfig();
     }catch(error){orderMessage.textContent=error.message;orderToggle.disabled=false;}
+  });
+  document.getElementById('ordersSaveLimit').addEventListener('click',async()=>{
+    const limit=Number(ordersLimit.value);
+    if(!Number.isInteger(limit)||limit<0||limit>10000){orderMessage.textContent='Inserisci un limite da 0 a 10000.';return}
+    try{
+      const response=await fetch('/api/ordini/configurazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({limite_giornaliero:limit})});
+      const data=await response.json();
+      if(!response.ok) throw new Error(data.error||'Salvataggio non riuscito.');
+      ordersLimit.value=String(data.limite_giornaliero);
+      orderMessage.textContent='Limite giornaliero salvato.';
+    }catch(error){orderMessage.textContent=error.message}
+  });
+  const manualForm=document.getElementById('manualOrderForm');
+  const manualLines=document.getElementById('manualOrderLines');
+  const manualMessage=document.getElementById('manualOrderMessage');
+  const manualDate=document.getElementById('manualOrderDate');
+  manualDate.min=orderDate.value;
+  manualDate.value=orderDate.value;
+  manualDate.max=new Date(Date.parse(orderDate.value+'T12:00:00Z')+365*86400000).toISOString().slice(0,10);
+  let manualProducts=[];
+  fetch('/api/prodotti').then(response=>response.json()).then(data=>{
+    manualProducts=(data.items||[]).filter(item=>item.disponibile);
+    addManualLine();
+  }).catch(()=>{manualMessage.textContent='Articoli non disponibili.'});
+  function addManualLine(){
+    const row=document.createElement('div');row.className='manual-line';
+    const select=document.createElement('select');select.required=true;
+    for(const product of manualProducts){const option=document.createElement('option');option.value=String(product.id);option.textContent=product.nome+' · € '+product.prezzo_euro;select.appendChild(option)}
+    const quantity=document.createElement('input');quantity.type='number';quantity.min='0.001';quantity.max='999';quantity.step='0.001';quantity.value='1';quantity.required=true;quantity.setAttribute('aria-label','Quantità');
+    const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','Rimuovi articolo');remove.addEventListener('click',()=>row.remove());
+    row.append(select,quantity,remove);manualLines.appendChild(row);
+  }
+  document.getElementById('manualAddLine').addEventListener('click',addManualLine);
+  manualForm.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const fields=new FormData(manualForm);
+    const products=[...manualLines.querySelectorAll('.manual-line')].map(row=>({id:Number(row.querySelector('select').value),quantita:row.querySelector('input').value}));
+    if(!products.length){manualMessage.textContent='Aggiungi almeno un articolo.';return}
+    if(new Set(products.map(item=>item.id)).size!==products.length){manualMessage.textContent='Ogni articolo può comparire una sola volta: modifica la quantità.';return}
+    const payload={nome:fields.get('nome'),telefono:fields.get('telefono'),data_richiesta:fields.get('data_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),prodotti:products};
+    manualMessage.textContent='Registrazione in corso…';
+    try{
+      const response=await fetch('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const data=await response.json();
+      if(!response.ok) throw new Error(data.error||'Registrazione non riuscita.');
+      manualMessage.textContent='Ordine #'+data.ordine_id+' registrato.';
+      manualForm.reset();manualDate.value=manualDate.min;manualLines.replaceChildren();addManualLine();loadOrders();
+    }catch(error){manualMessage.textContent=error.message}
   });
   document.getElementById('ordersRefresh').addEventListener('click',loadOrders);
   orderPeriod.addEventListener('change',()=>{document.getElementById('ordersDayNavigation').hidden=orderPeriod.value!=='giorno';ordersPage=1;loadOrders()});

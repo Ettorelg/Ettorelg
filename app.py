@@ -12,6 +12,7 @@ import threading
 import time
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from email.message import EmailMessage
 from urllib.parse import urlencode
 from pathlib import Path
@@ -1041,6 +1042,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS whatsapp TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS prenotazione_url TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ordini_attivi BOOLEAN NOT NULL DEFAULT FALSE")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS limite_ordini_giorno INTEGER NOT NULL DEFAULT 0")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS ordini_menu (
                         id BIGSERIAL PRIMARY KEY,
@@ -1052,6 +1054,10 @@ def init_db() -> None:
                         stato VARCHAR(20) NOT NULL DEFAULT 'da_evadere'
                           CHECK (stato IN ('da_evadere','in_lavorazione','evaso','annullato')),
                         totale NUMERIC(10,2) NOT NULL CHECK (totale >= 0),
+                        data_richiesta DATE,
+                        origine VARCHAR(20) NOT NULL DEFAULT 'cliente',
+                        google_sub_cliente TEXT,
+                        email_cliente TEXT,
                         creato_il TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     )
@@ -1063,11 +1069,18 @@ def init_db() -> None:
                         id_ordine BIGINT NOT NULL REFERENCES ordini_menu(id) ON DELETE CASCADE,
                         id_prodotto INTEGER REFERENCES prodotti(id) ON DELETE SET NULL,
                         nome_prodotto VARCHAR(200) NOT NULL,
-                        quantita INTEGER NOT NULL CHECK (quantita BETWEEN 1 AND 99),
+                        quantita NUMERIC(10,3) NOT NULL CHECK (quantita > 0 AND quantita <= 999),
                         prezzo_unitario NUMERIC(10,2) NOT NULL CHECK (prezzo_unitario >= 0),
                         totale_riga NUMERIC(10,2) NOT NULL CHECK (totale_riga >= 0)
                     )
                 """)
+                cur.execute("ALTER TABLE righe_ordini_menu ALTER COLUMN quantita TYPE NUMERIC(10,3)")
+                cur.execute("ALTER TABLE righe_ordini_menu DROP CONSTRAINT IF EXISTS righe_ordini_menu_quantita_check")
+                cur.execute("ALTER TABLE righe_ordini_menu ADD CONSTRAINT righe_ordini_menu_quantita_check CHECK (quantita > 0 AND quantita <= 999)")
+                cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS data_richiesta DATE")
+                cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS origine VARCHAR(20) NOT NULL DEFAULT 'cliente'")
+                cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS google_sub_cliente TEXT")
+                cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS email_cliente TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS sito_web TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS instagram_url TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS google_maps_url TEXT")
@@ -1177,7 +1190,7 @@ def enforce_current_license():
         return None
     public_endpoints = {
         "index", "free_trial", "login", "register", "verify_email", "register_google", "register_apple", "forgot_password", "reset_password", "auth_google", "auth_google_callback",
-        "auth_apple", "auth_apple_callback", "logout",
+        "auth_apple", "auth_apple_callback", "auth_google_order", "logout",
         "privacy_policy", "terms_of_service", "billing_data", "uploaded_file", "static", "public_menu",
         "paypal_webhook", "pagamento", "paypal_subscription_activate",
         "paypal_subscription_cancel", "paypal_subscription_current",
@@ -1476,6 +1489,16 @@ def register_apple():
 def auth_google():
     if not google_enabled():
         return redirect(url_for("login"))
+    session.pop("customer_order_slug", None)
+    callback = url_for("auth_google_callback", _external=True, _scheme="https")
+    return google.authorize_redirect(callback)
+
+
+@app.get("/auth/google/ordine/<slug>")
+def auth_google_order(slug: str):
+    if not google_enabled():
+        return redirect(url_for("public_menu", slug=slug))
+    session["customer_order_slug"] = slug
     callback = url_for("auth_google_callback", _external=True, _scheme="https")
     return google.authorize_redirect(callback)
 
@@ -1486,6 +1509,16 @@ def auth_google_callback():
         return redirect(url_for("login"))
     token = google.authorize_access_token()
     profile = token.get("userinfo") or google.userinfo()
+    customer_slug = session.pop("customer_order_slug", None)
+    if customer_slug:
+        if not profile.get("sub") or not profile.get("email") or not profile.get("email_verified"):
+            return redirect(url_for("public_menu", slug=customer_slug, accesso="non_riuscito"))
+        session["customer_google"] = {
+            "sub": str(profile["sub"]),
+            "email": str(profile["email"]).strip().lower(),
+            "name": str(profile.get("name") or "")[:120],
+        }
+        return redirect(url_for("public_menu", slug=customer_slug) + "#orderPanel")
     email = (profile.get("email") or "").strip().lower()
     google_sub = profile.get("sub")
     if not email or not google_sub:
@@ -3617,51 +3650,109 @@ def api_ordini_configurazione():
         with conn:
             with conn.cursor() as cur:
                 if request.method == "PUT":
-                    enabled = (request.get_json(silent=True) or {}).get("attivi")
-                    if not isinstance(enabled, bool):
+                    payload = request.get_json(silent=True) or {}
+                    enabled = payload.get("attivi")
+                    limit = payload.get("limite_giornaliero")
+                    if enabled is not None and not isinstance(enabled, bool):
                         return jsonify({"error": "Impostazione non valida."}), 400
-                    cur.execute("UPDATE negozi SET ordini_attivi=%s WHERE id=%s", (enabled, shop_id))
-                cur.execute("SELECT ordini_attivi FROM negozi WHERE id=%s", (shop_id,))
-                return jsonify({"attivi": bool(cur.fetchone()[0])})
+                    if limit is not None and (type(limit) is not int or not 0 <= limit <= 10000):
+                        return jsonify({"error": "Limite giornaliero non valido."}), 400
+                    if enabled is None and limit is None:
+                        return jsonify({"error": "Nessuna impostazione indicata."}), 400
+                    cur.execute("UPDATE negozi SET ordini_attivi=COALESCE(%s,ordini_attivi),limite_ordini_giorno=COALESCE(%s,limite_ordini_giorno) WHERE id=%s", (enabled, limit, shop_id))
+                cur.execute("SELECT ordini_attivi,limite_ordini_giorno FROM negozi WHERE id=%s", (shop_id,))
+                row = cur.fetchone()
+                return jsonify({"attivi": bool(row[0]), "limite_giornaliero": row[1]})
     finally:
         conn.close()
 
 
+@app.get("/api/menu/<slug>/ordini/disponibilita")
+def api_disponibilita_ordini(slug: str):
+    try:
+        requested = date.fromisoformat(request.args.get("data", ""))
+    except ValueError:
+        return jsonify({"error": "Data non valida."}), 400
+    today = datetime.now(ZoneInfo("Europe/Rome")).date()
+    if not today <= requested <= today + timedelta(days=365):
+        return jsonify({"error": "Scegli una data entro i prossimi 365 giorni."}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id,ordini_attivi,limite_ordini_giorno FROM negozi WHERE slug=%s", (slug,))
+            shop = cur.fetchone()
+            if not shop or not shop[1]:
+                return jsonify({"error": "Gli ordini online non sono disponibili."}), 403
+            cur.execute("SELECT COUNT(*) FROM ordini_menu WHERE id_negozio=%s AND data_richiesta=%s AND stato<>'annullato'", (shop[0], requested))
+            used = cur.fetchone()[0]
+            return jsonify({"disponibile": shop[2] == 0 or used < shop[2], "posti_rimanenti": None if shop[2] == 0 else max(0, shop[2] - used), "limite_giornaliero": shop[2]})
+    finally:
+        conn.close()
+
+
+@app.post("/api/ordini/manuale")
 @app.post("/api/menu/<slug>/ordini")
-def api_crea_ordine_menu(slug: str):
+def api_crea_ordine_menu(slug: str | None = None):
+    manual = slug is None
+    shop_id_manual = None
+    if manual:
+        if "user_id" not in session:
+            return jsonify({"error": "Accesso richiesto."}), 401
+        shop_id_manual = get_user_shop_id(session["user_id"])
+        if not shop_id_manual:
+            return jsonify({"error": "Configura prima il negozio."}), 409
     data = request.get_json(silent=True) or {}
     name = str(data.get("nome") or "").strip()
     phone = str(data.get("telefono") or "").strip()
     reference = str(data.get("riferimento") or "").strip()
     notes = str(data.get("note") or "").strip()
     items = data.get("prodotti")
+    try:
+        requested = date.fromisoformat(str(data.get("data_richiesta") or ""))
+    except ValueError:
+        return jsonify({"error": "Scegli una data valida per l'ordine."}), 400
+    today = datetime.now(ZoneInfo("Europe/Rome")).date()
+    if not today <= requested <= today + timedelta(days=365):
+        return jsonify({"error": "Scegli una data entro i prossimi 365 giorni."}), 400
     if not (2 <= len(name) <= 120) or not (6 <= len(phone) <= 40) or not re.fullmatch(r"[+\d ()-]+", phone):
         return jsonify({"error": "Inserisci nome e telefono validi."}), 400
     if len(reference) > 80 or len(notes) > 500 or not isinstance(items, list) or not 1 <= len(items) <= 50:
         return jsonify({"error": "Controlla prodotti, riferimento e note."}), 400
     quantities = {}
     for item in items:
-        if not isinstance(item, dict) or type(item.get("id")) is not int or type(item.get("quantita")) is not int:
+        if not isinstance(item, dict) or type(item.get("id")) is not int:
             return jsonify({"error": "Prodotto o quantità non validi."}), 400
-        product_id, quantity = item["id"], item["quantita"]
-        if product_id <= 0 or not 1 <= quantity <= 99 or product_id in quantities:
+        product_id = item["id"]
+        try:
+            quantity = Decimal(str(item.get("quantita")).replace(",", "."))
+        except (ValueError, ArithmeticError):
+            return jsonify({"error": "Prodotto o quantità non validi."}), 400
+        if product_id <= 0 or not quantity.is_finite() or not Decimal("0.001") <= quantity <= Decimal("999") or quantity.as_tuple().exponent < -3 or product_id in quantities:
             return jsonify({"error": "Prodotto o quantità non validi."}), 400
         quantities[product_id] = quantity
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT id,ordini_attivi FROM negozi WHERE slug=%s FOR SHARE", (slug,))
+                if manual:
+                    cur.execute("SELECT id,ordini_attivi,limite_ordini_giorno FROM negozi WHERE id=%s FOR UPDATE", (shop_id_manual,))
+                else:
+                    cur.execute("SELECT id,ordini_attivi,limite_ordini_giorno FROM negozi WHERE slug=%s FOR UPDATE", (slug,))
                 shop = cur.fetchone()
-                if not shop or not shop[1]:
+                if not shop or (not manual and not shop[1]):
                     return jsonify({"error": "Gli ordini online non sono disponibili per questo locale."}), 403
                 shop_id = shop[0]
-                cur.execute("""
-                    SELECT COUNT(*) FROM ordini_menu
-                    WHERE id_negozio=%s AND telefono_cliente=%s AND creato_il >= NOW() - INTERVAL '10 minutes'
-                """, (shop_id, phone))
-                if cur.fetchone()[0] >= 3:
-                    return jsonify({"error": "Hai inviato troppi ordini. Riprova tra qualche minuto."}), 429
+                cur.execute("SELECT COUNT(*) FROM ordini_menu WHERE id_negozio=%s AND data_richiesta=%s AND stato<>'annullato'", (shop_id, requested))
+                used = cur.fetchone()[0]
+                if shop[2] and used >= shop[2]:
+                    return jsonify({"error": "La data selezionata è completa. Scegline un'altra."}), 409
+                if not manual:
+                    cur.execute("""
+                        SELECT COUNT(*) FROM ordini_menu
+                        WHERE id_negozio=%s AND telefono_cliente=%s AND creato_il >= NOW() - INTERVAL '10 minutes'
+                    """, (shop_id, phone))
+                    if cur.fetchone()[0] >= 3:
+                        return jsonify({"error": "Hai inviato troppi ordini. Riprova tra qualche minuto."}), 429
                 cur.execute("""
                     SELECT p.id,p.nome,p.prezzo_euro
                     FROM prodotti p
@@ -3685,11 +3776,13 @@ def api_crea_ordine_menu(slug: str):
                 products = {row[0]: row for row in cur.fetchall()}
                 if len(products) != len(quantities):
                     return jsonify({"error": "Un prodotto non è più disponibile. Aggiorna il menu e riprova."}), 409
-                total = sum((row[2] * quantities[row[0]] for row in products.values()), Decimal("0.00"))
+                line_totals = {product_id: (row[2] * quantities[product_id]).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) for product_id, row in products.items()}
+                total = sum(line_totals.values(), Decimal("0.00"))
+                customer_google = session.get("customer_google") if not manual else None
                 cur.execute("""
-                    INSERT INTO ordini_menu (id_negozio,nome_cliente,telefono_cliente,riferimento,note,totale)
-                    VALUES (%s,%s,%s,%s,%s,%s) RETURNING id
-                """, (shop_id, name, phone, reference, notes, total))
+                    INSERT INTO ordini_menu (id_negozio,nome_cliente,telefono_cliente,riferimento,note,totale,data_richiesta,origine,google_sub_cliente,email_cliente)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+                """, (shop_id, name, phone, reference, notes, total, requested, "titolare" if manual else "cliente", customer_google.get("sub") if customer_google else None, customer_google.get("email") if customer_google else None))
                 order_id = cur.fetchone()[0]
                 for product_id, quantity in quantities.items():
                     row = products[product_id]
@@ -3697,8 +3790,8 @@ def api_crea_ordine_menu(slug: str):
                         INSERT INTO righe_ordini_menu
                             (id_ordine,id_prodotto,nome_prodotto,quantita,prezzo_unitario,totale_riga)
                         VALUES (%s,%s,%s,%s,%s,%s)
-                    """, (order_id, product_id, row[1], quantity, row[2], row[2] * quantity))
-        return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine inviato. Il locale deve ancora confermarlo."}), 201
+                    """, (order_id, product_id, row[1], quantity, row[2], line_totals[product_id]))
+        return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine registrato." if manual else "Ordine inviato. Il locale deve ancora confermarlo."}), 201
     finally:
         conn.close()
 
@@ -3740,23 +3833,25 @@ def api_elenco_ordini():
             cur.execute("""
                 SELECT stato, COUNT(*), COALESCE(SUM(totale),0)
                 FROM ordini_menu WHERE id_negozio=%s
-                  AND (creato_il AT TIME ZONE 'Europe/Rome')::date >= %s
-                  AND (creato_il AT TIME ZONE 'Europe/Rome')::date < %s
+                  AND COALESCE(data_richiesta,(creato_il AT TIME ZONE 'Europe/Rome')::date) >= %s
+                  AND COALESCE(data_richiesta,(creato_il AT TIME ZONE 'Europe/Rome')::date) < %s
                 GROUP BY stato
             """, (shop_id, start, end))
             summary = {row[0]: {"numero": row[1], "totale": str(row[2])} for row in cur.fetchall()}
             cur.execute("""
                 SELECT id,nome_cliente,telefono_cliente,riferimento,note,stato,totale,
-                       TO_CHAR(creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI')
+                       TO_CHAR(creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
+                       COALESCE(data_richiesta,(creato_il AT TIME ZONE 'Europe/Rome')::date),origine,email_cliente
                 FROM ordini_menu WHERE id_negozio=%s
-                  AND (creato_il AT TIME ZONE 'Europe/Rome')::date >= %s
-                  AND (creato_il AT TIME ZONE 'Europe/Rome')::date < %s
+                  AND COALESCE(data_richiesta,(creato_il AT TIME ZONE 'Europe/Rome')::date) >= %s
+                  AND COALESCE(data_richiesta,(creato_il AT TIME ZONE 'Europe/Rome')::date) < %s
                 ORDER BY CASE WHEN stato IN ('da_evadere','in_lavorazione') THEN 0 ELSE 1 END,
-                         creato_il DESC LIMIT %s OFFSET %s
+                         data_richiesta ASC NULLS LAST, creato_il DESC LIMIT %s OFFSET %s
             """, (shop_id, start, end, page_size, (page - 1) * page_size))
-            orders = [dict(zip(("id","nome","telefono","riferimento","note","stato","totale","creato_il"), row)) for row in cur.fetchall()]
+            orders = [dict(zip(("id","nome","telefono","riferimento","note","stato","totale","creato_il","data_richiesta","origine","email_cliente"), row)) for row in cur.fetchall()]
             for order in orders:
                 order["totale"] = str(order["totale"])
+                order["data_richiesta"] = order["data_richiesta"].isoformat()
             if orders:
                 cur.execute("""
                     SELECT id_ordine,nome_prodotto,quantita,prezzo_unitario,totale_riga
@@ -3764,7 +3859,7 @@ def api_elenco_ordini():
                 """, ([order["id"] for order in orders],))
                 lines = {}
                 for order_id, name, quantity, price, line_total in cur.fetchall():
-                    lines.setdefault(order_id, []).append({"nome": name, "quantita": quantity, "prezzo": str(price), "totale": str(line_total)})
+                    lines.setdefault(order_id, []).append({"nome": name, "quantita": str(quantity), "prezzo": str(price), "totale": str(line_total)})
                 for order in orders:
                     order["prodotti"] = lines.get(order["id"], [])
         return jsonify({"ordini": orders, "riepilogo": summary, "periodo": period, "da": start.isoformat(), "a": (end - timedelta(days=1)).isoformat(), "pagina": page, "dimensione_pagina": page_size, "totale_ordini": sum(item["numero"] for item in summary.values())})
@@ -3950,7 +4045,7 @@ def public_menu(slug: str):
             hours = [{"nome": ui["days"][day], **saved_hours.get(day, {"aperto": False})} for day in range(7)]
             languages = [{"codice": "it", "nome": "Italiano"}] + [{"codice": code, "nome": SUPPORTED_MENU_LANGUAGES[code]} for code in enabled_codes]
 
-        return render_template("public_menu.html", shop=shop, categories=categories, hours=hours, ui=ui, language=language, languages=languages)
+        return render_template("public_menu.html", shop=shop, categories=categories, hours=hours, ui=ui, language=language, languages=languages, customer_google=session.get("customer_google"))
     finally:
         conn.close()
 

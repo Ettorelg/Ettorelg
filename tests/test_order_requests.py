@@ -1,0 +1,121 @@
+"""Regole del nuovo ordine senza richiedere un database esterno."""
+import ast
+import copy
+import re
+from datetime import date, datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
+from pathlib import Path
+from types import SimpleNamespace
+from zoneinfo import ZoneInfo
+
+from flask import Flask, jsonify, request, session, redirect
+
+
+SOURCE = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
+TREE = ast.parse(SOURCE)
+FLASK = Flask(__name__)
+FLASK.secret_key = "test-only"
+
+
+def order_function(db):
+    node = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "api_crea_ordine_menu"))
+    node.decorator_list = []
+    scope = {
+        "request": request, "session": session, "jsonify": jsonify,
+        "date": date, "datetime": datetime, "timedelta": timedelta, "ZoneInfo": ZoneInfo,
+        "Decimal": Decimal, "ROUND_HALF_UP": ROUND_HALF_UP, "re": re,
+        "psycopg2": SimpleNamespace(connect=lambda **kwargs: db),
+        "build_db_config": lambda: {},
+        "get_user_shop_id": lambda user_id: 7,
+    }
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "app.py", "exec"), scope)
+    return scope["api_crea_ordine_menu"]
+
+
+class FakeCursor:
+    def __init__(self, limit=0, active=True):
+        self.limit = limit
+        self.active = active
+        self.query = ""
+        self.statements = []
+
+    def __enter__(self): return self
+    def __exit__(self, *_): return False
+    def execute(self, query, params=None):
+        self.query = query
+        self.statements.append((query, params))
+
+    def fetchone(self):
+        if "FROM negozi" in self.query: return (7, self.active, self.limit)
+        if "data_richiesta=%s" in self.query: return (self.limit,)
+        if "telefono_cliente=%s" in self.query: return (0,)
+        if "RETURNING id" in self.query: return (123,)
+        raise AssertionError(self.query)
+
+    def fetchall(self):
+        if "FROM prodotti p" in self.query: return [(3, "Articolo", Decimal("4.00"))]
+        raise AssertionError(self.query)
+
+
+class FakeConnection:
+    def __init__(self, limit=0, active=True): self.cur = FakeCursor(limit, active)
+    def __enter__(self): return self
+    def __exit__(self, *_): return False
+    def cursor(self): return self.cur
+    def close(self): pass
+
+
+def payload(quantity):
+    return {
+        "nome": "Mario Rossi", "telefono": "+39 333 1234567",
+        "data_richiesta": datetime.now(ZoneInfo("Europe/Rome")).date().isoformat(),
+        "prodotti": [{"id": 3, "quantita": quantity}],
+    }
+
+
+def test_decimal_quantity_is_saved_with_exact_total():
+    db = FakeConnection()
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=payload("1,5")):
+        response, status = order_function(db)("esempio")
+    assert status == 201
+    assert response.get_json()["totale"] == "6.00"
+    line = next(params for sql, params in db.cur.statements if "INSERT INTO righe_ordini_menu" in sql)
+    assert line[3] == Decimal("1.5")
+
+
+def test_full_day_is_rejected_before_product_lookup():
+    db = FakeConnection(limit=2)
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=payload(1)):
+        response, status = order_function(db)("esempio")
+    assert status == 409
+    assert "completa" in response.get_json()["error"]
+    assert not any("FROM prodotti p" in sql for sql, _ in db.cur.statements)
+
+
+def test_owner_can_enter_order_when_online_orders_are_disabled():
+    db = FakeConnection(active=False)
+    with FLASK.test_request_context("/api/ordini/manuale", method="POST", json=payload("1.5")):
+        session["user_id"] = 11
+        response, status = order_function(db)()
+    assert status == 201
+    order = next(params for sql, params in db.cur.statements if "INSERT INTO ordini_menu" in sql)
+    assert order[7] == "titolare"
+
+
+def test_google_customer_login_does_not_create_owner_account():
+    node = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "auth_google_callback"))
+    node.decorator_list = []
+    profile = {"sub": "google-customer-1", "email": "cliente@example.it", "email_verified": True, "name": "Cliente Test"}
+    scope = {
+        "google_enabled": lambda: True,
+        "google": SimpleNamespace(authorize_access_token=lambda: {"userinfo": profile}),
+        "session": session, "redirect": redirect,
+        "url_for": lambda endpoint, **kwargs: "/menu/locale" if endpoint == "public_menu" else "/login",
+        "psycopg2": SimpleNamespace(connect=lambda **kwargs: (_ for _ in ()).throw(AssertionError("owner database accessed"))),
+    }
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "app.py", "exec"), scope)
+    with FLASK.test_request_context("/auth/google/callback"):
+        session["customer_order_slug"] = "locale"
+        response = scope["auth_google_callback"]()
+        assert response.location == "/menu/locale#orderPanel"
+        assert session["customer_google"]["email"] == "cliente@example.it"
