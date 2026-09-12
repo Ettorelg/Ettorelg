@@ -110,6 +110,35 @@ def test_decimal_quantity_is_saved_with_exact_total():
     assert response.get_json()["totale"] == "6.00"
     line = next(params for sql, params in db.cur.statements if "INSERT INTO righe_ordini_menu" in sql)
     assert line[3] == Decimal("1.5")
+    assert not any("INSERT INTO clienti_ordini_salvati" in sql for sql, _ in db.cur.statements)
+
+
+def test_online_takeaway_customer_is_saved_only_with_explicit_choice():
+    db = FakeConnection()
+    data = payload(1)
+    data["salva_cliente"] = True
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 201
+    saved = next(params for sql, params in db.cur.statements if "INSERT INTO clienti_ordini_salvati" in sql)
+    assert saved == (7, "Mario Rossi", "+39 333 1234567", "393331234567")
+
+
+def test_online_customer_choice_must_be_boolean():
+    db = FakeConnection()
+    data = payload(1)
+    data["salva_cliente"] = "true"
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 400
+    assert not db.cur.statements
+
+
+def test_public_takeaway_form_offers_optional_address_book_choice():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
+    assert 'id="orderSaveCustomerField" data-takeaway-field hidden' in html
+    assert '<input name="salva_cliente" type="checkbox">' in html
+    assert "salva_cliente:orderMode==='asporto'&&fields.has('salva_cliente')" in html
 
 
 def test_kilogram_product_uses_weight_and_labels_order_line():
@@ -269,6 +298,16 @@ def test_table_order_requires_only_table_reference_and_does_not_use_takeaway_cap
     assert order[2] == ""
     assert order[8] == "tavolo"
     assert not any("data_richiesta=%s" in sql for sql, _ in db.cur.statements)
+    assert not any("INSERT INTO clienti_ordini_salvati" in sql for sql, _ in db.cur.statements)
+
+
+def test_table_order_cannot_save_customer_to_address_book():
+    db = FakeConnection(table_active=True)
+    data = {"modalita": "tavolo", "riferimento": "4", "salva_cliente": True, "prodotti": [{"id": 3, "quantita": 1}]}
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 400
+    assert not db.cur.statements
 
 
 def test_table_order_is_rejected_when_table_mode_is_disabled():

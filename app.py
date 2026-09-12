@@ -3903,12 +3903,14 @@ def api_crea_ordine_menu(slug: str | None = None):
         if not shop_id_manual:
             return jsonify({"error": "Configura prima il negozio."}), 409
     data = request.get_json(silent=True) or {}
-    save_customer = data.get("salva_cliente", False) if manual else False
-    if manual and not isinstance(save_customer, bool):
+    save_customer = data.get("salva_cliente", False)
+    if not isinstance(save_customer, bool):
         return jsonify({"error": "Scelta di salvataggio cliente non valida."}), 400
     mode = "asporto" if manual else str(data.get("modalita") or "asporto")
     if mode not in {"asporto", "tavolo"}:
         return jsonify({"error": "Modalità d'ordine non valida."}), 400
+    if mode == "tavolo" and save_customer:
+        return jsonify({"error": "La rubrica clienti è disponibile solo per gli ordini da asporto."}), 400
     name = str(data.get("nome") or "").strip()
     phone = str(data.get("telefono") or "").strip()
     reference = str(data.get("riferimento") or "").strip()
@@ -4032,7 +4034,7 @@ def api_crea_ordine_menu(slug: str | None = None):
                             (id_ordine,id_prodotto,nome_prodotto,quantita,prezzo_unitario,totale_riga)
                         VALUES (%s,%s,%s,%s,%s,%s)
                     """, (order_id, product_id, row[1] + (" (kg)" if row[3] == "kg" else ""), quantity, row[2], line_totals[product_id]))
-                if manual and save_customer:
+                if save_customer:
                     phone_key = "".join(character for character in phone if character.isdigit())
                     cur.execute("""INSERT INTO clienti_ordini_salvati (id_negozio,nome,telefono,telefono_chiave)
                                    VALUES (%s,%s,%s,%s)

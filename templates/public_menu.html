@@ -164,6 +164,7 @@
           <label id="orderTableField" hidden>Numero o riferimento del tavolo *<input name="tavolo" maxlength="80" placeholder="Es. 4"></label>
           <label>Note (facoltative)<textarea name="note" maxlength="500" rows="2"></textarea></label>
           <label class="order-privacy" id="orderPrivacyField" hidden><input type="checkbox"> Ho letto l'informativa sul trattamento dei dati dell'ordine. <a href="/privacy" target="_blank" rel="noopener">Informativa privacy</a></label>
+          <label class="order-privacy" id="orderSaveCustomerField" data-takeaway-field hidden><input name="salva_cliente" type="checkbox"> Salva nome e telefono nella rubrica del locale per ritrovarmi nei prossimi ordini (facoltativo).</label>
           <button id="orderSubmit" type="submit">Invia richiesta d'ordine</button>
           <p id="orderFeedback" role="status"></p>
         </form>
@@ -408,6 +409,7 @@
           note:String(fields.get('note') || '').trim(),
           data_richiesta:orderMode==='asporto'?String(fields.get('data_richiesta') || ''):'',
           ora_richiesta:orderMode==='asporto'?String(fields.get('ora_richiesta') || ''):'',
+          salva_cliente:orderMode==='asporto'&&fields.has('salva_cliente'),
           prodotti:[...orderCart.values()].map(item => ({id:item.id, quantita:item.quantita}))
         };
         try {
