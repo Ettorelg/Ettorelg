@@ -300,7 +300,7 @@ def test_google_customer_login_does_not_create_owner_account():
         assert session["customer_google"]["email"] == "cliente@example.it"
 
 
-def test_fulfillment_api_returns_only_shop_scoped_open_orders():
+def test_fulfillment_api_returns_shop_scoped_open_and_completed_orders():
     node = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "api_ordini_evasione"))
     node.decorator_list = []
     day = date.today()
@@ -310,7 +310,7 @@ def test_fulfillment_api_returns_only_shop_scoped_open_orders():
         def __exit__(self, *_): return False
         def execute(self, sql, params):
             assert "o.id_negozio=%s" in sql
-            assert "o.stato IN ('da_evadere','in_lavorazione')" in sql
+            assert "o.stato IN ('da_evadere','in_lavorazione','evaso')" in sql
             assert params[0] == 7
         def fetchall(self):
             return [(19, day, "12:15", "Mario Rossi", "+39123456", "", "", "da_evadere", Decimal("6.00"), "cliente", "12/09/2026 09:00", "Articolo", Decimal("1.5"), Decimal("6.00"))]
@@ -331,12 +331,16 @@ def test_fulfillment_api_returns_only_shop_scoped_open_orders():
     assert result["ordini"][0]["prodotti"][0]["quantita"] == "1.5"
 
 
-def test_fulfillment_page_defaults_to_product_totals_and_can_switch_to_orders():
+def test_fulfillment_page_always_shows_product_totals_and_completed_orders():
     html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
-    assert 'id="summaryView" type="button" aria-pressed="true"' in html
-    assert 'id="ordersView" type="button" aria-pressed="false"' in html
-    assert "let displayMode='totali'" in html
-    assert "selectDisplayMode('ordini')" in html
+    assert 'id="articleCount"' in html
+    assert 'id="totalCount"' in html
+    assert 'id="pendingCount"' in html
+    assert 'id="doneCount"' in html
+    assert "order.stato==='evaso'?' done'" in html
+    assert 'id="orderHistory"' in html
+    assert "historyPanel.showModal()" in html
+    assert "load({silent:true})},5000" in html
 
 
 def test_order_operations_are_on_fulfillment_page_not_settings():

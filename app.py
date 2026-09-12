@@ -4071,7 +4071,7 @@ def api_ordini_evasione():
                        r.nome_prodotto,r.quantita,r.totale_riga
                 FROM ordini_menu o
                 LEFT JOIN righe_ordini_menu r ON r.id_ordine=o.id
-                WHERE o.id_negozio=%s AND o.stato IN ('da_evadere','in_lavorazione')
+                WHERE o.id_negozio=%s AND o.stato IN ('da_evadere','in_lavorazione','evaso')
                   AND COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date) >= %s
                   AND COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date) < %s
                 ORDER BY COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date),
