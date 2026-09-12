@@ -190,6 +190,21 @@ def test_public_takeaway_form_offers_optional_address_book_choice():
     assert 'name="email" type="email"' in html
 
 
+def test_public_menu_keeps_order_form_closed_until_products_are_selected():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
+    assert 'id="orderTakeawayStart" type="button">🛍️ Prenota un ordine' in html
+    assert '<dialog class="order-panel" id="orderPanel"' in html
+    assert '<h2 id="orderModeTitle">Ordine <span' in html
+    assert 'id="orderCartPreviewLines"' in html
+    assert 'id="orderCartPreviewTotal"' in html
+    assert 'id="orderCartOpen" type="button">Prenota un ordine' in html
+    assert "if(orderCart.size&&!orderPanel.open){orderPanel.showModal()" in html
+    assert "if(orderMode==='view')setOrderMode('asporto')" in html
+    assert "button.classList.toggle('selected',Boolean(selected))" in html
+    assert "orderPanel.hidden=mode==='view'" not in html
+    assert '{{ ui.book }}' not in html
+
+
 def test_kilogram_product_uses_weight_and_labels_order_line():
     db = FakeConnection(product_unit="kg")
     with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=payload("1,5")):
