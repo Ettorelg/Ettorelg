@@ -20,9 +20,11 @@
     .toolbar label{display:grid;gap:5px;color:#bfd0e8;font-size:.82rem;font-weight:700}.toolbar input,.toolbar select{height:43px;padding:8px 11px;color:#fff;background:#0e1a2d;border:1px solid #53708d;border-radius:9px}
     .toolbar button,.actions button{min-height:42px;padding:9px 13px;color:#fff;background:#295b94;border:1px solid #6ca6ec;border-radius:9px;cursor:pointer;font-weight:750}.toolbar button:hover,.actions button:hover{background:#3675b7}.toolbar button:disabled,.actions button:disabled{opacity:.55;cursor:default}
     .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}.metric{padding:18px;border:1px solid #3b5674;border-radius:14px;background:#1b304c}.metric b{display:block;font-size:2rem;line-height:1.1}.metric span{color:#b8c9e1;font-size:.85rem}
+    .metric.featured{border-color:#78b8ff;background:#214b78}.view-toggle{display:flex;gap:8px;flex-wrap:wrap;margin:19px 0 0}.view-toggle button{min-height:46px;padding:10px 16px;border:1px solid #53708d;border-radius:10px;background:#172a45;color:#d7e6f8;cursor:pointer;font-weight:800}.view-toggle button[aria-pressed="true"]{border-color:#9bcdff;background:#2a5f99;color:#fff;box-shadow:0 0 0 2px #9bcdff44}
     #status{min-height:24px;color:#c4d6ef;margin:12px 0}
     .group{margin:20px 0 28px;border:1px solid #426286;border-radius:17px;background:#15263e;overflow:hidden}.group-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 20px;background:#21416a}.group-head h2{margin:0;font-size:1.15rem}.group-head span{color:#d1e5ff;font-weight:700}
     .prep{padding:16px 20px;border-bottom:1px solid #35516c}.prep strong{display:block;margin-bottom:9px;color:#fff}.prep-list{display:flex;gap:8px;flex-wrap:wrap}.prep-list span{padding:7px 10px;border-radius:9px;background:#294c71;color:#fff;font-weight:700;font-size:.85rem}
+    .group.summary .prep{padding:22px 20px;border-bottom:0}.group.summary .prep strong{font-size:1.08rem;margin-bottom:14px}.group.summary .prep-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}.group.summary .prep-list span{padding:16px 17px;border:1px solid #5b82ab;border-radius:12px;background:#294d76;font-size:1.02rem}.group.summary .order-grid{display:none}
     .order-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:15px}.order-card{padding:17px;border:1px solid #395779;border-left:5px solid #ffbf64;border-radius:12px;background:#1b304b}.order-card.working{border-left-color:#71b7ff}.order-card h3{margin:0 0 4px;font-size:1.02rem}.order-card .meta{color:#b6c8e0;font-size:.8rem}.order-card ul{margin:11px 0;padding-left:21px}.order-card li{margin:4px 0}.order-card p{margin:7px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.88rem}.order-card a{display:inline-block;margin-top:6px;font-weight:750}.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}.actions button{font-size:.8rem;min-height:37px;padding:7px 10px}.actions .finish{background:#1c7653;border-color:#53d5a0}.actions .cancel{background:#693542;border-color:#c57c8a}
     .empty{padding:38px 24px;text-align:center;border:1px dashed #536d8b;border-radius:15px;color:#bdd0e9;background:#172841}
     @media(max-width:760px){.topbar{position:static;align-items:flex-start;flex-direction:column}.metrics{grid-template-columns:1fr 1fr}.order-grid{grid-template-columns:1fr}.toolbar>*{flex:1}.toolbar label{min-width:140px}}
@@ -45,7 +47,8 @@
       <label>Raggruppa per<select id="grouping"><option value="giorno">Giorno</option><option value="fascia">Fascia oraria (15 minuti)</option></select></label>
       <button id="refresh" type="button">Aggiorna</button>
     </div>
-    <div class="metrics" aria-label="Riepilogo ordini aperti"><div class="metric"><b id="pendingCount">0</b><span>Da evadere</span></div><div class="metric"><b id="workingCount">0</b><span>In lavorazione</span></div><div class="metric"><b id="articleCount">0</b><span>Quantità complessiva articoli</span></div></div>
+    <div class="metrics" aria-label="Riepilogo ordini aperti"><div class="metric featured"><b id="articleCount">0</b><span>Quantità complessiva articoli da preparare</span></div><div class="metric"><b id="pendingCount">0</b><span>Ordini da evadere</span></div><div class="metric"><b id="workingCount">0</b><span>Ordini in lavorazione</span></div></div>
+    <div class="view-toggle" role="group" aria-label="Tipo di visualizzazione"><button id="summaryView" type="button" aria-pressed="true">Da preparare in totale</button><button id="ordersView" type="button" aria-pressed="false">Singoli ordini da evadere</button></div>
     <p id="status" role="status"></p>
     <div id="groups"></div>
   </main>
@@ -57,6 +60,9 @@
     const grouping=document.getElementById('grouping');
     const groups=document.getElementById('groups');
     const status=document.getElementById('status');
+    const summaryView=document.getElementById('summaryView');
+    const ordersView=document.getElementById('ordersView');
+    let displayMode='totali';
     let lastOrders=[];
     const quantityFormat=new Intl.NumberFormat('it-IT',{maximumFractionDigits:3});
     dateField.value=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
@@ -81,7 +87,7 @@
       groups.replaceChildren();
       if(!orders.length){node(groups,'div','Nessun ordine da evadere nel periodo selezionato.','empty');return}
       for(const [key,items] of [...byGroup].sort((a,b)=>a[0].localeCompare(b[0]))){
-        const section=node(groups,'section',undefined,'group');
+        const section=node(groups,'section',undefined,'group'+(displayMode==='totali'?' summary':''));
         const head=node(section,'div',undefined,'group-head');
         node(head,'h2',groupLabel(key));node(head,'span',items.length+(items.length===1?' ordine aperto':' ordini aperti'));
         const prep=node(section,'div',undefined,'prep');node(prep,'strong','Da preparare in totale');
@@ -132,6 +138,9 @@
     document.getElementById('refresh').addEventListener('click',load);
     dateField.addEventListener('change',load);period.addEventListener('change',load);
     grouping.addEventListener('change',()=>render(lastOrders));
+    function selectDisplayMode(mode){displayMode=mode;summaryView.setAttribute('aria-pressed',String(mode==='totali'));ordersView.setAttribute('aria-pressed',String(mode==='ordini'));render(lastOrders)}
+    summaryView.addEventListener('click',()=>selectDisplayMode('totali'));
+    ordersView.addEventListener('click',()=>selectDisplayMode('ordini'));
     load();setInterval(()=>{if(!document.hidden)load()},30000);
   </script>
 </body>

@@ -197,3 +197,11 @@ def test_fulfillment_api_returns_only_shop_scoped_open_orders():
         result = scope["api_ordini_evasione"]().get_json()
     assert result["ordini"][0]["ora_richiesta"] == "12:15"
     assert result["ordini"][0]["prodotti"][0]["quantita"] == "1.5"
+
+
+def test_fulfillment_page_defaults_to_product_totals_and_can_switch_to_orders():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert 'id="summaryView" type="button" aria-pressed="true"' in html
+    assert 'id="ordersView" type="button" aria-pressed="false"' in html
+    assert "let displayMode='totali'" in html
+    assert "selectDisplayMode('ordini')" in html
