@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1220">
+  <link rel="icon" href="{{ url_for('static', filename='alpha-menu-favicon.png') }}" type="image/png">
+  <title>Evasione ordini · Alpha Menu</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='fulfillment-cards.css') }}?v=1">
+  <style>
+    *{box-sizing:border-box}[hidden]{display:none!important}
+    body{margin:0;min-height:100vh;background:#0d1627;color:#f2f6ff;font:16px/1.45 Inter,system-ui,Arial,sans-serif}body.modal-open{overflow:hidden}
+    button,input,select{font:inherit}
+    a{color:#a9d0ff}
+    .topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px max(18px,calc((100vw - 1280px)/2));background:#12213a;border-bottom:1px solid #30435d;box-shadow:0 6px 25px #0003}
+    .brand{display:flex;align-items:center;gap:11px;color:#fff;text-decoration:none;font-weight:850;white-space:nowrap}.brand img{width:46px;height:46px;object-fit:contain}.brand small{display:block;color:#a8bad7;font-size:.72rem;font-weight:600}
+    .toplinks{display:flex;gap:10px;flex-wrap:wrap}.toplinks a{padding:9px 12px;border:1px solid #46617e;border-radius:9px;color:#eaf2ff;text-decoration:none;font-size:.85rem;font-weight:700}.toplinks a:hover{background:#243d5c}
+    main{width:min(1280px,100%);margin:0 auto;padding:28px 18px 110px}
+    h1{font-size:clamp(1.8rem,4vw,2.5rem);margin:0 0 5px}.lead{color:#b5c5de;margin:0}.board-heading{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;margin:0 0 22px}.add-order-button{position:fixed;right:max(20px,env(safe-area-inset-right));bottom:max(20px,env(safe-area-inset-bottom));z-index:20;min-height:58px;padding:14px 22px;border:1px solid #f6dc90;border-radius:16px;background:#e5ad3f;color:#172033;font-weight:900;font-size:1rem;box-shadow:0 10px 30px #0009;cursor:pointer}.add-order-button:hover{background:#f4c45f;transform:translateY(-1px)}
+    .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 0;background:transparent;border:0;border-bottom:1px solid #30435d;border-radius:0}
+    .toolbar-section{display:flex;align-items:end;gap:9px;flex-wrap:wrap}.toolbar-section+.toolbar-section{border-left:1px solid #476482;padding-left:18px}.toolbar-title{display:block;width:100%;color:#bdd3ed;font-size:.8rem;font-weight:850}.toolbar .today-button{background:#22436a;border-color:#76a6da}
+    .toolbar label{display:grid;gap:5px;color:#bfd0e8;font-size:.82rem;font-weight:700}.toolbar input,.toolbar select{height:43px;padding:8px 11px;color:#fff;background:#0e1a2d;border:1px solid #53708d;border-radius:9px}
+    .toolbar button,.actions button{min-height:38px;padding:7px 11px;color:#dbe8fa;background:#203650;border:1px solid #46617e;border-radius:9px;cursor:pointer;font-weight:750}.toolbar button:hover,.actions button:hover{background:#3675b7}.toolbar button:disabled,.actions button:disabled{opacity:.55;cursor:default}.toolbar .date-compact{display:flex;align-items:center;gap:7px;font-size:.8rem}.toolbar .date-compact input{height:38px}.filter-options{position:relative;margin-left:auto}.filter-options summary{min-height:38px;padding:8px 12px;border:1px solid #46617e;border-radius:9px;background:#203650;color:#dbe8fa;cursor:pointer;font-size:.85rem;font-weight:750;list-style:none}.filter-options summary::-webkit-details-marker{display:none}.filter-options[open] summary{background:#295b94}.filter-options .filter-content{position:absolute;right:0;top:calc(100% + 7px);z-index:9;display:flex;gap:10px;align-items:end;flex-wrap:wrap;min-width:320px;padding:13px;border:1px solid #53708d;border-radius:10px;background:#1b304c;box-shadow:0 14px 30px #0006}.filter-options label{min-width:135px}
+    .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}.metric{padding:18px;border:1px solid #3b5674;border-radius:14px;background:#1b304c}.metric b{display:block;font-size:2rem;line-height:1.1}.metric span{color:#b8c9e1;font-size:.85rem}
+    .metric.featured{border-color:#78b8ff;background:#214b78}.view-toggle{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}.view-toggle button{min-height:46px;padding:10px 16px;border:1px solid #53708d;border-radius:10px;background:#172a45;color:#d7e6f8;cursor:pointer;font-weight:800}.view-toggle button[aria-pressed="true"]{border-color:#9bcdff;background:#2a5f99;color:#fff;box-shadow:0 0 0 2px #9bcdff44}
+    #status{min-height:24px;color:#c4d6ef;margin:12px 0}
+    .group{margin:12px 0 28px;border:1px solid #426286;border-radius:17px;background:#15263e;overflow:hidden}.group-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 20px;background:#21416a}.group-head h2{margin:0;font-size:1.15rem}.group-head span{color:#d1e5ff;font-weight:700}
+    .prep{padding:16px 20px;border-bottom:1px solid #35516c}.prep strong{display:block;margin-bottom:9px;color:#fff}
+    .prep-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.prep-head strong{margin:0}.quantity-switch{display:flex;gap:6px;flex-wrap:wrap}.quantity-switch button{min-height:34px;padding:5px 11px;border:1px solid #6c90b8;border-radius:8px;background:#203b5a;color:#dcecff;font-size:.82rem;font-weight:800;cursor:pointer}.quantity-switch button[aria-pressed="true"]{border-color:#fff;background:#3875b3;color:#fff;box-shadow:0 0 0 2px #ffffff22}
+    .prep-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.prep-item{padding:18px;border:1px solid #5b82ab;border-radius:12px;background:#294d76}.prep-item .prep-total-number{display:block;font-size:clamp(2.5rem,4vw,4.2rem);font-weight:900;line-height:1;letter-spacing:-.04em;color:#fff}.prep-item .prep-name{display:block;min-height:2.4em;margin:9px 0 15px;font-size:1.02rem;font-weight:800;line-height:1.2}.prep-breakdown{display:grid;gap:5px;padding-top:11px;border-top:1px solid #6b91b6}.prep-breakdown span{display:flex;justify-content:space-between;gap:10px;font-size:.9rem}.prep-breakdown b{font-size:1rem}.prep-breakdown .evaded{color:#a9b6c8;text-decoration:line-through}.prep-breakdown .remaining{color:#fff;font-weight:800}.prep-breakdown .all{color:#d7e9ff}
+    .prep-category{display:block;color:#bbd1ec;margin:-9px 0 12px;font-size:.75rem}.filter-content select{min-width:145px}
+    .order-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:15px}.order-card{padding:17px;border:1px solid #395779;border-left:5px solid #ffbf64;border-radius:12px;background:#1b304b}.order-card.working{border-left-color:#71b7ff}.order-card.done{border-left-color:#8b96a7;background:#263242;color:#b4becd}.order-card.done h3,.order-card.done li,.order-card.done .meta{text-decoration:line-through}.order-card.done .meta{color:#97a5b7}.order-card h3{margin:0 0 4px;font-size:1.02rem}.order-card .meta{color:#b6c8e0;font-size:.8rem}.order-card ul{margin:11px 0;padding-left:21px}.order-card li{margin:4px 0}.order-card p{margin:7px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.88rem}.order-card a{display:inline-block;margin-top:6px;font-weight:750}.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}.actions button{font-size:.8rem;min-height:37px;padding:7px 10px}.actions .finish{background:#1c7653;border-color:#53d5a0}.actions .cancel{background:#693542;border-color:#c57c8a}
+    .empty{padding:38px 24px;text-align:center;border:1px dashed #536d8b;border-radius:15px;color:#bdd0e9;background:#172841}
+    .manual-order{width:min(900px,calc(100vw - 24px));max-height:calc(100dvh - 24px);margin:auto;border:1px solid #79a7d9;border-radius:17px;background:#182b45;color:#f2f6ff;padding:16px;overflow:auto;box-shadow:0 28px 80px #0009}.manual-order::backdrop{background:#050b16c9;backdrop-filter:blur(4px)}.manual-order:not([open]){display:none}.manual-order-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}.manual-order-head h2{margin:0;font-size:1.28rem}.manual-order-head p{margin:2px 0 0;color:#bed0e7;font-size:.8rem}.manual-order .manual-close{width:38px;min-width:38px;height:38px;padding:0;border:1px solid #7698bd;border-radius:9px;background:#213e62;color:#fff;font-size:1.4rem;cursor:pointer}.manual-order form{display:grid;gap:9px}.manual-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px}.manual-extra-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.manual-order label{display:grid;gap:4px;min-width:0;color:#c5d6ee;font-size:.82rem;font-weight:700}.manual-order input:not([type=checkbox]),.manual-order select,.manual-order textarea{width:100%;min-height:38px;padding:7px 9px;border:1px solid #5b7798;border-radius:9px;background:#0e1a2d;color:#fff;font:inherit}.manual-order textarea{height:38px;min-height:38px;resize:vertical}.manual-order [hidden]{display:none!important}.manual-order button{min-height:37px;padding:7px 11px;border:1px solid #79b3f6;border-radius:9px;background:#2b609b;color:#fff;font-weight:750;cursor:pointer}.manual-order button:disabled{opacity:.5}.customer-save{display:flex!important;align-items:center;gap:9px}.customer-save input{width:18px;height:18px;accent-color:#6ca6ec}.customer-results{display:grid;gap:5px;max-height:140px;overflow:auto}.customer-result{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px;border:1px solid #395779;border-radius:9px}.customer-result span{min-width:0;overflow-wrap:anywhere}.manual-lines{display:grid;gap:7px}.manual-line{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:7px;align-items:end}.manual-hint{margin:0;color:#aec2df;font-size:.78rem}.manual-feedback{min-height:18px;margin:0;color:#b9e9ca;font-weight:700}
+    .manual-product-picker{min-width:0}.product-results{display:grid;gap:5px;max-height:185px;margin-top:5px;overflow:auto}.product-results:empty{display:none}.product-results .customer-result{background:#213e62}.product-results .customer-result span{font-size:.82rem}
+    .history{width:min(980px,calc(100vw - 24px));max-height:calc(100dvh - 32px);margin:auto;border:1px solid #79a7d9;border-radius:16px;background:#172942;color:#f2f6ff;padding:20px;overflow:auto;box-shadow:0 28px 80px #0009}.history::backdrop{background:#050b16c9;backdrop-filter:blur(4px)}.history:not([open]){display:none}.history-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.history-head h2{margin:0}.history-head button{width:42px;height:42px;border:1px solid #7698bd;border-radius:9px;background:#213e62;color:#fff;font-size:1.4rem;cursor:pointer}.history p{color:#b8c9e1}.history-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:16px 0}.history-controls label{display:grid;gap:5px;color:#bfd0e8;font-size:.84rem;font-weight:700}.history-controls input,.history-controls select{height:42px;padding:8px 10px;border:1px solid #53708d;border-radius:9px;background:#0e1a2d;color:#fff}.history-controls button,.history-pages button,.history-actions button{min-height:42px;padding:8px 12px;border:1px solid #6ca6ec;border-radius:9px;background:#295b94;color:#fff;font-weight:750;cursor:pointer}.history-metrics{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.history-metrics span{padding:8px 11px;border-radius:8px;background:#264468;font-weight:700}.history-list{display:grid;gap:10px}.history-card{padding:15px;border:1px solid #456584;border-radius:11px;background:#1b304b}.history-card h3{margin:0 0 5px}.history-card p{margin:5px 0;color:#c0d1e9}.history-card ul{margin:8px 0;padding-left:20px}.history-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.history-actions button{min-height:35px;font-size:.82rem}.history-actions button:disabled{opacity:.5}.history-pages{display:flex;align-items:center;justify-content:center;gap:12px;margin:15px 0}.history-pages button:disabled{opacity:.5}
+    @media(max-width:760px){.topbar{position:static;align-items:flex-start;flex-direction:column}.metrics{grid-template-columns:1fr 1fr}.order-grid{grid-template-columns:1fr}.toolbar label{min-width:140px}}
+    @media(max-width:760px){.manual-fields{grid-template-columns:1fr 1fr}}
+    @media(max-width:480px){.metrics{grid-template-columns:1fr 1fr;gap:8px}.metric{padding:12px}.metric b{font-size:1.55rem}.toplinks a{font-size:.76rem}.toolbar .date-compact input{width:135px}.filter-options{margin-left:0}.filter-options .filter-content{right:auto;left:0;min-width:min(320px,calc(100vw - 36px))}.add-order-button{right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));min-height:52px;padding:11px 16px}.manual-fields{grid-template-columns:1fr}.manual-line{grid-template-columns:minmax(0,1fr) 90px auto}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard_choice') }}"><img src="{{ url_for('static', filename='alpha-menu-favicon.png') }}" alt=""><span>Alpha Menu<small>Banco evasione ordini</small></span></a>
+    <nav class="toplinks" aria-label="Navigazione"><a href="{{ url_for('dashboard_choice') }}">Scelta iniziale</a><a href="{{ url_for('dashboard_user') }}#ordini">Impostazioni ordini</a><a href="{{ url_for('dashboard_user') }}#home">Dashboard menu</a></nav>
+  </header>
+  <main>
+    <div class="board-heading"><div><h1>Banco evasione ordini</h1><p class="lead">Controlla cosa preparare, aggiungi ordini e consulta lo storico da questa pagina.</p></div><div class="toplinks"><button id="showHistoryButton" type="button" aria-controls="orderHistory" style="min-height:54px;padding:12px 18px;border:1px solid #6ca6ec;border-radius:12px;background:#22436a;color:#fff;font-weight:800;cursor:pointer">Storico e riepilogo</button></div></div>
+    <div class="view-toggle" role="group" aria-label="Vista evasione"><button id="summaryView" type="button" aria-pressed="true">Da preparare in totale</button><button id="ordersView" type="button" aria-pressed="false">Singoli ordini da evadere</button></div>
+    <div class="toolbar"><button id="previous" type="button" aria-label="Giorno o settimana precedente">←</button><label class="date-compact">Data<input id="date" type="date"></label><button id="next" type="button" aria-label="Giorno o settimana successivo">→</button><button id="today" class="today-button" type="button">Oggi</button><details class="filter-options"><summary>Opzioni di vista ▾</summary><div class="filter-content"><label>Intervallo<select id="period"><option value="giorno">Un giorno</option><option value="settimana">Una settimana</option></select></label><label>Raggruppa<select id="grouping"><option value="giorno">Per giorno</option><option value="fascia">Per orario di ritiro</option></select></label><label>Categoria<select id="productCategory"><option value="">Tutte le categorie</option></select></label><label>Ordina prodotti<select id="productSort"><option value="menu">Ordine del menu</option><option value="categoria">Categoria A-Z</option><option value="nome">Nome A-Z</option><option value="quantita">Quantità decrescente</option></select></label></div></details><button id="refresh" type="button" aria-label="Aggiorna ordini">↻</button></div>
+    <dialog class="manual-order" id="manualOrderPanel" aria-labelledby="manualOrderTitle">
+      <div class="manual-order-head"><div><h2 id="manualOrderTitle">Aggiungi ordine</h2><p>Inserisci cliente, ritiro e articoli. L'ordine comparirà subito nel banco evasione.</p></div><button id="manualClose" class="manual-close" type="button" aria-label="Chiudi finestra ordine">×</button></div>
+      <form id="manualOrderForm">
+        <label>Cerca un cliente salvato (facoltativo)<input id="customerSearch" type="search" autocomplete="off" placeholder="Nome, telefono o email"></label>
+        <div id="customerResults" class="customer-results" role="list"></div>
+        <div class="manual-fields">
+          <label>Nome cliente *<input name="nome" minlength="2" maxlength="120" required autocomplete="off"></label>
+          <label>Telefono *<input name="telefono" type="tel" minlength="6" maxlength="40" required autocomplete="off"></label>
+          <label>Email (facoltativa)<input name="email" type="email" maxlength="254" autocomplete="email"></label>
+          <label>Data richiesta *<input id="manualDate" name="data_richiesta" type="date" required></label>
+          <label id="manualSlotField" hidden>Fascia di ritiro *<select id="manualSlot" name="ora_richiesta"><option value="">Scegli una fascia</option></select></label>
+        </div>
+        <div class="manual-extra-fields"><label>Riferimento ritiro<input name="riferimento" maxlength="80" placeholder="Es. Banco"></label><label>Note<textarea name="note" maxlength="500" rows="1"></textarea></label></div>
+        <label class="customer-save"><input name="salva_cliente" type="checkbox"> Salva o aggiorna questo cliente in rubrica</label>
+        <p class="manual-hint">Se non selezioni la casella, il contatto non viene aggiunto alla rubrica. Nome e telefono restano comunque nell'ordine e nel suo storico.</p>
+        <strong>Articoli <small class="manual-hint">— cerca per nome e scegli dal suggerimento</small></strong>
+        <div id="manualLines" class="manual-lines"></div>
+        <div><button id="manualAddLine" type="button">＋ Aggiungi articolo</button></div>
+        <div><button id="manualSubmit" type="submit">Registra ordine</button></div>
+        <p id="manualFeedback" class="manual-feedback" role="status"></p>
+      </form>
+    </dialog>
+    <div id="groups"></div>
+    <p id="status" role="status"></p>
+    <div class="metrics" aria-label="Riepilogo ordini"><div class="metric featured"><b id="articleCount">0</b><span>Articoli da preparare</span></div><div class="metric"><b id="totalCount">0</b><span>Ordini totali</span></div><div class="metric"><b id="pendingCount">0</b><span>Ordini da evadere</span></div><div class="metric"><b id="doneCount">0</b><span>Ordini evasi</span></div></div>
+    <button id="addOrderButton" class="add-order-button" type="button" aria-controls="manualOrderPanel" aria-expanded="false">+ Aggiungi ordine</button>
+    <dialog class="history" id="orderHistory" aria-labelledby="historyTitle"><div class="history-head"><h2 id="historyTitle">Storico e riepilogo</h2><button id="historyClose" type="button" aria-label="Chiudi storico">×</button></div><p>Consulta anche gli ordini annullati, per giorno, settimana, mese o anno.</p>
+      <div class="history-controls"><label>Periodo<select id="historyPeriod"><option value="giorno">Giorno</option><option value="settimana">Settimana</option><option value="mese">Mese</option><option value="anno">Anno</option></select></label><label>Data di riferimento<input id="historyDate" type="date"></label><button id="historyRefresh" type="button">Mostra ordini</button></div>
+      <div id="historyMetrics" class="history-metrics"></div><p id="historyStatus" role="status"></p><div id="historyList" class="history-list"></div><div class="history-pages"><button id="historyPrevious" type="button">← Precedenti</button><span id="historyPageInfo"></span><button id="historyNext" type="button">Successivi →</button></div>
+    </dialog>
+  </main>
+  {% include '_legal_footer.html' %}
+  <script>
+    const csrf={{ csrf_token()|tojson }};
+    const dateField=document.getElementById('date');
+    const period=document.getElementById('period');
+    const grouping=document.getElementById('grouping');
+    const productCategory=document.getElementById('productCategory'),productSort=document.getElementById('productSort');
+    const groups=document.getElementById('groups');
+    const status=document.getElementById('status');
+    let lastOrders=[],displayMode='totali',quantityMode='total';
+    const quantityFormat=new Intl.NumberFormat('it-IT',{maximumFractionDigits:3});
+    dateField.value=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
+    function node(parent,tag,text,className){const element=document.createElement(tag);if(text!==undefined)element.textContent=text;if(className)element.className=className;parent.appendChild(element);return element}
+    function displayDate(value){const [y,m,d]=value.split('-');return d+'/'+m+'/'+y}
+    function changeDate(direction){const [y,m,d]=dateField.value.split('-').map(Number);if(!y)return;dateField.value=new Date(Date.UTC(y,m-1,d+direction*(period.value==='settimana'?7:1))).toISOString().slice(0,10);load()}
+    function groupKey(order){return order.data_richiesta+(grouping.value==='fascia'?'|'+(order.ora_richiesta||'Senza orario'):'')}
+    function groupLabel(key){const [day,time]=key.split('|');return displayDate(day)+(time?' · '+(time==='Senza orario'?time:'Ore '+time):'')}
+    function visibleProducts(order){return order.prodotti.filter(product=>!productCategory.value||String(product.id_categoria??'none')===productCategory.value)}
+    function updateCategories(orders){const selected=productCategory.value;const categories=new Map();for(const order of orders)for(const product of order.prodotti)categories.set(String(product.id_categoria??'none'),product.categoria||'Senza categoria');productCategory.replaceChildren(new Option('Tutte le categorie',''));for(const [id,name] of [...categories].sort((a,b)=>a[1].localeCompare(b[1],'it')))productCategory.add(new Option(name,id));productCategory.value=categories.has(selected)?selected:''}
+    function render(orders){
+      lastOrders=orders;
+      orders=orders.filter(order=>!productCategory.value||visibleProducts(order).length);
+      const openOrders=orders.filter(order=>order.stato!=='evaso');
+      const doneOrders=orders.filter(order=>order.stato==='evaso');
+      document.getElementById('totalCount').textContent=orders.length;
+      document.getElementById('pendingCount').textContent=openOrders.length;
+      document.getElementById('doneCount').textContent=doneOrders.length;
+      let toPrepare=0;
+      const byGroup=new Map();
+      for(const order of orders){
+        const key=groupKey(order);
+        if(!byGroup.has(key))byGroup.set(key,[]);
+        byGroup.get(key).push(order);
+        if(order.stato!=='evaso')for(const product of visibleProducts(order))toPrepare+=Math.round(Number(product.quantita)*1000);
+      }
+      document.getElementById('articleCount').textContent=quantityFormat.format(toPrepare/1000);
+      groups.replaceChildren();
+      if(!orders.length){node(groups,'div',productCategory.value?'Nessun articolo nella categoria selezionata.':'Nessun ordine nel periodo selezionato.','empty');return}
+      for(const [key,items] of [...byGroup].sort((a,b)=>a[0].localeCompare(b[0]))){
+        const section=node(groups,'section',undefined,'group');
+        const head=node(section,'div',undefined,'group-head');
+        node(head,'h2',groupLabel(key));
+        const open=items.filter(order=>order.stato!=='evaso').length,done=items.length-open;
+        node(head,'span',items.length+' totali · '+open+' da evadere · '+done+' evasi');
+        const prep=node(section,'div',undefined,'prep');prep.hidden=displayMode!=='totali';
+        const prepHead=node(prep,'div',undefined,'prep-head');node(prepHead,'strong','Da preparare in');
+        const quantitySwitch=node(prepHead,'div',undefined,'quantity-switch');quantitySwitch.setAttribute('role','group');quantitySwitch.setAttribute('aria-label','Numero grande dei prodotti');
+        for(const [mode,label] of [['total','Totale'],['pending','Da preparare'],['done','Evasi']]){
+          const button=node(quantitySwitch,'button',label);button.type='button';button.dataset.quantityMode=mode;button.setAttribute('aria-pressed',String(quantityMode===mode));button.addEventListener('click',()=>selectQuantityMode(mode));
+        }
+        const prepList=node(prep,'div',undefined,'prep-list');
+        const totals=new Map();
+        for(const order of items)for(const product of visibleProducts(order)){
+          const amount=Math.round(Number(product.quantita)*1000);
+          const identity=String(product.id_prodotto??(product.categoria+'|'+product.nome));
+          if(!totals.has(identity))totals.set(identity,{name:product.nome,category:product.categoria||'Senza categoria',categoryOrder:product.ordine_categoria??999999,productOrder:product.ordine_prodotto??999999,total:0,pending:0,done:0});
+          const row=totals.get(identity);row.total+=amount;row[order.stato==='evaso'?'done':'pending']+=amount;
+        }
+        const sortedProducts=[...totals.values()].sort((a,b)=>productSort.value==='categoria'?a.category.localeCompare(b.category,'it')||a.name.localeCompare(b.name,'it'):productSort.value==='nome'?a.name.localeCompare(b.name,'it'):productSort.value==='quantita'?b[quantityMode]-a[quantityMode]||a.name.localeCompare(b.name,'it'):a.categoryOrder-b.categoryOrder||a.productOrder-b.productOrder||a.name.localeCompare(b.name,'it'));
+        for(const amounts of sortedProducts){
+          const item=node(prepList,'div',undefined,'prep-item');
+          const bigNumber=node(item,'span',quantityFormat.format(amounts[quantityMode]/1000),'prep-total-number');
+          for(const mode of ['total','pending','done'])bigNumber.dataset[mode]=String(amounts[mode]/1000);
+          node(item,'span',amounts.name,'prep-name');
+          node(item,'small',amounts.category,'prep-category');
+          const breakdown=node(item,'div',undefined,'prep-breakdown');
+          for(const [label,value,style] of [['Evasi',amounts.done,'evaded'],['Da preparare',amounts.pending,'remaining'],['Totale',amounts.total,'all']]){
+            const row=node(breakdown,'span',undefined,style);node(row,'span',label);node(row,'b',quantityFormat.format(value/1000));
+          }
+        }
+        const grid=node(section,'div',undefined,'order-grid');grid.hidden=displayMode!=='ordini';
+        for(const order of [...items].sort((a,b)=>Number(a.stato==='evaso')-Number(b.stato==='evaso'))){
+          const card=node(grid,'article',undefined,'order-card'+(order.stato==='in_lavorazione'?' working':order.stato==='evaso'?' done':''));
+          node(card,'h3','#'+order.id+' · '+order.nome);
+          node(card,'div',(order.stato==='evaso'?'Evaso':order.stato==='in_lavorazione'?'In lavorazione':'Da evadere')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto')+(order.ora_richiesta?' · Ore '+order.ora_richiesta:' · Senza orario')+' · Inserito '+order.creato_il,'meta');
+          const lines=node(card,'ul');
+          for(const product of visibleProducts(order))node(lines,'li',quantityFormat.format(Number(product.quantita))+' × '+product.nome);
+          if(order.riferimento)node(card,'p','Riferimento: '+order.riferimento);
+          if(order.note)node(card,'p','Note: '+order.note);
+          if(order.telefono){const phone=node(card,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
+          const actions=node(card,'div',undefined,'actions');
+          const choices=order.stato==='evaso'?[['da_evadere','Riapri ordine','']]:[['in_lavorazione','In lavorazione',''],['evaso','Segna evaso','finish'],['annullato','Annulla','cancel']];
+          for(const [target,label,style] of choices){
+            if(target===order.stato)continue;
+            const button=node(actions,'button',label,style);button.type='button';
+            button.addEventListener('click',async()=>{
+              if(target==='annullato'&&!confirm('Annullare l’ordine #'+order.id+'?'))return;
+              button.disabled=true;
+              try{const response=await fetch('/api/ordini/'+order.id,{method:'PATCH',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({stato:target})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Aggiornamento non riuscito.');await load();if(historyPanel.open)await loadHistory()}
+              catch(error){status.textContent=error.message;button.disabled=false}
+            });
+          }
+        }
+      }
+    }
+    let requestNumber=0,lastFingerprint='';
+    async function load({silent=false}={}){
+      const current=++requestNumber;
+      if(!silent)status.textContent='Caricamento ordini…';
+      try{
+        const params=new URLSearchParams({periodo:period.value,data:dateField.value});
+        const response=await fetch('/api/ordini/evasione?'+params);
+        const result=await response.json();
+        if(current!==requestNumber)return;
+        if(!response.ok)throw new Error(result.error||'Impossibile caricare gli ordini.');
+        const fingerprint=JSON.stringify(result.ordini);
+        if(fingerprint!==lastFingerprint){lastFingerprint=fingerprint;updateCategories(result.ordini);render(result.ordini);if(silent&&historyPanel.open)loadHistory()}
+        status.textContent='Dal '+displayDate(result.da)+' al '+displayDate(result.a)+' · '+result.ordini.length+' ordini · aggiornamento automatico attivo';
+      }catch(error){if(current===requestNumber)status.textContent=error.message+' · Nuovo tentativo automatico tra 5 secondi.'}
+    }
+    function selectQuantityMode(mode){
+      quantityMode=mode;
+      if(productSort.value==='quantita'){render(lastOrders);return}
+      for(const number of groups.querySelectorAll('.prep-total-number'))number.textContent=quantityFormat.format(Number(number.dataset[mode]));
+      for(const button of groups.querySelectorAll('.quantity-switch button'))button.setAttribute('aria-pressed',String(button.dataset.quantityMode===mode));
+    }
+    function selectDisplayMode(mode){displayMode=mode;document.getElementById('summaryView').setAttribute('aria-pressed',String(mode==='totali'));document.getElementById('ordersView').setAttribute('aria-pressed',String(mode==='ordini'));render(lastOrders)}
+    document.getElementById('summaryView').addEventListener('click',()=>selectDisplayMode('totali'));
+    document.getElementById('ordersView').addEventListener('click',()=>selectDisplayMode('ordini'));
+    document.getElementById('previous').addEventListener('click',()=>changeDate(-1));
+    document.getElementById('next').addEventListener('click',()=>changeDate(1));
+    document.getElementById('today').addEventListener('click',()=>{dateField.value=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});period.value='giorno';load()});
+    document.getElementById('refresh').addEventListener('click',load);
+    dateField.addEventListener('change',load);period.addEventListener('change',load);
+    grouping.addEventListener('change',()=>render(lastOrders));
+    productCategory.addEventListener('change',()=>render(lastOrders));productSort.addEventListener('change',()=>render(lastOrders));
+    const manualPanel=document.getElementById('manualOrderPanel');
+    const addOrderButton=document.getElementById('addOrderButton');
+    addOrderButton.addEventListener('click',()=>{
+      if(!manualPanel.open)manualPanel.showModal();
+      document.body.classList.add('modal-open');addOrderButton.setAttribute('aria-expanded','true');
+      if(!manualSettingsLoaded)loadManualSettings().catch(error=>{manualFeedback.textContent=error.message});
+      searchCustomers();document.getElementById('customerSearch').focus();
+    });
+    document.getElementById('manualClose').addEventListener('click',()=>manualPanel.close());
+    manualPanel.addEventListener('click',event=>{if(event.target===manualPanel)manualPanel.close()});
+    manualPanel.addEventListener('close',()=>{document.body.classList.remove('modal-open');addOrderButton.setAttribute('aria-expanded','false');addOrderButton.focus()});
+    const manualForm=document.getElementById('manualOrderForm');
+    const manualDate=document.getElementById('manualDate');
+    const manualSlotField=document.getElementById('manualSlotField');
+    const manualSlot=document.getElementById('manualSlot');
+    const manualLines=document.getElementById('manualLines');
+    const manualFeedback=document.getElementById('manualFeedback');
+    const customerSearch=document.getElementById('customerSearch');
+    const customerResults=document.getElementById('customerResults');
+    const todayRome=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
+    manualDate.min=todayRome;
+    manualDate.max=new Date(Date.parse(todayRome+'T12:00:00Z')+365*86400000).toISOString().slice(0,10);
+    manualDate.value=todayRome;
+    let manualConfig={enabled:false,windows:[],minutes:15};
+    let manualProducts=[];
+    let manualLineNumber=0;
+    let manualSettingsLoaded=false;
+    function renderManualSlots(){
+      manualSlotField.hidden=!manualConfig.enabled;
+      manualSlot.required=manualConfig.enabled;
+      manualSlot.replaceChildren(new Option('Scegli una fascia',''));
+      if(!manualConfig.enabled||!manualDate.value)return;
+      const weekday=(new Date(manualDate.value+'T12:00:00Z').getUTCDay()+6)%7;
+      const windows=manualConfig.windows[weekday]||[];
+      const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date()).split(':').map(Number);
+      const currentMinute=parts[0]*60+parts[1];
+      for(const window of windows){
+        const start=Number(window.dalle.slice(0,2))*60+Number(window.dalle.slice(3));
+        const end=Number(window.alle.slice(0,2))*60+Number(window.alle.slice(3));
+        for(let minute=start;minute+manualConfig.minutes<=end;minute+=manualConfig.minutes){
+          if(manualDate.value===todayRome&&minute<=currentMinute)continue;
+          const label=value=>String(Math.floor(value/60)).padStart(2,'0')+':'+String(value%60).padStart(2,'0');
+          manualSlot.add(new Option(label(minute)+'–'+label(minute+manualConfig.minutes),label(minute)));
+        }
+      }
+    }
+    manualDate.addEventListener('change',renderManualSlots);
+    function addManualLine({focus=false}={}){
+      const row=node(manualLines,'div',undefined,'manual-line');
+      const productPicker=node(row,'div',undefined,'manual-product-picker');
+      const productLabel=node(productPicker,'label','Articolo');
+      const search=node(productLabel,'input',undefined,'product-search');search.type='search';search.required=true;search.placeholder='Cerca articolo…';search.autocomplete='off';
+      const results=node(productPicker,'div',undefined,'product-results');results.id='manual-products-'+(++manualLineNumber);results.setAttribute('role','list');search.setAttribute('aria-controls',results.id);
+      const quantityLabel=node(row,'label','Quantità');
+      const quantity=node(quantityLabel,'input');quantity.type='number';quantity.min='0.001';quantity.max='999';quantity.step='0.001';quantity.value='1';quantity.required=true;
+      const renderResults=()=>{
+        results.replaceChildren();
+        const query=search.value.trim().toLocaleLowerCase('it-IT');
+        if(!query)return;
+        const matches=manualProducts.filter(product=>(product.nome+' '+(product.categoria_nome||'')+' '+(product.sottocategoria_nome||'')).toLocaleLowerCase('it-IT').includes(query)).slice(0,8);
+        for(const product of matches){
+          const result=node(results,'div',undefined,'customer-result');result.setAttribute('role','listitem');
+          node(result,'span',product.nome+' · € '+product.prezzo_euro+(product.unita_prezzo==='kg'?' / kg':''));
+          const use=node(result,'button','Usa');use.type='button';use.addEventListener('click',()=>{
+            row.dataset.productId=String(product.id);search.value=product.nome+' · € '+product.prezzo_euro+(product.unita_prezzo==='kg'?' / kg':'');
+            quantityLabel.firstChild.textContent=product.unita_prezzo==='kg'?'Peso (kg)':'Quantità';results.replaceChildren();quantity.focus();
+          });
+        }
+        if(!matches.length)node(results,'p','Nessun articolo trovato.','manual-hint');
+      };
+      search.addEventListener('input',()=>{delete row.dataset.productId;quantityLabel.firstChild.textContent='Quantità';renderResults()});
+      const remove=node(row,'button','×');remove.type='button';remove.setAttribute('aria-label','Rimuovi articolo');remove.addEventListener('click',()=>row.remove());
+      if(focus)search.focus();
+    }
+    document.getElementById('manualAddLine').addEventListener('click',()=>addManualLine({focus:true}));
+    async function loadManualSettings(){
+      const [configResponse,productsResponse]=await Promise.all([fetch('/api/ordini/configurazione'),fetch('/api/prodotti')]);
+      if(!configResponse.ok||!productsResponse.ok)throw new Error('Impossibile caricare le impostazioni o gli articoli.');
+      const config=await configResponse.json(),products=await productsResponse.json();
+      manualConfig={enabled:config.fasce_ritiro_attive,windows:config.fasce_settimanali||[],minutes:config.minuti_fascia_ritiro||15};
+      manualProducts=(products.items||[]).filter(item=>item.disponibile);
+      manualSettingsLoaded=true;
+      renderManualSlots();
+      manualLines.replaceChildren();
+      if(manualProducts.length)addManualLine();else manualFeedback.textContent='Aggiungi prima un prodotto disponibile nella dashboard del menu.';
+    }
+    let customerRequest=0;
+    async function searchCustomers(){
+      const current=++customerRequest;
+      const query=customerSearch.value.trim();
+      if(!query){customerResults.replaceChildren();return}
+      try{
+        const response=await fetch('/api/ordini/clienti?q='+encodeURIComponent(query));
+        const data=await response.json();
+        if(current!==customerRequest)return;
+        if(!response.ok)throw new Error(data.error||'Rubrica non disponibile.');
+        customerResults.replaceChildren();
+        for(const customer of data.clienti){
+          const row=node(customerResults,'div',undefined,'customer-result');
+          node(row,'span',customer.nome+' · '+customer.telefono+(customer.email?' · '+customer.email:''));
+          const use=node(row,'button','Usa');use.type='button';
+          use.addEventListener('click',()=>{manualForm.elements.nome.value=customer.nome;manualForm.elements.telefono.value=customer.telefono;manualForm.elements.email.value=customer.email||'';customerSearch.value=customer.nome;customerResults.replaceChildren();manualForm.elements.nome.focus()});
+          const remove=node(row,'button','Elimina');remove.type='button';remove.setAttribute('aria-label','Elimina '+customer.nome+' dalla rubrica');
+          remove.addEventListener('click',async()=>{
+            if(!confirm('Eliminare '+customer.nome+' dalla rubrica? Gli ordini già registrati rimarranno nello storico.'))return;
+            remove.disabled=true;
+            try{const result=await fetch('/api/ordini/clienti/'+customer.id,{method:'DELETE',headers:{'X-CSRF-Token':csrf}});const data=await result.json();if(!result.ok)throw new Error(data.error||'Eliminazione non riuscita.');manualForm.elements.salva_cliente.checked=false;await searchCustomers();manualFeedback.textContent='Cliente eliminato dalla rubrica.'}
+            catch(error){manualFeedback.textContent=error.message;remove.disabled=false}
+          });
+        }
+        if(!data.clienti.length)node(customerResults,'p','Nessun cliente salvato trovato.','manual-hint');
+      }catch(error){if(current===customerRequest)manualFeedback.textContent=error.message}
+    }
+    let customerSearchTimer;
+    customerSearch.addEventListener('input',()=>{clearTimeout(customerSearchTimer);customerSearchTimer=setTimeout(searchCustomers,220)});
+    manualForm.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const fields=new FormData(manualForm);
+      const items=[...manualLines.querySelectorAll('.manual-line')].map(row=>({id:Number(row.dataset.productId),quantita:row.querySelector('input[type="number"]').value}));
+      if(!items.length){manualFeedback.textContent='Aggiungi almeno un articolo.';return}
+      if(items.some(item=>!item.id)){manualFeedback.textContent='Scegli ogni articolo dai suggerimenti della ricerca.';return}
+      if(new Set(items.map(item=>item.id)).size!==items.length){manualFeedback.textContent='Ogni articolo può comparire una sola volta: modifica la quantità.';return}
+      const selectedDate=String(fields.get('data_richiesta'));
+      const payload={nome:fields.get('nome'),telefono:fields.get('telefono'),email:fields.get('email'),data_richiesta:selectedDate,ora_richiesta:fields.get('ora_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),salva_cliente:fields.has('salva_cliente'),prodotti:items};
+      const submit=document.getElementById('manualSubmit');submit.disabled=true;manualFeedback.textContent='Registrazione in corso…';
+      try{
+        const response=await fetch('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});
+        const result=await response.json();
+        if(!response.ok)throw new Error(result.error||'Registrazione non riuscita.');
+        manualFeedback.textContent='Ordine #'+result.ordine_id+' registrato'+(payload.salva_cliente?' e cliente salvato in rubrica.':'.');
+        manualForm.reset();manualDate.value=selectedDate;renderManualSlots();manualLines.replaceChildren();addManualLine();customerSearch.value='';customerResults.replaceChildren();
+        dateField.value=selectedDate;period.value='giorno';await load();
+        if(document.getElementById('orderHistory').open)await loadHistory();
+      }catch(error){manualFeedback.textContent=error.message}
+      finally{submit.disabled=false}
+    });
+    const historyPanel=document.getElementById('orderHistory');
+    const showHistoryButton=document.getElementById('showHistoryButton');
+    showHistoryButton.addEventListener('click',()=>{if(!historyPanel.open)historyPanel.showModal();document.body.classList.add('modal-open');showHistoryButton.setAttribute('aria-expanded','true');loadHistory()});
+    document.getElementById('historyClose').addEventListener('click',()=>historyPanel.close());
+    historyPanel.addEventListener('click',event=>{if(event.target===historyPanel)historyPanel.close()});
+    historyPanel.addEventListener('close',()=>{document.body.classList.remove('modal-open');showHistoryButton.setAttribute('aria-expanded','false');showHistoryButton.focus()});
+    const historyPeriod=document.getElementById('historyPeriod');
+    const historyDate=document.getElementById('historyDate');
+    const historyMetrics=document.getElementById('historyMetrics');
+    const historyStatus=document.getElementById('historyStatus');
+    const historyList=document.getElementById('historyList');
+    const historyPrevious=document.getElementById('historyPrevious');
+    const historyNext=document.getElementById('historyNext');
+    historyDate.value=todayRome;
+    let historyPage=1,historyRequest=0;
+    const statusNames={da_evadere:'Da evadere',in_lavorazione:'In lavorazione',evaso:'Evasi',annullato:'Annullati'};
+    async function loadHistory(){
+      const current=++historyRequest;
+      historyStatus.textContent='Caricamento storico…';
+      try{
+        const params=new URLSearchParams({periodo:historyPeriod.value,data:historyDate.value,pagina:String(historyPage)});
+        const response=await fetch('/api/ordini?'+params),result=await response.json();
+        if(current!==historyRequest)return;
+        if(!response.ok)throw new Error(result.error||'Impossibile caricare lo storico.');
+        historyMetrics.replaceChildren();historyList.replaceChildren();
+        for(const [key,label] of Object.entries(statusNames)){
+          const metric=result.riepilogo[key]||{numero:0,totale:'0'};
+          node(historyMetrics,'span',label+': '+metric.numero+' · € '+Number(metric.totale).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}));
+        }
+        const pages=Math.max(1,Math.ceil(result.totale_ordini/result.dimensione_pagina));
+        document.getElementById('historyPageInfo').textContent='Pagina '+historyPage+' di '+pages;
+        historyPrevious.disabled=historyPage<=1;historyNext.disabled=historyPage>=pages;
+        if(!result.ordini.length)node(historyList,'div','Nessun ordine nel periodo selezionato.','empty');
+        for(const order of result.ordini){
+          const card=node(historyList,'article',undefined,'history-card');
+          node(card,'h3','#'+order.id+' · '+order.nome+' · '+statusNames[order.stato]);
+          node(card,'p',(order.origine==='tavolo'?'Al tavolo':'Da asporto')+' · Per il '+displayDate(order.data_richiesta)+(order.ora_richiesta?' alle '+order.ora_richiesta:'')+' · Inserito '+order.creato_il);
+          const lines=node(card,'ul');for(const product of order.prodotti)node(lines,'li',quantityFormat.format(Number(product.quantita))+' × '+product.nome+' · € '+Number(product.totale).toFixed(2));
+          node(card,'strong','Totale € '+Number(order.totale).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}));
+          if(order.riferimento)node(card,'p','Riferimento: '+order.riferimento);
+          if(order.note)node(card,'p','Note: '+order.note);
+          if(order.telefono){const phone=node(card,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
+          const actions=node(card,'div',undefined,'history-actions');
+          for(const [target,label] of [['da_evadere','Da evadere'],['in_lavorazione','In lavorazione'],['evaso','Segna evaso'],['annullato','Annulla']]){
+            if(target===order.stato)continue;
+            const button=node(actions,'button',label);button.type='button';
+            button.addEventListener('click',async()=>{
+              if(target==='annullato'&&!confirm('Annullare l’ordine #'+order.id+'?'))return;
+              button.disabled=true;
+              try{const response=await fetch('/api/ordini/'+order.id,{method:'PATCH',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({stato:target})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Aggiornamento non riuscito.');await Promise.all([load(),loadHistory()])}
+              catch(error){historyStatus.textContent=error.message;button.disabled=false}
+            });
+          }
+        }
+        historyStatus.textContent='Dal '+displayDate(result.da)+' al '+displayDate(result.a)+' · '+result.totale_ordini+' ordini';
+      }catch(error){if(current===historyRequest)historyStatus.textContent=error.message}
+    }
+    document.getElementById('historyRefresh').addEventListener('click',loadHistory);
+    historyPeriod.addEventListener('change',()=>{historyPage=1;loadHistory()});
+    historyDate.addEventListener('change',()=>{historyPage=1;loadHistory()});
+    historyPrevious.addEventListener('click',()=>{if(historyPage>1){historyPage--;loadHistory()}});
+    historyNext.addEventListener('click',()=>{historyPage++;loadHistory()});
+    load();setInterval(()=>{if(!document.hidden)load({silent:true})},5000);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)load({silent:true})});
+  </script>
+</body>
+</html>

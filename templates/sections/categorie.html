@@ -1,0 +1,475 @@
+<style>
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:6px;min-width:220px;flex:1}
+  label{font-size:12px;opacity:.85}
+  input, select{
+    padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.05); color: #e7ecff; outline:none;
+  }
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{
+    border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    color:#e7ecff;border-radius:12px;padding:10px 12px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn:hover{background: rgba(255,255,255,.09);}
+  .btn.primary{background: rgba(110,168,254,.18); border-color: rgba(110,168,254,.35);}
+  .btn.danger{background: rgba(255,80,80,.14); border-color: rgba(255,80,80,.35);}
+  .muted{opacity:.75;font-size:13px}
+  .table{
+    width:100%; border-collapse:separate; border-spacing:0; margin-top:14px;
+    border:1px solid rgba(255,255,255,.12); border-radius:14px; overflow:hidden;
+  }
+  .table th, .table td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.10); vertical-align:top}
+  .table th{font-size:12px; text-transform:uppercase; letter-spacing:.06em; opacity:.75; background: rgba(255,255,255,.03)}
+  .table tr:last-child td{border-bottom:none}.table tr[draggable=true]{cursor:grab}.table tr.dragging-row{opacity:.4}.drag-cell{display:flex;align-items:center;gap:9px}.drag-grip{color:#8fb9ff;font-size:18px}
+  .badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.14);font-size:12px;opacity:.9}
+  .right{white-space:nowrap}
+  .toast{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
+  .hidden{display:none}
+  .catalog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:20px}
+  .catalog-head h2{margin:0 0 7px;font-size:1.65rem;color:#f3f6ff}
+  .catalog-head .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8fb9ff;font-weight:800}
+  #catForm,#scForm{padding:20px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.025));box-shadow:0 12px 30px rgba(0,0,0,.15)}
+  #catForm::before,#scForm::before{display:block;margin-bottom:16px;color:#dbe8ff;font-size:14px;font-weight:800}
+  #catForm::before{content:"1 · DATI DELLA CATEGORIA"}
+  #scForm::before{content:"2 · DATI DELLA SOTTOCATEGORIA"}
+  .table-wrap-catalog{margin-top:18px;overflow:auto;border-radius:14px}
+  .table-wrap-catalog .table{margin-top:0}
+  @media(max-width:720px){
+    .catalog-head{display:block}.row{display:grid;grid-template-columns:1fr}.field{min-width:0!important;max-width:none!important}
+    #catForm,#scForm{padding:15px}.actions .btn{flex:1;justify-content:center}
+    .table-wrap-catalog{overflow:visible}.table{border:0;background:transparent}.table thead{display:none}.table tbody{display:grid;gap:12px}.table tr{display:grid;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.035)}.table td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border:0}.table td:first-child{font-size:1.02rem}.table td:nth-child(2)::before{content:"Ordine";color:#9eabca;font-size:12px}.table td:nth-child(3)::before{content:"Visibile";color:#9eabca;font-size:12px}.table td.right{display:flex;white-space:normal}.table td.right .btn{flex:1;justify-content:center}
+  }
+</style>
+
+<div class="catalog-head"><div><span class="eyebrow">Struttura del menu</span><h2>Categorie</h2><p class="muted">Organizza il menu in categorie chiare; usa “Ordine” per stabilire la posizione.</p></div></div>
+
+<div class="toast hidden" id="toast"></div>
+
+<form id="catForm">
+  <input type="hidden" id="id" />
+
+  <div class="row">
+    <div class="field">
+      <label>Nome *</label>
+      <input id="nome" required placeholder="Es. Pizze" />
+    </div>
+
+    <div class="field" style="max-width:180px"><label>Visibile</label><select id="visibile"><option value="true">Sì</option><option value="false">No</option></select></div>
+  </div>
+  <div class="actions" style="margin-top:10px"><button class="btn" type="button" id="toggleSchedule">🕒 Programma visibilità (opzionale)</button></div>
+  <div id="scheduleFields" class="row hidden" style="margin-top:10px;padding:12px;border:1px dashed rgba(110,168,254,.45);border-radius:12px">
+    <div class="field" style="max-width:180px"><label>Dal giorno</label><input id="visibile_da" type="date"></div>
+    <div class="field" style="max-width:180px"><label>Al giorno</label><input id="visibile_fino" type="date"></div>
+    <div class="field" style="max-width:150px"><label>Dalle ore</label><input id="ora_inizio" type="time"></div>
+    <div class="field" style="max-width:150px"><label>Alle ore</label><input id="ora_fine" type="time"></div>
+    <div class="field" style="justify-content:end;min-width:130px;flex:0"><button class="btn" type="button" id="clearSchedule">Rimuovi fascia</button></div>
+  </div>
+
+  <div class="actions" style="margin-top:10px">
+    <button class="btn primary" type="submit" id="saveBtn">Salva categoria</button>
+    <button class="btn" type="button" id="resetBtn">Nuova</button>
+    <span class="muted" id="modeHint">Modalità: creazione</span>
+  </div>
+</form>
+
+<div class="table-wrap-catalog"><table class="table">
+  <thead>
+    <tr>
+      <th>Nome</th>
+      <th>Visibile</th>
+      <th class="right">Azioni</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table></div>
+
+<script>
+  const toast = document.getElementById("toast");
+  const tbody = document.getElementById("tbody");
+  const form = document.getElementById("catForm");
+  const modeHint = document.getElementById("modeHint");
+  const f = (id) => document.getElementById(id);
+
+  let items = [];
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.remove("hidden");
+    setTimeout(() => toast.classList.add("hidden"), 2500);
+  }
+
+  function resetForm(){
+    f("id").value = "";
+    f("nome").value = "";
+    f("visibile").value = "true"; f("visibile_da").value = ""; f("visibile_fino").value = ""; f("ora_inizio").value = ""; f("ora_fine").value = ""; f("scheduleFields").classList.add("hidden");
+    modeHint.textContent = "Modalità: creazione";
+    f("saveBtn").textContent = "Salva categoria";
+  }
+
+  async function load(){
+    const res = await fetch("/api/categorie_full");
+    if(!res.ok) throw new Error("Errore caricamento");
+    const data = await res.json();
+    items = data.items || [];
+    render();
+  }
+
+  function render(){
+    tbody.innerHTML = items.map(c => {
+      const vis = c.visibile ? `<span class="badge">Sì</span>` : `<span class="badge" style="opacity:.6">No</span>`;
+      return `
+        <tr draggable="true" data-category-id="${c.id}">
+          <td style="font-weight:650"><span class="drag-cell"><span class="drag-grip">⋮⋮</span>${esc(c.nome)}</span></td>
+          <td>${vis}</td>
+          <td class="right">
+            <button class="btn" type="button" onclick="editCat(${c.id})">Modifica</button>
+            <button class="btn danger" type="button" onclick="delCat(${c.id})">Elimina</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+    enableCategoryDragging();
+  }
+
+  function enableCategoryDragging(){
+    let dragged=null;
+    tbody.querySelectorAll("tr[data-category-id]").forEach(row=>{
+      row.addEventListener("dragstart",()=>{dragged=row;row.classList.add("dragging-row")});
+      row.addEventListener("dragend",()=>{row.classList.remove("dragging-row");dragged=null});
+      row.addEventListener("dragover",event=>event.preventDefault());
+      row.addEventListener("drop",async event=>{
+        event.preventDefault();if(!dragged||dragged===row)return;
+        const box=row.getBoundingClientRect();tbody.insertBefore(dragged,event.clientY<box.top+box.height/2?row:row.nextSibling);
+        const posizioni=[...tbody.querySelectorAll("tr[data-category-id]")].map(item=>({id:item.dataset.categoryId}));
+        const response=await fetch("/api/categorie/posizioni",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({posizioni})});
+        if(!response.ok){showToast("Errore salvataggio ordine.");await load();return;}showToast("Ordine categorie salvato.");await load();
+      });
+    });
+  }
+
+  window.editCat = function(id){
+    const c = items.find(x => x.id === id);
+    if(!c) return;
+    f("id").value = c.id;
+    f("nome").value = c.nome;
+    f("visibile").value = c.visibile ? "true" : "false"; f("visibile_da").value=c.visibile_da||""; f("visibile_fino").value=c.visibile_fino||""; f("ora_inizio").value=c.ora_inizio||""; f("ora_fine").value=c.ora_fine||""; if(c.visibile_da||c.visibile_fino||c.ora_inizio||c.ora_fine) f("scheduleFields").classList.remove("hidden");
+    modeHint.textContent = "Modalità: modifica";
+    f("saveBtn").textContent = "Aggiorna categoria";
+    showToast("Modifica categoria: aggiorna e salva.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  window.delCat = async function(id){
+    const c = items.find(x => x.id === id);
+    if(!c) return;
+    const warning = `Sei sicuro di voler eliminare la categoria "${c.nome}"?\n\nVerranno eliminati definitivamente anche TUTTI i prodotti e le sottocategorie collegati.\n\nQuesta operazione non può essere annullata.`;
+    if(!confirm(warning)) return;
+    const res = await fetch(`/api/categorie/${id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok){ showToast(data.error || "Errore eliminazione"); return; }
+    await load();
+    if(String(f("id").value) === String(id)) resetForm();
+    const prodotti = data.prodotti_eliminati || 0;
+    const sottocategorie = data.sottocategorie_eliminate || 0;
+    showToast(`Categoria eliminata: ${prodotti} prodotti e ${sottocategorie} sottocategorie rimossi.`);
+  }
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const payload = {
+      nome: f("nome").value.trim(),
+      visibile: f("visibile").value === "true", visibile_da:f("visibile_da").value, visibile_fino:f("visibile_fino").value, ora_inizio:f("ora_inizio").value, ora_fine:f("ora_fine").value
+    };
+    const id = f("id").value ? Number(f("id").value) : null;
+
+    let res;
+    if(!id){
+      res = await fetch("/api/categorie", {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify(payload)   // <-- INVIA TUTTO (nome, ordine, visibile)
+      });
+    } else {
+      res = await fetch(`/api/categorie/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify(payload)
+      });
+    }
+
+
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      showToast(err.detail || err.error || "Errore salvataggio");
+      return;
+    }
+
+    await load();
+    showToast(id ? "Categoria aggiornata." : "Categoria creata.");
+    if(!id) resetForm();
+  });
+
+  document.getElementById("toggleSchedule").addEventListener("click",()=>f("scheduleFields").classList.toggle("hidden"));
+  document.getElementById("clearSchedule").addEventListener("click",()=>{f("visibile_da").value="";f("visibile_fino").value="";f("ora_inizio").value="";f("ora_fine").value="";f("scheduleFields").classList.add("hidden")});
+  document.getElementById("resetBtn").addEventListener("click", resetForm);
+
+  function esc(s){
+    return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+  }
+
+  (async function init(){
+    resetForm();
+    await load();
+  })();
+</script>
+
+<style>
+  .subcategories-separator{margin-top:34px;padding-top:24px;border-top:1px solid rgba(110,168,254,.34)}
+  .subcategories-separator h3{margin:0 0 8px;color:#dbe8ff}
+</style>
+<style>
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:6px;min-width:220px;flex:1}
+  label{font-size:12px;opacity:.85}
+  input, select{
+    padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.05); color: #e7ecff; outline:none;
+  }
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{
+    border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    color:#e7ecff;border-radius:12px;padding:10px 12px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn:hover{background: rgba(255,255,255,.09);}
+  .btn.primary{background: rgba(110,168,254,.18); border-color: rgba(110,168,254,.35);}
+  .btn.danger{background: rgba(255,80,80,.14); border-color: rgba(255,80,80,.35);}
+  .muted{opacity:.75;font-size:13px}
+  .table{
+    width:100%; border-collapse:separate; border-spacing:0; margin-top:14px;
+    border:1px solid rgba(255,255,255,.12); border-radius:14px; overflow:hidden;
+  }
+  .table th, .table td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.10); vertical-align:top}
+  .table th{font-size:12px; text-transform:uppercase; letter-spacing:.06em; opacity:.75; background: rgba(255,255,255,.03)}
+  .table tr:last-child td{border-bottom:none}.table tr[draggable=true]{cursor:grab}.table tr.dragging-row{opacity:.4}.drag-cell{display:flex;align-items:center;gap:9px}.drag-grip{color:#8fb9ff;font-size:18px}
+  .badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.14);font-size:12px;opacity:.9}
+  .right{white-space:nowrap}
+  .toast{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
+  .hidden{display:none}
+</style>
+
+<div class="subcategories-separator"><h3>Sottocategorie</h3></div>
+<p class="muted">Crea e gestisci le sottocategorie, collegandole alla rispettiva categoria.</p>
+
+<div class="toast hidden" id="scToast"></div>
+
+<form id="scForm">
+  <input type="hidden" id="scId" />
+
+  <div class="row">
+    <div class="field">
+      <label>Categoria *</label>
+      <select id="scCategoryId" required>
+        <option value="">—</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Nome *</label>
+      <input id="scName" required placeholder="Es. Pizze rosse" />
+    </div>
+
+    <div class="field" style="max-width:200px">
+      <label>Ordine</label>
+      <input id="scOrder" inputmode="numeric" placeholder="Es. 10" />
+    </div>
+
+    <div class="field" style="max-width:240px">
+      <label>Visibile</label>
+      <select id="scVisible">
+        <option value="true">Sì</option>
+        <option value="false">No</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:10px">
+    <button class="btn primary" type="submit" id="scSaveBtn">Salva sottocategoria</button>
+    <button class="btn" type="button" id="scResetBtn">Nuova</button>
+    <span class="muted" id="scModeHint">Modalità: creazione</span>
+  </div>
+</form>
+
+<div class="table-wrap-catalog"><table class="table">
+  <thead>
+    <tr>
+      <th>Categoria</th>
+      <th>Sottocategoria</th>
+      <th>Ordine</th>
+      <th>Visibile</th>
+      <th class="right">Azioni</th>
+    </tr>
+  </thead>
+  <tbody id="scTbody"></tbody>
+</table></div>
+
+<script>
+  const toast = document.getElementById("scToast");
+  const tbody = document.getElementById("scTbody");
+  const form = document.getElementById("scForm");
+  const modeHint = document.getElementById("scModeHint");
+  const f = (id) => document.getElementById(id);
+
+  let cats = [];
+  let items = [];
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.remove("hidden");
+    setTimeout(() => toast.classList.add("hidden"), 2500);
+  }
+
+  function resetForm(){
+    f("scId").value = "";
+    f("scCategoryId").value = "";
+    f("scName").value = "";
+    f("scOrder").value = "";
+    f("scVisible").value = "true";
+    modeHint.textContent = "Modalità: creazione";
+    f("scSaveBtn").textContent = "Salva sottocategoria";
+  }
+
+  async function loadCats(){
+    const res = await fetch("/api/categorie_full");
+    if(!res.ok) throw new Error("Errore categorie");
+    const data = await res.json();
+    cats = data.items || [];
+
+    const sel = f("scCategoryId");
+    sel.innerHTML = `<option value="">—</option>` + cats.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join("");
+  }
+
+  async function load(){
+    const res = await fetch("/api/sottocategorie_full");
+    if(!res.ok) throw new Error("Errore sottocategorie");
+    const data = await res.json();
+    items = data.items || [];
+    render();
+  }
+
+  function render(){
+    tbody.innerHTML = items.map(sc => {
+      const vis = sc.visibile ? `<span class="badge">Sì</span>` : `<span class="badge" style="opacity:.6">No</span>`;
+      return `
+        <tr draggable="true" data-subcategory-id="${sc.id}" data-category-id="${sc.id_categoria}">
+          <td>${esc(sc.categoria_nome)}</td>
+          <td style="font-weight:650"><span class="drag-cell"><span class="drag-grip">⋮⋮</span>${esc(sc.nome)}</span></td>
+          <td>${esc(sc.ordine)}</td>
+          <td>${vis}</td>
+          <td class="right">
+            <button class="btn" type="button" onclick="editSC(${sc.id})">Modifica</button>
+            <button class="btn danger" type="button" onclick="delSC(${sc.id})">Elimina</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+    enableSubcategoryDragging();
+  }
+
+  function enableSubcategoryDragging(){
+    let dragged=null;
+    tbody.querySelectorAll("tr[data-subcategory-id]").forEach(row=>{
+      row.addEventListener("dragstart",()=>{dragged=row;row.classList.add("dragging-row")});
+      row.addEventListener("dragend",()=>{row.classList.remove("dragging-row");dragged=null});
+      row.addEventListener("dragover",event=>{if(dragged&&dragged.dataset.categoryId===row.dataset.categoryId)event.preventDefault()});
+      row.addEventListener("drop",async event=>{
+        event.preventDefault();if(!dragged||dragged===row||dragged.dataset.categoryId!==row.dataset.categoryId)return;
+        const box=row.getBoundingClientRect();tbody.insertBefore(dragged,event.clientY<box.top+box.height/2?row:row.nextSibling);
+        const categoryId=row.dataset.categoryId;
+        const posizioni=[...tbody.querySelectorAll('tr[data-category-id="'+categoryId+'"]')].map(item=>({id:item.dataset.subcategoryId}));
+        const response=await fetch("/api/sottocategorie/posizioni",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id_categoria:categoryId,posizioni})});
+        if(!response.ok){showToast("Errore salvataggio ordine.");await load();return;}showToast("Ordine sottocategorie salvato.");await load();
+      });
+    });
+  }
+
+  window.editSC = function(id){
+    const sc = items.find(x => x.id === id);
+    if(!sc) return;
+    f("scId").value = sc.id;
+    f("scCategoryId").value = String(sc.id_categoria);
+    f("scName").value = sc.nome;
+    f("scOrder").value = sc.ordine ?? "";
+    f("scVisible").value = sc.visibile ? "true" : "false";
+    modeHint.textContent = "Modalità: modifica";
+    f("scSaveBtn").textContent = "Aggiorna sottocategoria";
+    showToast("Modifica sottocategoria: aggiorna e salva.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  window.delSC = async function(id){
+    const sc = items.find(x => x.id === id);
+    if(!sc) return;
+    if(!confirm(`Eliminare sottocategoria "${sc.nome}"?`)) return;
+    const res = await fetch(`/api/sottocategorie/${id}`, { method: "DELETE" });
+    if(!res.ok){ showToast("Errore eliminazione"); return; }
+    await load();
+    if(String(f("scId").value) === String(id)) resetForm();
+    showToast("Sottocategoria eliminata.");
+  }
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+
+    const payload = {
+      id_categoria: f("scCategoryId").value,
+      nome: f("scName").value.trim(),
+      ordine: f("scOrder").value.trim(),
+      visibile: f("scVisible").value === "true"
+    };
+
+    const id = f("scId").value ? Number(f("scId").value) : null;
+
+    let res;
+    if(!id){
+      res = await fetch("/api/sottocategorie", {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ id_categoria: payload.id_categoria, nome: payload.nome, visibile: payload.visibile })
+      });
+    } else {
+      res = await fetch(`/api/sottocategorie/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      showToast(err.error || "Errore salvataggio");
+      return;
+    }
+
+    await load();
+    showToast(id ? "Sottocategoria aggiornata." : "Sottocategoria creata.");
+    if(!id) resetForm();
+  });
+
+  document.getElementById("scResetBtn").addEventListener("click", resetForm);
+
+  function esc(s){
+    return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
+  }
+
+  (async function init(){
+    resetForm();
+    await loadCats();
+    await load();
+  })();
+</script>
+

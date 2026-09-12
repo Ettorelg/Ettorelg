@@ -1,0 +1,76 @@
+/* Compact article and order cards shared by the owner and employee boards. */
+#groups .group { margin-bottom: 16px; }
+#groups .group-head, #groups .group > h2 { padding: 10px 14px; }
+#groups .prep { padding: 12px; }
+#groups .prep-head { gap: 8px; margin-bottom: 9px; }
+#groups .prep-list, #groups .cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 215px), 1fr));
+  gap: 9px;
+}
+#groups .cards { padding: 12px; }
+#groups .prep-item, #groups .card {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+#groups .prep-total-number, #groups .quantity {
+  font-size: clamp(2.4rem, 3.8vw, 3.4rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+#groups .prep-name, #groups .name {
+  display: block;
+  min-height: 0;
+  margin: 6px 0;
+  font-size: .94rem;
+  line-height: 1.2;
+}
+#groups .prep-category, #groups .card > small {
+  display: block;
+  margin: 0 0 8px;
+  font-size: .75rem;
+  line-height: 1.2;
+}
+#groups .prep-breakdown, #groups .card .meta {
+  gap: 3px;
+  margin-top: 0;
+  padding-top: 7px;
+  border-top: 1px solid #6b91b6;
+  font-size: .85rem;
+  line-height: 1.3;
+}
+#groups .prep-breakdown span { font-size: .85rem; }
+#groups .prep-breakdown b { font-size: .9rem; }
+#groups .order-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  gap: 9px;
+  padding: 12px;
+}
+#groups .order-card {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+#groups .order-card h3 { margin: 0 0 4px; font-size: .96rem; line-height: 1.25; }
+#groups .order-card ul { margin: 8px 0; padding-left: 18px; font-size: .9rem; line-height: 1.35; }
+#groups .order-card li { margin: 3px 0; }
+#groups .order-card p { margin: 5px 0; font-size: .85rem; line-height: 1.35; white-space: pre-wrap; }
+#groups .order-card .meta { font-size: .77rem; line-height: 1.35; }
+#groups .actions { gap: 6px; margin-top: 9px; }
+#groups .actions button {
+  min-height: 38px;
+  padding: 7px 9px;
+  border: 1px solid #79b3f6;
+  border-radius: 8px;
+  background: #2b609b;
+  color: #fff;
+  font: 750 .8rem system-ui, sans-serif;
+  cursor: pointer;
+}
+#groups .actions .finish { background: #1c7653; border-color: #53d5a0; }
+#groups .actions .cancel { background: #693542; border-color: #c57c8a; }
+#groups .actions button:disabled { opacity: .55; cursor: default; }
+@media (max-width: 600px) { #groups .actions button { min-height: 44px; } }

@@ -1,0 +1,109 @@
+<style>
+  .stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  .stat-card,.stats-panel{padding:18px;border:1px solid rgba(255,255,255,.13);border-radius:15px;background:rgba(255,255,255,.04)}
+  .stat-card strong{display:block;margin-top:8px;font-size:2rem;color:#dbe8ff}
+  .stats-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}.stats-panel{margin:0}.stats-panel.full{grid-column:1/-1}
+  .stats-row{display:flex;align-items:center;gap:12px;margin:10px 0}.stats-row>span:first-child{width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar{height:10px;flex:1;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}.bar i{display:block;height:100%;border-radius:inherit;background:#6ea8fe}
+  .day-row{display:grid;grid-template-columns:55px 1fr auto;gap:10px;align-items:center;margin:8px 0}.day-bars{display:grid;gap:3px}.day-bars .qr{background:#8bd5a8}.legend{display:flex;gap:16px;margin-bottom:12px;font-size:12px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;background:#6ea8fe}.legend .qr i{background:#8bd5a8}
+  .muted{opacity:.72}@media(max-width:900px){.stats-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:720px){.stats-grid,.stats-panels{grid-template-columns:1fr}.stats-panel.full{grid-column:auto}}
+  .stats-tabs{display:flex;gap:9px;flex-wrap:wrap;margin:0 0 22px}.stats-tabs button{min-height:46px;padding:10px 17px;border:1px solid #6ea8fe;border-radius:10px;background:#1d3555;color:#e7efff;font-weight:800;cursor:pointer}.stats-tabs button[aria-selected="true"]{background:#2e65a2;color:#fff;box-shadow:0 0 0 2px #8abfff55}.stats-tabs[hidden],.stats-section[hidden]{display:none!important}
+  .order-stats-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:14px 0 18px;padding:15px;border:1px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(255,255,255,.04)}.order-stats-controls label{display:grid;gap:5px;font-size:.84rem;color:#c7d7f2}.order-stats-controls select,.order-stats-controls input{min-height:41px;padding:8px 10px;border:1px solid #5e80aa;border-radius:8px;background:#15223a;color:#fff}.order-stats-controls button{min-height:41px;padding:8px 14px;border:1px solid #6ea8fe;border-radius:8px;background:#234e86;color:#fff;font-weight:750;cursor:pointer}.order-stats-message{min-height:20px;color:#b9e5c5}.order-stats-split{display:flex;gap:9px;flex-wrap:wrap}.order-stats-split span{padding:9px 12px;border-radius:8px;background:#23456c;font-weight:700}
+</style>
+<div id="statsTabs" class="stats-tabs" role="tablist" aria-label="Tipo di statistiche" hidden><button id="statsMenuTab" type="button" role="tab" aria-selected="true" aria-controls="menuStats">1 · Statistiche menu</button><button id="statsOrdersTab" type="button" role="tab" aria-selected="false" aria-controls="ordersStats">2 · Statistiche ordini</button></div>
+<section id="menuStats" class="stats-section" role="tabpanel" aria-labelledby="statsMenuTab">
+<h2>Statistiche del menu</h2>
+<p class="muted">Dati aggregati e anonimi del menu pubblico, aggiornati in tempo reale.</p>
+<div class="stats-grid">
+  <div class="stat-card">Visite totali<strong id="statsTotal">—</strong></div>
+  <div class="stat-card">Ultimi 30 giorni<strong id="stats30">—</strong></div>
+  <div class="stat-card">Ultimi 7 giorni<strong id="stats7">—</strong></div>
+  <div class="stat-card">Scansioni QR (30 giorni)<strong id="statsQr">—</strong></div>
+</div>
+<div class="stats-panels">
+  <div class="stats-panel"><h3>Categorie più aperte</h3><p class="muted">Ultimi 30 giorni.</p><div id="statsCategories">Caricamento…</div></div>
+  <div class="stats-panel"><h3>Prodotti più visualizzati</h3><p class="muted">Aperture delle schede negli ultimi 30 giorni.</p><div id="statsProducts">Caricamento…</div></div>
+  <div class="stats-panel"><h3>Lingue utilizzate</h3><p class="muted">Ultimi 30 giorni.</p><div id="statsLanguages">Caricamento…</div></div>
+  <div class="stats-panel"><h3>Andamento ultimi 30 giorni</h3><div class="legend"><span><i></i>Visite</span><span class="qr"><i></i>Da QR</span></div><div id="statsDays">Caricamento…</div></div>
+</div>
+</section>
+<section id="ordersStats" class="stats-section" role="tabpanel" aria-labelledby="statsOrdersTab" hidden>
+  <h2>Statistiche degli ordini</h2>
+  <p class="muted">Data di evasione richiesta. Ordini annullati esclusi da prodotti, clienti, fasce e valore delle richieste; non si tratta di incassi confermati.</p>
+  <div class="order-stats-controls"><label>Periodo<select id="orderStatsPeriod"><option value="giorno">Giorno</option><option value="settimana">Settimana</option><option value="mese" selected>Mese</option><option value="anno">Anno</option></select></label><label>Data di riferimento<input id="orderStatsDate" type="date"></label><button id="orderStatsRefresh" type="button">Aggiorna statistiche</button></div>
+  <p id="orderStatsMessage" class="order-stats-message" role="status"></p>
+  <div class="stats-grid"><div class="stat-card">Ordini ricevuti<strong id="orderStatsTotal">—</strong></div><div class="stat-card">Da preparare / in lavorazione<strong id="orderStatsOpen">—</strong></div><div class="stat-card">Ordini evasi<strong id="orderStatsDone">—</strong></div><div class="stat-card">Valore richieste non annullate<strong id="orderStatsValue">—</strong></div></div>
+  <div class="stats-panels">
+    <div class="stats-panel"><h3>Prodotti più ordinati</h3><p class="muted">Quantità totale richiesta; i prodotti a peso sono indicati in kg.</p><div id="orderStatsProducts">—</div></div>
+    <div class="stats-panel"><h3>Fasce orarie di ritiro</h3><p class="muted">Numero di ordini per orario richiesto.</p><div id="orderStatsSlots">—</div></div>
+    <div class="stats-panel"><h3>Ordini per cliente</h3><p class="muted">Ordini da asporto e manuali con recapito, raggruppati per telefono. Gli ordini al tavolo non hanno anagrafica.</p><div id="orderStatsCustomers">—</div></div>
+    <div class="stats-panel"><h3>Andamento ordini</h3><p class="muted">Per giorno; per l'anno, per mese.</p><div id="orderStatsTrend">—</div></div>
+    <div class="stats-panel full"><h3>Composizione degli ordini</h3><div id="orderStatsSplit" class="order-stats-split">—</div></div>
+  </div>
+</section>
+<script>
+(async () => {
+  const escapeHtml=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+  const rows=(items,valueKey,empty)=>{
+    const max=Math.max(1,...items.map(item=>Number(item[valueKey])||0));
+    return items.length?items.map(item=>`<div class="stats-row"><span title="${escapeHtml(item.nome||item.lingua)}">${escapeHtml(item.nome||(item.lingua||'').toUpperCase())}</span><div class="bar"><i style="width:${(Number(item[valueKey])||0)/max*100}%"></i></div><b>${Number(item[valueKey])||0}</b></div>`).join(''):empty;
+  };
+  const response=await fetch('/api/statistiche');
+  if(!response.ok){document.querySelectorAll('[id^="stats"]').forEach(el=>{if(!el.matches('strong'))el.textContent='Statistiche non disponibili.'});return;}
+  const data=await response.json();
+  document.getElementById('statsTotal').textContent=data.totale;
+  document.getElementById('stats30').textContent=data.ultimi_30_giorni;
+  document.getElementById('stats7').textContent=data.ultimi_7_giorni;
+  document.getElementById('statsQr').textContent=data.scansioni_qr_30_giorni||0;
+  document.getElementById('statsLanguages').innerHTML=rows(data.lingue||[],'visite','Nessuna visita registrata.');
+  document.getElementById('statsProducts').innerHTML=rows(data.articoli_piu_aperti||[],'aperture','Nessuna apertura prodotto registrata.');
+  document.getElementById('statsCategories').innerHTML=rows(data.categorie_piu_aperte||[],'aperture','Nessuna apertura categoria registrata.');
+  const days=data.giorni||[];const maxDay=Math.max(1,...days.map(item=>Number(item.visite)||0));
+  document.getElementById('statsDays').innerHTML=days.length?days.map(item=>`<div class="day-row"><span>${escapeHtml(item.data.slice(5))}</span><div class="day-bars"><div class="bar"><i style="width:${item.visite/maxDay*100}%"></i></div><div class="bar"><i class="qr" style="width:${item.qr/maxDay*100}%"></i></div></div><b>${item.visite}</b></div>`).join(''):'Nessuna visita registrata.';
+  if(!data.moduli_ordini_attivi)return;
+  const tabs=document.getElementById('statsTabs'),menuTab=document.getElementById('statsMenuTab'),ordersTab=document.getElementById('statsOrdersTab');
+  const menuStats=document.getElementById('menuStats'),ordersStats=document.getElementById('ordersStats');
+  const dateField=document.getElementById('orderStatsDate'),periodField=document.getElementById('orderStatsPeriod');
+  const message=document.getElementById('orderStatsMessage');
+  dateField.value=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
+  tabs.hidden=false;
+  let loaded=false,requestNumber=0;
+  function showTab(which){
+    const orders=which==='ordini';menuStats.hidden=orders;ordersStats.hidden=!orders;
+    menuTab.setAttribute('aria-selected',String(!orders));ordersTab.setAttribute('aria-selected',String(orders));
+    if(orders&&!loaded)loadOrderStats();
+  }
+  menuTab.addEventListener('click',()=>showTab('menu'));
+  ordersTab.addEventListener('click',()=>showTab('ordini'));
+  const fmt=new Intl.NumberFormat('it-IT',{maximumFractionDigits:3});
+  const money=new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'});
+  function statRows(items,label,value,empty){
+    const max=Math.max(1,...items.map(item=>Number(value(item))||0));
+    return items.length?items.map(item=>`<div class="stats-row"><span title="${escapeHtml(label(item))}">${escapeHtml(label(item))}</span><div class="bar"><i style="width:${(Number(value(item))||0)/max*100}%"></i></div><b>${fmt.format(Number(value(item))||0)}</b></div>`).join(''):empty;
+  }
+  async function loadOrderStats(){
+    const current=++requestNumber;message.textContent='Caricamento statistiche ordini…';
+    try{
+      const params=new URLSearchParams({periodo:periodField.value,data:dateField.value});
+      const response=await fetch('/api/statistiche/ordini?'+params),result=await response.json();
+      if(current!==requestNumber)return;
+      if(!response.ok)throw new Error(result.error||'Statistiche ordini non disponibili.');
+      loaded=true;
+      document.getElementById('orderStatsTotal').textContent=fmt.format(result.totale);
+      document.getElementById('orderStatsOpen').textContent=fmt.format(result.da_evadere+result.in_lavorazione);
+      document.getElementById('orderStatsDone').textContent=fmt.format(result.evasi);
+      document.getElementById('orderStatsValue').textContent=money.format(Number(result.valore_richieste));
+      document.getElementById('orderStatsProducts').innerHTML=statRows(result.prodotti||[],item=>item.nome,item=>item.quantita,'Nessun prodotto ordinato.');
+      document.getElementById('orderStatsSlots').innerHTML=statRows(result.fasce||[],item=>item.fascia,item=>item.ordini,'Nessuna fascia registrata.');
+      document.getElementById('orderStatsCustomers').innerHTML=statRows(result.clienti||[],item=>item.nome,item=>item.ordini,'Nessun cliente con recapito nel periodo.');
+      document.getElementById('orderStatsTrend').innerHTML=statRows(result.andamento||[],item=>periodField.value==='anno'?item.data.slice(0,7):item.data.slice(5),item=>item.ordini,'Nessun ordine nel periodo.');
+      const split=document.getElementById('orderStatsSplit');split.replaceChildren();
+      for(const label of ['Da asporto: '+result.da_asporto,'Al tavolo: '+result.al_tavolo,'Annullati: '+result.annullati]){const item=document.createElement('span');item.textContent=label;split.appendChild(item)}
+      message.textContent='Dal '+result.da+' al '+result.a+' · '+result.totale+' ordini ricevuti';
+    }catch(error){if(current===requestNumber)message.textContent=error.message}
+  }
+  document.getElementById('orderStatsRefresh').addEventListener('click',loadOrderStats);
+  periodField.addEventListener('change',loadOrderStats);
+  dateField.addEventListener('change',loadOrderStats);
+})();
+</script>
