@@ -1042,6 +1042,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS whatsapp TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS prenotazione_url TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ordini_attivi BOOLEAN NOT NULL DEFAULT FALSE")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ordini_tavolo_attivi BOOLEAN NOT NULL DEFAULT FALSE")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS limite_ordini_giorno INTEGER NOT NULL DEFAULT 0")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS ordini_menu (
@@ -3665,18 +3666,21 @@ def api_ordini_configurazione():
             with conn.cursor() as cur:
                 if request.method == "PUT":
                     payload = request.get_json(silent=True) or {}
-                    enabled = payload.get("attivi")
+                    enabled = payload.get("asporto_attivi", payload.get("attivi"))
+                    table_enabled = payload.get("tavolo_attivi")
                     limit = payload.get("limite_giornaliero")
                     if enabled is not None and not isinstance(enabled, bool):
                         return jsonify({"error": "Impostazione non valida."}), 400
+                    if table_enabled is not None and not isinstance(table_enabled, bool):
+                        return jsonify({"error": "Impostazione tavoli non valida."}), 400
                     if limit is not None and (type(limit) is not int or not 0 <= limit <= 10000):
                         return jsonify({"error": "Limite giornaliero non valido."}), 400
-                    if enabled is None and limit is None:
+                    if enabled is None and table_enabled is None and limit is None:
                         return jsonify({"error": "Nessuna impostazione indicata."}), 400
-                    cur.execute("UPDATE negozi SET ordini_attivi=COALESCE(%s,ordini_attivi),limite_ordini_giorno=COALESCE(%s,limite_ordini_giorno) WHERE id=%s", (enabled, limit, shop_id))
-                cur.execute("SELECT ordini_attivi,limite_ordini_giorno FROM negozi WHERE id=%s", (shop_id,))
+                    cur.execute("UPDATE negozi SET ordini_attivi=COALESCE(%s,ordini_attivi),ordini_tavolo_attivi=COALESCE(%s,ordini_tavolo_attivi),limite_ordini_giorno=COALESCE(%s,limite_ordini_giorno) WHERE id=%s", (enabled, table_enabled, limit, shop_id))
+                cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno FROM negozi WHERE id=%s", (shop_id,))
                 row = cur.fetchone()
-                return jsonify({"attivi": bool(row[0]), "limite_giornaliero": row[1]})
+                return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2]})
     finally:
         conn.close()
 
@@ -3697,7 +3701,7 @@ def api_disponibilita_ordini(slug: str):
             shop = cur.fetchone()
             if not shop or not shop[1]:
                 return jsonify({"error": "Gli ordini online non sono disponibili."}), 403
-            cur.execute("SELECT COUNT(*) FROM ordini_menu WHERE id_negozio=%s AND data_richiesta=%s AND stato<>'annullato'", (shop[0], requested))
+            cur.execute("SELECT COUNT(*) FROM ordini_menu WHERE id_negozio=%s AND data_richiesta=%s AND origine IN ('cliente','asporto','titolare') AND stato<>'annullato'", (shop[0], requested))
             used = cur.fetchone()[0]
             return jsonify({"disponibile": shop[2] == 0 or used < shop[2], "posti_rimanenti": None if shop[2] == 0 else max(0, shop[2] - used), "limite_giornaliero": shop[2]})
     finally:
@@ -3716,24 +3720,34 @@ def api_crea_ordine_menu(slug: str | None = None):
         if not shop_id_manual:
             return jsonify({"error": "Configura prima il negozio."}), 409
     data = request.get_json(silent=True) or {}
+    mode = "asporto" if manual else str(data.get("modalita") or "asporto")
+    if mode not in {"asporto", "tavolo"}:
+        return jsonify({"error": "Modalità d'ordine non valida."}), 400
     name = str(data.get("nome") or "").strip()
     phone = str(data.get("telefono") or "").strip()
     reference = str(data.get("riferimento") or "").strip()
     notes = str(data.get("note") or "").strip()
     items = data.get("prodotti")
-    try:
-        requested = date.fromisoformat(str(data.get("data_richiesta") or ""))
-    except ValueError:
-        return jsonify({"error": "Scegli una data valida per l'ordine."}), 400
-    today = datetime.now(ZoneInfo("Europe/Rome")).date()
-    if not today <= requested <= today + timedelta(days=365):
-        return jsonify({"error": "Scegli una data entro i prossimi 365 giorni."}), 400
-    requested_time = str(data.get("ora_richiesta") or "").strip()
-    if requested_time and (not re.fullmatch(r"(?:[01]\d|2[0-3]):(?:00|15|30|45)", requested_time)):
-        return jsonify({"error": "Scegli un orario a intervalli di 15 minuti."}), 400
-    if not (2 <= len(name) <= 120) or not (6 <= len(phone) <= 40) or not re.fullmatch(r"[+\d ()-]+", phone):
-        return jsonify({"error": "Inserisci nome e telefono validi."}), 400
-    if len(reference) > 80 or len(notes) > 500 or not isinstance(items, list) or not 1 <= len(items) <= 50:
+    now_rome = datetime.now(ZoneInfo("Europe/Rome"))
+    today = now_rome.date()
+    if mode == "tavolo":
+        if not 1 <= len(reference) <= 80:
+            return jsonify({"error": "Inserisci il riferimento del tavolo."}), 400
+        name, phone, requested = (reference if reference.lower().startswith("tavolo") else "Tavolo " + reference), "", today
+        requested_time = f"{now_rome.hour:02d}:{(now_rome.minute // 15) * 15:02d}"
+    else:
+        try:
+            requested = date.fromisoformat(str(data.get("data_richiesta") or ""))
+        except ValueError:
+            return jsonify({"error": "Scegli una data valida per l'ordine."}), 400
+        if not today <= requested <= today + timedelta(days=365):
+            return jsonify({"error": "Scegli una data entro i prossimi 365 giorni."}), 400
+        requested_time = str(data.get("ora_richiesta") or "").strip()
+        if requested_time and not re.fullmatch(r"(?:[01]\d|2[0-3]):(?:00|15|30|45)", requested_time):
+            return jsonify({"error": "Scegli un orario a intervalli di 15 minuti."}), 400
+        if not (2 <= len(name) <= 120) or not (6 <= len(phone) <= 40) or not re.fullmatch(r"[+\d ()-]+", phone):
+            return jsonify({"error": "Inserisci nome e telefono validi."}), 400
+    if len(notes) > 500 or len(reference) > 80 or not isinstance(items, list) or not 1 <= len(items) <= 50:
         return jsonify({"error": "Controlla prodotti, riferimento e note."}), 400
     quantities = {}
     for item in items:
@@ -3752,24 +3766,26 @@ def api_crea_ordine_menu(slug: str | None = None):
         with conn:
             with conn.cursor() as cur:
                 if manual:
-                    cur.execute("SELECT id,ordini_attivi,limite_ordini_giorno FROM negozi WHERE id=%s FOR UPDATE", (shop_id_manual,))
+                    cur.execute("SELECT id,ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno FROM negozi WHERE id=%s FOR UPDATE", (shop_id_manual,))
                 else:
-                    cur.execute("SELECT id,ordini_attivi,limite_ordini_giorno FROM negozi WHERE slug=%s FOR UPDATE", (slug,))
+                    cur.execute("SELECT id,ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno FROM negozi WHERE slug=%s FOR UPDATE", (slug,))
                 shop = cur.fetchone()
-                if not shop or (not manual and not shop[1]):
-                    return jsonify({"error": "Gli ordini online non sono disponibili per questo locale."}), 403
+                if not shop or (not manual and not shop[1 if mode == "asporto" else 2]):
+                    return jsonify({"error": "Questa modalità d'ordine non è disponibile per il locale."}), 403
                 shop_id = shop[0]
-                cur.execute("SELECT COUNT(*) FROM ordini_menu WHERE id_negozio=%s AND data_richiesta=%s AND stato<>'annullato'", (shop_id, requested))
-                used = cur.fetchone()[0]
-                if shop[2] and used >= shop[2]:
-                    return jsonify({"error": "La data selezionata è completa. Scegline un'altra."}), 409
+                if mode == "asporto" and shop[3]:
+                    cur.execute("SELECT COUNT(*) FROM ordini_menu WHERE id_negozio=%s AND data_richiesta=%s AND origine IN ('cliente','asporto','titolare') AND stato<>'annullato'", (shop_id, requested))
+                    if cur.fetchone()[0] >= shop[3]:
+                        return jsonify({"error": "La data selezionata è completa. Scegline un'altra."}), 409
                 if not manual:
-                    cur.execute("""
-                        SELECT COUNT(*) FROM ordini_menu
-                        WHERE id_negozio=%s AND telefono_cliente=%s AND creato_il >= NOW() - INTERVAL '10 minutes'
-                    """, (shop_id, phone))
-                    if cur.fetchone()[0] >= 3:
-                        return jsonify({"error": "Hai inviato troppi ordini. Riprova tra qualche minuto."}), 429
+                    if mode == "asporto":
+                        cur.execute("SELECT COUNT(*) FROM ordini_menu WHERE id_negozio=%s AND telefono_cliente=%s AND creato_il >= NOW() - INTERVAL '10 minutes'", (shop_id, phone))
+                        if cur.fetchone()[0] >= 3:
+                            return jsonify({"error": "Hai inviato troppi ordini. Riprova tra qualche minuto."}), 429
+                    else:
+                        cur.execute("SELECT COUNT(*) FROM ordini_menu WHERE id_negozio=%s AND origine='tavolo' AND riferimento=%s AND creato_il >= NOW() - INTERVAL '10 minutes'", (shop_id, reference))
+                        if cur.fetchone()[0] >= 10:
+                            return jsonify({"error": "Troppi ordini per questo tavolo. Riprova tra qualche minuto."}), 429
                 cur.execute("""
                     SELECT p.id,p.nome,p.prezzo_euro
                     FROM prodotti p
@@ -3795,11 +3811,11 @@ def api_crea_ordine_menu(slug: str | None = None):
                     return jsonify({"error": "Un prodotto non è più disponibile. Aggiorna il menu e riprova."}), 409
                 line_totals = {product_id: (row[2] * quantities[product_id]).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) for product_id, row in products.items()}
                 total = sum(line_totals.values(), Decimal("0.00"))
-                customer_google = session.get("customer_google") if not manual else None
+                customer_google = session.get("customer_google") if not manual and mode == "asporto" else None
                 cur.execute("""
                     INSERT INTO ordini_menu (id_negozio,nome_cliente,telefono_cliente,riferimento,note,totale,data_richiesta,ora_richiesta,origine,google_sub_cliente,email_cliente)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
-                """, (shop_id, name, phone, reference, notes, total, requested, requested_time or None, "titolare" if manual else "cliente", customer_google.get("sub") if customer_google else None, customer_google.get("email") if customer_google else None))
+                """, (shop_id, name, phone, reference, notes, total, requested, requested_time or None, "titolare" if manual else mode, customer_google.get("sub") if customer_google else None, customer_google.get("email") if customer_google else None))
                 order_id = cur.fetchone()[0]
                 for product_id, quantity in quantities.items():
                     row = products[product_id]
@@ -3808,7 +3824,7 @@ def api_crea_ordine_menu(slug: str | None = None):
                             (id_ordine,id_prodotto,nome_prodotto,quantita,prezzo_unitario,totale_riga)
                         VALUES (%s,%s,%s,%s,%s,%s)
                     """, (order_id, product_id, row[1], quantity, row[2], line_totals[product_id]))
-        return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine registrato." if manual else "Ordine inviato. Il locale deve ancora confermarlo."}), 201
+        return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine registrato." if manual else ("Ordine al tavolo inviato." if mode == "tavolo" else "Ordine da asporto inviato. Il locale deve ancora confermarlo.")}), 201
     finally:
         conn.close()
 
@@ -3978,7 +3994,7 @@ def public_menu(slug: str):
                        COALESCE(ordine_categorie_personalizzato, FALSE), COALESCE(whatsapp, ''),
                        COALESCE(prenotazione_url, ''),
                        COALESCE((SELECT piano FROM licenze_utenti WHERE id_utente = negozi.id_utente LIMIT 1), 'professional'),
-                       COALESCE(ordini_attivi, FALSE)
+                       COALESCE(ordini_attivi, FALSE), COALESCE(ordini_tavolo_attivi, FALSE)
                 FROM negozi WHERE slug = %s
                 """,
                 (slug,),
@@ -3999,6 +4015,7 @@ def public_menu(slug: str):
                 "prenotazione_url": row[19] or "",
                 "piano": normalize_license_plan(row[20]),
                 "ordini_attivi": bool(row[21]),
+                "ordini_tavolo_attivi": bool(row[22]),
             }
             cur.execute(
                 "INSERT INTO menu_visite (id_negozio, lingua, sorgente) VALUES (%s, %s, %s)",

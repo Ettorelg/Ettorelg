@@ -93,12 +93,12 @@
         for(const order of items){
           const card=node(grid,'article',undefined,'order-card'+(order.stato==='in_lavorazione'?' working':''));
           node(card,'h3','#'+order.id+' · '+order.nome);
-          node(card,'div',(order.stato==='in_lavorazione'?'In lavorazione':'Da evadere')+(order.ora_richiesta?' · Ore '+order.ora_richiesta:' · Senza orario')+' · Inserito '+order.creato_il,'meta');
+          node(card,'div',(order.stato==='in_lavorazione'?'In lavorazione':'Da evadere')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto')+(order.ora_richiesta?' · Ore '+order.ora_richiesta:' · Senza orario')+' · Inserito '+order.creato_il,'meta');
           const lines=node(card,'ul');
           for(const product of order.prodotti)node(lines,'li',quantityFormat.format(Number(product.quantita))+' × '+product.nome);
           if(order.riferimento)node(card,'p','Riferimento: '+order.riferimento);
           if(order.note)node(card,'p','Note: '+order.note);
-          const phone=node(card,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'');
+          if(order.telefono){const phone=node(card,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
           const actions=node(card,'div',undefined,'actions');
           for(const [target,label,style] of [['in_lavorazione','In lavorazione',''],['evaso','Segna evaso','finish'],['annullato','Annulla','cancel']]){
             if(target===order.stato)continue;

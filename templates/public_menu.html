@@ -36,7 +36,7 @@
     .contact-actions[hidden]{display:none!important}
     .order-add{grid-column:1/-1;justify-self:start;margin-top:3px;padding:8px 13px;border:1px solid var(--accent);border-radius:9px;background:color-mix(in srgb,var(--accent) 11%,#fff);color:var(--accent);font:800 .82rem system-ui;cursor:pointer}.order-add:hover{background:var(--accent);color:#fff}.product-dialog .order-add{display:none}
     .order-panel{max-width:720px;margin:28px auto 10px;padding:20px;border:1px solid color-mix(in srgb,var(--accent) 30%,#fff);border-radius:18px;background:#fff;box-shadow:0 12px 30px rgba(70,48,33,.08)}.order-panel h2{margin:0 0 6px;font:700 1.5rem Georgia,serif}.order-panel h2 span{font:700 .8rem system-ui;color:var(--accent)}.order-panel p{margin:0 0 13px;color:var(--muted);font-size:.85rem;line-height:1.45}.order-lines{display:grid;gap:8px;margin:12px 0}.order-line{display:flex;justify-content:space-between;align-items:center;gap:9px;padding:9px;border:1px solid var(--line);border-radius:10px}.order-line span{font-size:.87rem}.order-line div{display:flex;align-items:center;gap:7px}.order-line button{width:30px;height:30px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--accent);font-weight:800;cursor:pointer}.order-panel form{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:17px}.order-panel label{display:grid;gap:5px;font-size:.82rem;font-weight:750}.order-panel label:nth-child(n+3),.order-panel form>button,.order-panel #orderFeedback{grid-column:1/-1}.order-panel input,.order-panel textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;font:inherit}.order-panel form>button{min-height:46px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:800 .94rem system-ui;cursor:pointer}.order-panel form>button:disabled{opacity:.5;cursor:not-allowed}.order-panel #orderFeedback{min-height:20px;font-weight:700}.order-panel .order-privacy{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-weight:500}.order-panel .order-privacy input{width:auto}.order-panel .order-privacy a{color:var(--accent)}
-    .order-line input{width:80px;padding:6px;text-align:center}.order-panel form>p{grid-column:1/-1}.order-panel form>label:first-child{grid-column:1/-1}
+    .order-line input{width:80px;padding:6px;text-align:center}.order-panel form>p{grid-column:1/-1}.order-panel form>label:first-child{grid-column:1/-1}.order-panel[hidden],.order-panel [hidden],.order-add[hidden]{display:none!important}.order-mode-button{min-height:52px;background:#fff;color:var(--accent);border:2px solid var(--accent);box-shadow:none}.order-mode-button:hover{background:color-mix(in srgb,var(--accent) 10%,#fff)}
     @media(max-width:540px){.order-panel{padding:14px}.order-panel form{grid-template-columns:1fr}}
     .contact-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;max-width:720px;margin:18px auto 0;padding:13px 14px;border:1px solid var(--line);border-radius:15px;background:#fff;box-shadow:0 7px 22px rgba(70,48,33,.08)}.contact-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:11px 18px;border:1px solid color-mix(in srgb,var(--accent) 28%,#fff);border-radius:999px;background:#fff;color:var(--accent);font-size:.9rem;font-weight:850;text-decoration:none;transition:transform .16s ease,box-shadow .16s ease}.contact-action.primary{background:var(--accent);border-color:var(--accent);color:#fff}.contact-action.whatsapp{background:#25d366;border-color:#25d366;color:#082b15}.contact-action:hover,.contact-action:focus-visible{transform:translateY(-2px);box-shadow:0 8px 18px rgba(70,48,33,.16);outline:none}
     @media(max-width:780px){.hero-inner{align-items:center}.brand-logo{width:76px;height:76px;border-radius:18px}.intro{grid-template-columns:1fr}.products{grid-template-columns:1fr}.hours-grid{grid-template-columns:1fr}.menu-tools{position:static;grid-template-columns:1fr;margin:9px auto}}
@@ -103,7 +103,7 @@
   </div>
 
   <main>
-    <div class="view-actions"><button class="menu-button" id="showMenu" type="button"><span class="menu-button-icon" aria-hidden="true">🍽️</span>{{ ui.show }}</button></div>
+    <div class="view-actions"><button class="menu-button" id="showMenu" type="button"><span class="menu-button-icon" aria-hidden="true">🍽️</span>{{ ui.show }}</button>{% if shop.ordini_attivi %}<button class="menu-button order-mode-button" id="orderTakeawayStart" type="button">🛍️ Ordina da asporto</button>{% endif %}{% if shop.ordini_tavolo_attivi %}<button class="menu-button order-mode-button" id="orderTableStart" type="button">🪑 Ordina al tavolo</button>{% endif %}</div>
 
     {% if shop.descrizione_estesa or shop.indirizzo or shop.telefono or shop.email %}
     <section class="intro" id="companyInfo">
@@ -146,25 +146,23 @@
       </section>
       {% endfor %}
     {% else %}<div class="empty">{{ ui.empty }}</div>{% endif %}
-      {% if shop.ordini_attivi %}
-      <section class="order-panel" id="orderPanel" aria-label="Ordina dal menu">
-        <h2>Il tuo ordine <span id="orderCount">0 prodotti</span></h2>
-        <p>Seleziona i prodotti dal menu. La richiesta sarà inviata al locale, che dovrà confermarla. Nessun pagamento online.</p>
-        {% if google_enabled %}
-          {% if customer_google %}<p>Accesso Google: {{ customer_google.email }}.</p>
-          {% else %}<p><a href="{{ url_for('auth_google_order', slug=shop.slug) }}">Accedi con Google per ordinare</a> oppure continua senza accesso.</p>{% endif %}
-        {% endif %}
+      {% if shop.ordini_attivi or shop.ordini_tavolo_attivi %}
+      <section class="order-panel" id="orderPanel" aria-label="Ordina dal menu" hidden>
+        <h2 id="orderModeTitle">Il tuo ordine <span id="orderCount">0 prodotti</span></h2>
+        <p id="orderModeInfo"></p>
+        {% if google_enabled %}<p id="orderGoogleInfo" hidden>{% if customer_google %}Accesso Google: {{ customer_google.email }}.{% else %}<a href="{{ url_for('auth_google_order', slug=shop.slug) }}">Accedi con Google per ordinare da asporto</a> oppure continua senza accesso.{% endif %}</p>{% endif %}
         <div id="orderLines" class="order-lines"><span>Il carrello è vuoto.</span></div>
         <strong id="orderTotal">Totale: € 0,00</strong>
         <form id="orderForm">
-          <label>Data richiesta *<input name="data_richiesta" id="orderDate" type="date" required></label>
-          <p id="orderAvailability" role="status"></p>
-          <label>Orario richiesto (facoltativo, ogni 15 minuti)<input name="ora_richiesta" type="time" step="900"></label>
-          <label>Nome *<input name="nome" maxlength="120" minlength="2" required autocomplete="name" value="{{ customer_google.name if customer_google else '' }}"></label>
-          <label>Telefono *<input name="telefono" type="tel" maxlength="40" minlength="6" required autocomplete="tel"></label>
-          <label>Tavolo o riferimento (facoltativo)<input name="riferimento" maxlength="80" placeholder="Es. Tavolo 4 / Asporto"></label>
+          <label data-takeaway-field hidden>Data di ritiro *<input name="data_richiesta" id="orderDate" type="date"></label>
+          <p id="orderAvailability" role="status" hidden></p>
+          <label data-takeaway-field hidden>Orario di ritiro (facoltativo, ogni 15 minuti)<input name="ora_richiesta" type="time" step="900"></label>
+          <label data-takeaway-field hidden>Nome *<input name="nome" maxlength="120" minlength="2" autocomplete="name" value="{{ customer_google.name if customer_google else '' }}"></label>
+          <label data-takeaway-field hidden>Telefono *<input name="telefono" type="tel" maxlength="40" minlength="6" autocomplete="tel"></label>
+          <label data-takeaway-field hidden>Riferimento ritiro (facoltativo)<input name="riferimento" maxlength="80" placeholder="Es. Ritiro al banco"></label>
+          <label id="orderTableField" hidden>Numero o riferimento del tavolo *<input name="tavolo" maxlength="80" placeholder="Es. 4"></label>
           <label>Note (facoltative)<textarea name="note" maxlength="500" rows="2"></textarea></label>
-          <label class="order-privacy"><input type="checkbox" required> Ho letto l'informativa sul trattamento dei dati dell'ordine. <a href="/privacy" target="_blank" rel="noopener">Informativa privacy</a></label>
+          <label class="order-privacy" id="orderPrivacyField" hidden><input type="checkbox"> Ho letto l'informativa sul trattamento dei dati dell'ordine. <a href="/privacy" target="_blank" rel="noopener">Informativa privacy</a></label>
           <button id="orderSubmit" type="submit">Invia richiesta d'ordine</button>
           <p id="orderFeedback" role="status"></p>
         </form>
@@ -196,6 +194,8 @@
     const menuContent = document.getElementById('menuContent');
     const categoryNav = document.getElementById('categoryNav');
     const showMenu = document.getElementById('showMenu');
+    const orderTakeawayStart = document.getElementById('orderTakeawayStart');
+    const orderTableStart = document.getElementById('orderTableStart');
     const hideMenu = document.getElementById('hideMenu');
     const companyInfo = document.getElementById('companyInfo');
     const businessHours = document.getElementById('businessHours');
@@ -211,6 +211,8 @@
     const labelFilter = document.getElementById('labelFilter');
     const allergenFilter = document.getElementById('allergenFilter');
     let activeCategoryId = categorySections[0]?.id || '';
+    let orderMode = 'view';
+    let setOrderMode = () => {};
 
     function updateSubcategorySeparators(section){
       const children = [...section.querySelector('.products').children];
@@ -265,6 +267,10 @@
       const orderSubmit = document.getElementById('orderSubmit');
       const orderDate = document.getElementById('orderDate');
       const orderAvailability = document.getElementById('orderAvailability');
+      const orderPanel = document.getElementById('orderPanel');
+      const orderTableField = document.getElementById('orderTableField');
+      const orderPrivacyField = document.getElementById('orderPrivacyField');
+      const orderGoogleInfo = document.getElementById('orderGoogleInfo');
       const orderCsrf = {{ csrf_token()|tojson }};
       const todayRome = new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
       orderDate.min = todayRome;
@@ -272,6 +278,7 @@
       orderDate.value = todayRome;
       let orderDateAvailable = true;
       async function checkOrderDate(){
+        if(orderMode!=='asporto') return;
         const checkedDate=orderDate.value;
         orderDateAvailable = false;
         orderSubmit.disabled = true;
@@ -321,13 +328,15 @@
         }
         orderCount.textContent = count + (count === 1 ? ' prodotto' : ' prodotti');
         orderTotal.textContent = 'Totale indicativo: € ' + money(total);
-        orderSubmit.disabled = !count || !orderDateAvailable;
+        orderSubmit.disabled = !count || orderMode==='view' || (orderMode==='asporto' && !orderDateAvailable);
       }
+      const orderAddButtons=[];
       productCards.forEach(card => {
         if (card.dataset.available !== 'true') return;
         const button = document.createElement('button');
         button.className = 'order-add';
         button.type = 'button';
+        button.hidden = true;
         button.textContent = '+ Aggiungi all’ordine';
         button.addEventListener('click', event => {
           event.stopPropagation();
@@ -339,7 +348,30 @@
           renderOrderCart();
         });
         card.appendChild(button);
+        orderAddButtons.push(button);
       });
+      setOrderMode = mode => {
+        orderMode=mode;
+        orderCart.clear();
+        orderForm.reset();
+        orderDate.value=todayRome;
+        orderPanel.hidden=mode==='view';
+        document.getElementById('orderModeTitle').firstChild.textContent=mode==='tavolo'?'Ordine al tavolo ':'Ordine da asporto ';
+        document.getElementById('orderModeInfo').textContent=mode==='tavolo'?'Aggiungi i prodotti e indica solo il tavolo: l’ordine viene inviato subito al locale.':'Scegli la data di ritiro e i prodotti. Il locale potrà contattarti per confermare la richiesta. Nessun pagamento online.';
+        document.querySelectorAll('[data-takeaway-field]').forEach(field=>field.hidden=mode!=='asporto');
+        orderAvailability.hidden=mode!=='asporto';
+        orderTableField.hidden=mode!=='tavolo';
+        orderPrivacyField.hidden=mode!=='asporto';
+        if(orderGoogleInfo) orderGoogleInfo.hidden=mode!=='asporto';
+        for(const field of orderForm.querySelectorAll('input[name="data_richiesta"],input[name="nome"],input[name="telefono"]')) field.required=mode==='asporto';
+        orderForm.querySelector('input[name="tavolo"]').required=mode==='tavolo';
+        orderPrivacyField.querySelector('input').required=mode==='asporto';
+        orderAddButtons.forEach(button=>button.hidden=mode==='view');
+        orderFeedback.textContent='';
+        orderDateAvailable=mode!=='asporto';
+        renderOrderCart();
+        if(mode==='asporto')checkOrderDate();
+      };
       orderForm.addEventListener('submit', async event => {
         event.preventDefault();
         if (!orderCart.size || orderSubmit.disabled) return;
@@ -347,12 +379,13 @@
         orderFeedback.textContent = 'Invio in corso…';
         const fields = new FormData(orderForm);
         const payload = {
-          nome:String(fields.get('nome') || '').trim(),
-          telefono:String(fields.get('telefono') || '').trim(),
-          riferimento:String(fields.get('riferimento') || '').trim(),
+          modalita:orderMode,
+          nome:orderMode==='asporto'?String(fields.get('nome') || '').trim():'',
+          telefono:orderMode==='asporto'?String(fields.get('telefono') || '').trim():'',
+          riferimento:orderMode==='tavolo'?String(fields.get('tavolo') || '').trim():String(fields.get('riferimento') || '').trim(),
           note:String(fields.get('note') || '').trim(),
-          data_richiesta:String(fields.get('data_richiesta') || ''),
-          ora_richiesta:String(fields.get('ora_richiesta') || ''),
+          data_richiesta:orderMode==='asporto'?String(fields.get('data_richiesta') || ''):'',
+          ora_richiesta:orderMode==='asporto'?String(fields.get('ora_richiesta') || ''):'',
           prodotti:[...orderCart.values()].map(item => ({id:item.id, quantita:item.quantita}))
         };
         try {
@@ -366,8 +399,8 @@
           orderForm.reset();
           orderDate.value=todayRome;
           renderOrderCart();
-          checkOrderDate();
-          orderFeedback.textContent = 'Richiesta #' + result.ordine_id + ' inviata. Il locale potrà contattarti per confermarla; il pagamento non è stato effettuato.';
+          if(orderMode==='asporto')checkOrderDate();
+          orderFeedback.textContent = orderMode==='tavolo'?'Ordine #'+result.ordine_id+' inviato al locale per il tuo tavolo.':'Richiesta #'+result.ordine_id+' inviata. Il locale potrà contattarti per confermarla; il pagamento non è stato effettuato.';
           orderFeedback.scrollIntoView({behavior:'smooth',block:'center'});
         } catch (error) {
           orderFeedback.textContent = error.message;
@@ -375,7 +408,6 @@
         }
       });
       renderOrderCart();
-      checkOrderDate();
     }
     function fitPrintColumns(){
       const printableHeight = 250 * 96 / 25.4;
@@ -433,7 +465,8 @@
       activateCategory(link.dataset.categoryTarget);
     }));
 
-    showMenu.addEventListener('click', () => {
+    function openMenu(mode) {
+      setOrderMode(mode);
       menuContent.hidden = false;
       if (categoryNav) categoryNav.hidden = false;
       if (menuTools) menuTools.hidden = false;
@@ -443,8 +476,12 @@
       if (contactActions) contactActions.hidden = true;
       if (categoryLinks[0]) activateCategory(categoryLinks[0].dataset.categoryTarget);
       else menuContent.scrollIntoView({behavior: 'smooth', block: 'start'});
-    });
+    }
+    showMenu.addEventListener('click', () => openMenu('view'));
+    orderTakeawayStart?.addEventListener('click', () => openMenu('asporto'));
+    orderTableStart?.addEventListener('click', () => openMenu('tavolo'));
     hideMenu.addEventListener('click', () => {
+      setOrderMode('view');
       menuContent.hidden = true;
       if (categoryNav) categoryNav.hidden = true;
       if (menuTools) menuTools.hidden = true;
@@ -456,6 +493,7 @@
       if (contactActions) contactActions.hidden = false;
       document.querySelector('.intro')?.scrollIntoView({behavior: 'smooth', block: 'start'});
     });
+    if(location.hash==='#orderPanel' && orderTakeawayStart) openMenu('asporto');
   </script>
   {% if shop.piano == 'base' %}
   <aside class="alpha-menu-promo">

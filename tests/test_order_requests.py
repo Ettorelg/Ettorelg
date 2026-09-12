@@ -33,9 +33,10 @@ def order_function(db):
 
 
 class FakeCursor:
-    def __init__(self, limit=0, active=True):
+    def __init__(self, limit=0, active=True, table_active=False):
         self.limit = limit
         self.active = active
+        self.table_active = table_active
         self.query = ""
         self.statements = []
 
@@ -46,9 +47,10 @@ class FakeCursor:
         self.statements.append((query, params))
 
     def fetchone(self):
-        if "FROM negozi" in self.query: return (7, self.active, self.limit)
+        if "FROM negozi" in self.query: return (7, self.active, self.table_active, self.limit)
         if "data_richiesta=%s" in self.query: return (self.limit,)
         if "telefono_cliente=%s" in self.query: return (0,)
+        if "origine='tavolo'" in self.query: return (0,)
         if "RETURNING id" in self.query: return (123,)
         raise AssertionError(self.query)
 
@@ -58,7 +60,7 @@ class FakeCursor:
 
 
 class FakeConnection:
-    def __init__(self, limit=0, active=True): self.cur = FakeCursor(limit, active)
+    def __init__(self, limit=0, active=True, table_active=False): self.cur = FakeCursor(limit, active, table_active)
     def __enter__(self): return self
     def __exit__(self, *_): return False
     def cursor(self): return self.cur
@@ -122,6 +124,29 @@ def test_valid_order_time_is_saved():
     assert status == 201
     order = next(params for sql, params in db.cur.statements if "INSERT INTO ordini_menu" in sql)
     assert order[7] == "12:15"
+
+
+def test_table_order_requires_only_table_reference_and_does_not_use_takeaway_capacity():
+    db = FakeConnection(limit=2, active=False, table_active=True)
+    data = {"modalita": "tavolo", "riferimento": "4", "prodotti": [{"id": 3, "quantita": 1}]}
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 201
+    order = next(params for sql, params in db.cur.statements if "INSERT INTO ordini_menu" in sql)
+    assert order[1] == "Tavolo 4"
+    assert order[2] == ""
+    assert order[8] == "tavolo"
+    assert not any("data_richiesta=%s" in sql for sql, _ in db.cur.statements)
+
+
+def test_table_order_is_rejected_when_table_mode_is_disabled():
+    db = FakeConnection(active=True, table_active=False)
+    data = {"modalita": "tavolo", "riferimento": "4", "prodotti": [{"id": 3, "quantita": 1}]}
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 403
+    assert "non è disponibile" in response.get_json()["error"]
+    assert not any("INSERT INTO ordini_menu" in sql for sql, _ in db.cur.statements)
 
 
 def test_google_customer_login_does_not_create_owner_account():
