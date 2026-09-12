@@ -30,7 +30,7 @@ class EmployeeAccessTests(unittest.TestCase):
     def test_owner_can_manage_employees(self):
         self.assertIn("Accessi dipendenti", ACCOUNT)
         self.assertIn("/api/dipendenti", ACCOUNT)
-        self.assertIn("password di almeno 12 caratteri", APP)
+        self.assertIn("password di almeno 6 caratteri", APP)
 
 
 if __name__ == "__main__":

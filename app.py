@@ -3356,8 +3356,8 @@ def api_dipendenti():
         name = str(data.get("nome") or "").strip()
         email = str(data.get("email") or "").strip().lower()
         password = str(data.get("password") or "")
-        if not 2 <= len(name) <= 80 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or len(email) > 254 or len(password) < 12 or len(password) > 128:
-            return jsonify({"error": "Inserisci nome, email valida e password di almeno 12 caratteri."}), 400
+        if not 2 <= len(name) <= 80 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or len(email) > 254 or len(password) < 6 or len(password) > 128:
+            return jsonify({"error": "Inserisci nome, email valida e password di almeno 6 caratteri."}), 400
         with conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM utenti WHERE LOWER(email)=LOWER(%s)", (email,))
@@ -3382,8 +3382,8 @@ def api_aggiorna_dipendente(employee_id: int):
     password = data.get("password")
     if not isinstance(active, bool) and password is None:
         return jsonify({"error": "Nessuna modifica valida."}), 400
-    if password is not None and (not isinstance(password, str) or not 12 <= len(password) <= 128):
-        return jsonify({"error": "La password deve avere almeno 12 caratteri."}), 400
+    if password is not None and (not isinstance(password, str) or not 6 <= len(password) <= 128):
+        return jsonify({"error": "La password deve avere almeno 6 caratteri."}), 400
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
