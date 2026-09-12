@@ -3620,6 +3620,8 @@ def api_statistiche():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
+            cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi FROM negozi WHERE id=%s", (shop_id,))
+            order_modes = cur.fetchone()
             cur.execute("""
                 SELECT COUNT(*),
                        COUNT(*) FILTER (WHERE visited_at >= NOW() - INTERVAL '7 days'),
@@ -3666,7 +3668,83 @@ def api_statistiche():
             "totale": total, "ultimi_7_giorni": last7, "ultimi_30_giorni": last30,
             "scansioni_qr_30_giorni": qr30, "lingue": languages, "giorni": days,
             "articoli_piu_aperti": top_products, "categorie_piu_aperte": top_categories,
+            "moduli_ordini_attivi": bool(order_modes and (order_modes[0] or order_modes[1])),
         })
+    finally:
+        conn.close()
+
+
+@app.get("/api/statistiche/ordini")
+def api_statistiche_ordini():
+    if "user_id" not in session:
+        return jsonify({"error": "Accesso richiesto."}), 401
+    if get_user_license_plan(session["user_id"]) != "professional":
+        return jsonify({"error": "Le statistiche richiedono la licenza Professional."}), 403
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    period = request.args.get("periodo", "mese")
+    if period not in {"giorno", "settimana", "mese", "anno"}:
+        return jsonify({"error": "Periodo non valido."}), 400
+    try:
+        selected = date.fromisoformat(request.args.get("data", datetime.now(ZoneInfo("Europe/Rome")).date().isoformat()))
+    except ValueError:
+        return jsonify({"error": "Data non valida."}), 400
+    if not 2000 <= selected.year <= 2099:
+        return jsonify({"error": "Data non valida."}), 400
+    if period == "giorno":
+        start, end = selected, selected + timedelta(days=1)
+    elif period == "settimana":
+        start = selected - timedelta(days=selected.weekday())
+        end = start + timedelta(days=7)
+    elif period == "mese":
+        start = selected.replace(day=1)
+        end = date(start.year + (start.month == 12), start.month % 12 + 1, 1)
+    else:
+        start, end = date(selected.year, 1, 1), date(selected.year + 1, 1, 1)
+    order_day = "COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date)"
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi FROM negozi WHERE id=%s", (shop_id,))
+            modes = cur.fetchone()
+            if not modes or not (modes[0] or modes[1]):
+                return jsonify({"error": "Attiva un modulo ordini per visualizzare queste statistiche."}), 403
+            cur.execute(f"""SELECT COUNT(*),
+                                  COUNT(*) FILTER (WHERE stato='da_evadere'),
+                                  COUNT(*) FILTER (WHERE stato='in_lavorazione'),
+                                  COUNT(*) FILTER (WHERE stato='evaso'),
+                                  COUNT(*) FILTER (WHERE stato='annullato'),
+                                  COUNT(*) FILTER (WHERE origine='tavolo' AND stato<>'annullato'),
+                                  COUNT(*) FILTER (WHERE origine<>'tavolo' AND stato<>'annullato'),
+                                  COALESCE(SUM(totale) FILTER (WHERE stato<>'annullato'),0)
+                           FROM ordini_menu o WHERE o.id_negozio=%s AND {order_day}>=%s AND {order_day}<%s""", (shop_id, start, end))
+            counts = cur.fetchone()
+            cur.execute(f"""SELECT r.nome_prodotto,SUM(r.quantita),COUNT(DISTINCT o.id)
+                           FROM righe_ordini_menu r JOIN ordini_menu o ON o.id=r.id_ordine
+                           WHERE o.id_negozio=%s AND {order_day}>=%s AND {order_day}<%s AND o.stato<>'annullato'
+                           GROUP BY r.nome_prodotto ORDER BY SUM(r.quantita) DESC,r.nome_prodotto LIMIT 15""", (shop_id, start, end))
+            products = [{"nome": row[0], "quantita": str(row[1]), "ordini": row[2]} for row in cur.fetchall()]
+            cur.execute(f"""SELECT COALESCE(TO_CHAR(o.ora_richiesta,'HH24:MI'),'Senza orario'),COUNT(*)
+                           FROM ordini_menu o WHERE o.id_negozio=%s AND {order_day}>=%s AND {order_day}<%s AND o.stato<>'annullato'
+                           GROUP BY o.ora_richiesta ORDER BY o.ora_richiesta NULLS LAST""", (shop_id, start, end))
+            slots = [{"fascia": row[0], "ordini": row[1]} for row in cur.fetchall()]
+            cur.execute(f"""SELECT MAX(o.nome_cliente),COUNT(*),COALESCE(SUM(o.totale),0)
+                           FROM ordini_menu o WHERE o.id_negozio=%s AND {order_day}>=%s AND {order_day}<%s
+                             AND o.stato<>'annullato' AND o.origine<>'tavolo' AND o.telefono_cliente<>''
+                           GROUP BY REGEXP_REPLACE(o.telefono_cliente,'[^0-9]','','g')
+                           ORDER BY COUNT(*) DESC,MAX(o.nome_cliente) LIMIT 10""", (shop_id, start, end))
+            customers = [{"nome": row[0], "ordini": row[1], "valore": str(row[2])} for row in cur.fetchall()]
+            bucket = f"DATE_TRUNC('month',{order_day}::timestamp)::date" if period == "anno" else order_day
+            cur.execute(f"""SELECT TO_CHAR({bucket},'YYYY-MM-DD'),COUNT(*)
+                           FROM ordini_menu o WHERE o.id_negozio=%s AND {order_day}>=%s AND {order_day}<%s AND o.stato<>'annullato'
+                           GROUP BY {bucket} ORDER BY {bucket}""", (shop_id, start, end))
+            trend = [{"data": row[0], "ordini": row[1]} for row in cur.fetchall()]
+        return jsonify({"periodo": period, "da": start.isoformat(), "a": (end - timedelta(days=1)).isoformat(),
+                        "totale": counts[0], "da_evadere": counts[1], "in_lavorazione": counts[2], "evasi": counts[3],
+                        "annullati": counts[4], "al_tavolo": counts[5], "da_asporto": counts[6],
+                        "valore_richieste": str(counts[7]), "prodotti": products, "fasce": slots,
+                        "clienti": customers, "andamento": trend})
     finally:
         conn.close()
 
