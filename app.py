@@ -3959,7 +3959,9 @@ def api_ordini_configurazione():
                         return jsonify({"error": "Nessuna impostazione indicata."}), 400
                     cur.execute("UPDATE negozi SET ordini_attivi=COALESCE(%s,ordini_attivi),ordini_tavolo_attivi=COALESCE(%s,ordini_tavolo_attivi),limite_ordini_giorno=COALESCE(%s,limite_ordini_giorno) WHERE id=%s", (enabled, table_enabled, limit, shop_id))
                     if pickup_changed:
-                        cur.execute("UPDATE negozi SET fasce_ritiro_attive=%s,ritiro_dalle=%s,ritiro_alle=%s,minuti_fascia_ritiro=%s,limite_fascia_ritiro=%s,criterio_limite_fascia=%s,fasce_ritiro_settimanali=COALESCE(%s::jsonb,fasce_ritiro_settimanali) WHERE id=%s", (pickup_enabled, pickup_start if pickup_enabled else None, pickup_end if pickup_enabled else None, pickup_minutes, pickup_capacity, pickup_criterion, json.dumps(schedule) if schedule_supplied else None, shop_id))
+                        legacy_start = pickup_start if pickup_enabled and not schedule_supplied else None
+                        legacy_end = pickup_end if pickup_enabled and not schedule_supplied else None
+                        cur.execute("UPDATE negozi SET fasce_ritiro_attive=%s,ritiro_dalle=%s,ritiro_alle=%s,minuti_fascia_ritiro=%s,limite_fascia_ritiro=%s,criterio_limite_fascia=%s,fasce_ritiro_settimanali=COALESCE(%s::jsonb,fasce_ritiro_settimanali) WHERE id=%s", (pickup_enabled, legacy_start, legacy_end, pickup_minutes, pickup_capacity, pickup_criterion, json.dumps(schedule) if schedule_supplied else None, shop_id))
                 cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia,fasce_ritiro_settimanali FROM negozi WHERE id=%s", (shop_id,))
                 row = cur.fetchone()
                 legacy_windows = [[{"dalle": row[4], "alle": row[5]}] if row[4] and row[5] else [] for _ in range(7)]
