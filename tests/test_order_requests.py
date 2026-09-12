@@ -121,7 +121,55 @@ def test_online_takeaway_customer_is_saved_only_with_explicit_choice():
         response, status = order_function(db)("esempio")
     assert status == 201
     saved = next(params for sql, params in db.cur.statements if "INSERT INTO clienti_ordini_salvati" in sql)
-    assert saved == (7, "Mario Rossi", "+39 333 1234567", "393331234567")
+    assert saved == (7, "Mario Rossi", "+39 333 1234567", "393331234567", "")
+
+
+def test_online_customer_email_is_saved_for_search_when_opted_in():
+    db = FakeConnection()
+    data = payload(1)
+    data.update({"email": " Mario@Example.it ", "salva_cliente": True})
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 201
+    saved = next(params for sql, params in db.cur.statements if "INSERT INTO clienti_ordini_salvati" in sql)
+    assert saved[-1] == "mario@example.it"
+    order = next(params for sql, params in db.cur.statements if "INSERT INTO ordini_menu" in sql)
+    assert order[-1] == "mario@example.it"
+
+
+def test_google_email_is_saved_only_after_takeaway_customer_opts_in():
+    db = FakeConnection()
+    data = payload(1)
+    data["salva_cliente"] = True
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        session["customer_google"] = {"sub": "google-1", "email": "google@example.it"}
+        response, status = order_function(db)("esempio")
+    assert status == 201
+    saved = next(params for sql, params in db.cur.statements if "INSERT INTO clienti_ordini_salvati" in sql)
+    assert saved[-1] == "google@example.it"
+
+
+def test_saved_customer_search_matches_email_and_returns_it():
+    node = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "api_ordini_clienti"))
+    node.decorator_list = []
+
+    class Cursor:
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def execute(self, sql, params):
+            assert "email ILIKE %s" in sql
+            assert params[-1] == "%mario@example.it%"
+        def fetchall(self): return [(2, "Mario", "3331234567", "mario@example.it")]
+
+    db = SimpleNamespace(cursor=lambda: Cursor(), close=lambda: None)
+    scope = {"request": request, "session": session, "jsonify": jsonify,
+             "get_user_shop_id": lambda user_id: 7,
+             "psycopg2": SimpleNamespace(connect=lambda **kwargs: db), "build_db_config": lambda: {}}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "app.py", "exec"), scope)
+    with FLASK.test_request_context("/api/ordini/clienti?q=mario%40example.it"):
+        session["user_id"] = 11
+        result = scope["api_ordini_clienti"]().get_json()
+    assert result["clienti"][0]["email"] == "mario@example.it"
 
 
 def test_online_customer_choice_must_be_boolean():
@@ -139,6 +187,7 @@ def test_public_takeaway_form_offers_optional_address_book_choice():
     assert 'id="orderSaveCustomerField" data-takeaway-field hidden' in html
     assert '<input name="salva_cliente" type="checkbox">' in html
     assert "salva_cliente:orderMode==='asporto'&&fields.has('salva_cliente')" in html
+    assert 'name="email" type="email"' in html
 
 
 def test_kilogram_product_uses_weight_and_labels_order_line():
@@ -181,7 +230,7 @@ def test_owner_can_explicitly_save_customer_for_future_orders():
         response, status = order_function(db)()
     assert status == 201
     saved = next(params for sql, params in db.cur.statements if "INSERT INTO clienti_ordini_salvati" in sql)
-    assert saved == (7, "Mario Rossi", "+39 333 1234567", "393331234567")
+    assert saved == (7, "Mario Rossi", "+39 333 1234567", "393331234567", "")
 
 
 def test_manual_customer_save_requires_explicit_boolean():

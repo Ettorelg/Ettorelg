@@ -1079,10 +1079,12 @@ def init_db() -> None:
                         nome VARCHAR(120) NOT NULL,
                         telefono VARCHAR(40) NOT NULL,
                         telefono_chiave VARCHAR(40) NOT NULL,
+                        email TEXT NOT NULL DEFAULT '',
                         aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         UNIQUE (id_negozio, telefono_chiave)
                     )
                 """)
+                cur.execute("ALTER TABLE clienti_ordini_salvati ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS righe_ordini_menu (
                         id BIGSERIAL PRIMARY KEY,
@@ -3864,10 +3866,10 @@ def api_ordini_clienti():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("""SELECT id,nome,telefono FROM clienti_ordini_salvati
-                           WHERE id_negozio=%s AND (%s='' OR nome ILIKE %s OR telefono ILIKE %s)
-                           ORDER BY aggiornato_il DESC,id DESC LIMIT 20""", (shop_id, query, f"%{query}%", f"%{query}%"))
-            return jsonify({"clienti": [{"id": row[0], "nome": row[1], "telefono": row[2]} for row in cur.fetchall()]})
+            cur.execute("""SELECT id,nome,telefono,email FROM clienti_ordini_salvati
+                           WHERE id_negozio=%s AND (%s='' OR nome ILIKE %s OR telefono ILIKE %s OR email ILIKE %s)
+                           ORDER BY aggiornato_il DESC,id DESC LIMIT 20""", (shop_id, query, f"%{query}%", f"%{query}%", f"%{query}%"))
+            return jsonify({"clienti": [{"id": row[0], "nome": row[1], "telefono": row[2], "email": row[3]} for row in cur.fetchall()]})
     finally:
         conn.close()
 
@@ -3913,6 +3915,10 @@ def api_crea_ordine_menu(slug: str | None = None):
         return jsonify({"error": "La rubrica clienti è disponibile solo per gli ordini da asporto."}), 400
     name = str(data.get("nome") or "").strip()
     phone = str(data.get("telefono") or "").strip()
+    customer_google = session.get("customer_google") if not manual and mode == "asporto" else None
+    email = str(data.get("email") or (customer_google.get("email") if customer_google else "") or "").strip().lower()
+    if email and (len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)):
+        return jsonify({"error": "Inserisci un indirizzo email valido."}), 400
     reference = str(data.get("riferimento") or "").strip()
     notes = str(data.get("note") or "").strip()
     items = data.get("prodotti")
@@ -4021,11 +4027,10 @@ def api_crea_ordine_menu(slug: str | None = None):
                         return jsonify({"error": "La fascia selezionata non ha capienza sufficiente per questo ordine. Scegline un'altra."}), 409
                 line_totals = {product_id: (row[2] * quantities[product_id]).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) for product_id, row in products.items()}
                 total = sum(line_totals.values(), Decimal("0.00"))
-                customer_google = session.get("customer_google") if not manual and mode == "asporto" else None
                 cur.execute("""
                     INSERT INTO ordini_menu (id_negozio,nome_cliente,telefono_cliente,riferimento,note,totale,data_richiesta,ora_richiesta,origine,google_sub_cliente,email_cliente)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
-                """, (shop_id, name, phone, reference, notes, total, requested, requested_time or None, "titolare" if manual else mode, customer_google.get("sub") if customer_google else None, customer_google.get("email") if customer_google else None))
+                """, (shop_id, name, phone, reference, notes, total, requested, requested_time or None, "titolare" if manual else mode, customer_google.get("sub") if customer_google else None, email or None))
                 order_id = cur.fetchone()[0]
                 for product_id, quantity in quantities.items():
                     row = products[product_id]
@@ -4036,11 +4041,13 @@ def api_crea_ordine_menu(slug: str | None = None):
                     """, (order_id, product_id, row[1] + (" (kg)" if row[3] == "kg" else ""), quantity, row[2], line_totals[product_id]))
                 if save_customer:
                     phone_key = "".join(character for character in phone if character.isdigit())
-                    cur.execute("""INSERT INTO clienti_ordini_salvati (id_negozio,nome,telefono,telefono_chiave)
-                                   VALUES (%s,%s,%s,%s)
+                    cur.execute("""INSERT INTO clienti_ordini_salvati (id_negozio,nome,telefono,telefono_chiave,email)
+                                   VALUES (%s,%s,%s,%s,%s)
                                    ON CONFLICT (id_negozio,telefono_chiave)
-                                   DO UPDATE SET nome=EXCLUDED.nome,telefono=EXCLUDED.telefono,aggiornato_il=NOW()""",
-                                (shop_id, name, phone, phone_key))
+                                   DO UPDATE SET nome=EXCLUDED.nome,telefono=EXCLUDED.telefono,
+                                                 email=CASE WHEN EXCLUDED.email<>'' THEN EXCLUDED.email ELSE clienti_ordini_salvati.email END,
+                                                 aggiornato_il=NOW()""",
+                                (shop_id, name, phone, phone_key, email))
         return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine registrato." if manual else ("Ordine al tavolo inviato." if mode == "tavolo" else "Ordine da asporto inviato. Il locale deve ancora confermarlo.")}), 201
     finally:
         conn.close()
