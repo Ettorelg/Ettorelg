@@ -355,6 +355,13 @@ def test_fulfillment_page_keeps_separate_product_and_order_views():
     assert "['Totale',amounts.total,'all']" in html
 
 
+def test_fulfillment_product_section_follows_date_and_add_order_floats():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert html.index('id="date"') < html.index('id="groups"') < html.index('class="metrics"')
+    assert 'position:fixed;right:max(20px,env(safe-area-inset-right));bottom:max(20px,env(safe-area-inset-bottom))' in html
+    assert 'id="addOrderButton" class="add-order-button"' in html
+
+
 def test_order_operations_are_on_fulfillment_page_not_settings():
     root = Path(__file__).resolve().parents[1] / "templates"
     settings = (root / "sections" / "ordini.html").read_text(encoding="utf-8")
