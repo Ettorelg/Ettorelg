@@ -25,12 +25,12 @@
   </div>
   <div class="orders-settings">
     <strong>Orario di ritiro per gli ordini da asporto</strong>
-    <p>Puoi richiedere solo il giorno oppure fasce di 15, 20 o 30 minuti. Puoi limitare gli ordini oppure la quantità totale di articoli per fascia; per i prodotti a peso, 1,5 kg conta come 1,5. Imposta 0 per nessun limite per fascia. L'ora finale è esclusa.</p>
+    <p>Puoi richiedere solo il giorno oppure scegliere liberamente la durata delle fasce, da 1 a 240 minuti. Puoi limitare gli ordini oppure la quantità totale di articoli per fascia; per i prodotti a peso, 1,5 kg conta come 1,5. Imposta 0 per nessun limite per fascia. Eventuali minuti finali che non completano una fascia restano esclusi.</p>
     <label class="pickup-toggle"><input id="pickupSlotsEnabled" type="checkbox"> Chiedi anche una fascia oraria</label>
     <div class="pickup-hours" id="pickupHours">
-      <label>Dalle <input id="pickupStart" type="time" step="300" value="18:00"></label>
-      <label>Alle <input id="pickupEnd" type="time" step="300" value="23:00"></label>
-      <label>Durata fascia <select id="pickupMinutes"><option value="15">15 minuti</option><option value="20">20 minuti</option><option value="30">30 minuti</option></select></label>
+      <label>Dalle <input id="pickupStart" type="time" step="60" value="18:00"></label>
+      <label>Alle <input id="pickupEnd" type="time" step="60" value="23:00"></label>
+      <label>Durata fascia (minuti) <input id="pickupMinutes" type="number" min="1" max="240" step="1" value="15"></label>
       <label>Limite per fascia <input id="pickupCapacity" type="number" min="0" max="10000" step="0.001" value="0"></label>
       <label>Limita <select id="pickupCriterion"><option value="ordini">Numero di ordini</option><option value="articoli">Quantità totale di articoli</option></select></label>
     </div>
@@ -88,8 +88,9 @@
     const pattern=/^(?:[01]\d|2[0-3]):[0-5]\d$/;
     const startValue=Number(start.slice(0,2))*60+Number(start.slice(3));
     const endValue=Number(end.slice(0,2))*60+Number(end.slice(3));
-    if(![15,20,30].includes(minutes)||!Number.isFinite(capacity)||capacity<0||capacity>10000||Math.round(capacity*1000)!==capacity*1000||(criterion==='ordini'&&!Number.isInteger(capacity))){orderMessage.textContent='Imposta un limite valido: numero intero per gli ordini, fino a tre decimali per gli articoli.';return}
-    if(enabled&&(!pattern.test(start)||!pattern.test(end)||startValue%5||endValue%5||endValue<=startValue||(endValue-startValue)%minutes)){orderMessage.textContent='L’intervallo deve contenere fasce complete della durata scelta.';return}
+    if(!Number.isInteger(minutes)||minutes<1||minutes>240){orderMessage.textContent='Scegli una durata da 1 a 240 minuti.';return}
+    if(!Number.isFinite(capacity)||capacity<0||capacity>10000||Math.round(capacity*1000)!==capacity*1000||(criterion==='ordini'&&!Number.isInteger(capacity))){orderMessage.textContent='Imposta un limite valido: numero intero per gli ordini, fino a tre decimali per gli articoli.';return}
+    if(enabled&&(!pattern.test(start)||!pattern.test(end)||endValue<=startValue||endValue-startValue<minutes)){orderMessage.textContent='Scegli orari che contengano almeno una fascia completa.';return}
     try{await saveOrdersConfig({fasce_ritiro_attive:enabled,ritiro_dalle:enabled?start:'',ritiro_alle:enabled?end:'',minuti_fascia_ritiro:minutes,limite_fascia_ritiro:capacity,criterio_limite_fascia:criterion},enabled?'Fasce di ritiro salvate.':'Ritiro con sola data salvato.')}catch(error){orderMessage.textContent=error.message}
   });
   loadOrdersConfig().catch(error=>{orderMessage.textContent=error.message});

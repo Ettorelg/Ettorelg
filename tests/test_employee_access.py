@@ -18,15 +18,16 @@ class EmployeeAccessTests(unittest.TestCase):
         self.assertIn('"employee_orders"', guard)
         self.assertIn('"api_crea_ordine_menu"', guard)
         self.assertIn('request.path != "/api/ordini/manuale"', guard)
-        self.assertNotIn('"api_aggiorna_ordine"', guard)
+        self.assertIn('"api_aggiorna_ordine"', guard)
         self.assertNotIn('"dashboard_user"', guard)
         self.assertIn("d.attivo", guard)
         self.assertIn("license_is_active", guard)
 
-    def test_employee_view_can_add_but_not_change_existing_orders(self):
+    def test_employee_view_can_add_and_complete_orders(self):
         self.assertIn("/api/ordini/evasione", EMPLOYEE_VIEW)
         self.assertIn("/api/ordini/manuale", EMPLOYEE_VIEW)
-        self.assertNotIn("method:'PATCH'", EMPLOYEE_VIEW)
+        self.assertIn("method:'PATCH'", EMPLOYEE_VIEW)
+        self.assertIn("stato:'evaso'", EMPLOYEE_VIEW)
         self.assertIn("setInterval(load,15000)", EMPLOYEE_VIEW)
         self.assertIn('id="summaryView"', EMPLOYEE_VIEW)
         self.assertIn('id="ordersView"', EMPLOYEE_VIEW)

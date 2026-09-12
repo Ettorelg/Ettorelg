@@ -289,12 +289,12 @@ def test_manual_customer_save_requires_explicit_boolean():
 
 def test_order_time_must_be_on_five_minute_boundary():
     data = payload(1)
-    data["ora_richiesta"] = "12:07"
+    data["ora_richiesta"] = "12:67"
     db = FakeConnection()
     with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
         response, status = order_function(db)("esempio")
     assert status == 400
-    assert "5 minuti" in response.get_json()["error"]
+    assert "orario valido" in response.get_json()["error"]
     assert not db.cur.statements
 
 
@@ -321,6 +321,23 @@ def test_twenty_minute_slots_accept_only_configured_start_times():
     data["ora_richiesta"] = "12:15"
     with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
         response, status = order_function(db)("esempio")
+    assert status == 400
+
+
+def test_custom_seventeen_minute_slots_skip_incomplete_tail():
+    tomorrow = (datetime.now(ZoneInfo("Europe/Rome")).date() + timedelta(days=1)).isoformat()
+    db = FakeConnection(pickup_enabled=True, pickup_start="12:03", pickup_end="13:00", pickup_minutes=17)
+    with FLASK.test_request_context("/api/menu/esempio/ordini/disponibilita?data=" + tomorrow):
+        response = availability_function(db)("esempio")
+    assert response.get_json()["fasce"] == ["12:03", "12:20", "12:37"]
+    data = payload(1)
+    data.update(data_richiesta=tomorrow, ora_richiesta="12:20")
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        _response, status = order_function(db)("esempio")
+    assert status == 201
+    data["ora_richiesta"] = "12:54"
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        _response, status = order_function(db)("esempio")
     assert status == 400
 
 
@@ -444,7 +461,7 @@ def test_fulfillment_api_returns_shop_scoped_open_and_completed_orders():
             assert "o.stato IN ('da_evadere','in_lavorazione','evaso')" in sql
             assert params[0] == 7
         def fetchall(self):
-            return [(19, day, "12:15", "Mario Rossi", "+39123456", "", "", "da_evadere", Decimal("6.00"), "cliente", "12/09/2026 09:00", "Articolo", Decimal("1.5"), Decimal("6.00"))]
+                return [(19, day, "12:15", "Mario Rossi", "+39123456", "", "", "da_evadere", Decimal("6.00"), "cliente", "12/09/2026 09:00", "Articolo", Decimal("1.5"), Decimal("6.00"), 3, 2, "Primi", 1, 4)]
 
     db = SimpleNamespace(cursor=lambda: Cursor(), close=lambda: None)
     scope = {

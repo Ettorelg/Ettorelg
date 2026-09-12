@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="icon" href="{{ url_for('static', filename='alpha-menu-favicon.png') }}" type="image/png">
   <title>Evasione ordini · Alpha Menu</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='fulfillment-cards.css') }}?v=1">
   <style>
     *{box-sizing:border-box}[hidden]{display:none!important}
     body{margin:0;min-height:100vh;background:#0d1627;color:#f2f6ff;font:16px/1.45 Inter,system-ui,Arial,sans-serif}body.modal-open{overflow:hidden}
@@ -240,7 +241,7 @@
       const end=Number(manualConfig.end.slice(0,2))*60+Number(manualConfig.end.slice(3));
       const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date()).split(':').map(Number);
       const currentMinute=parts[0]*60+parts[1];
-      for(let minute=start;minute<end;minute+=manualConfig.minutes){
+      for(let minute=start;minute+manualConfig.minutes<=end;minute+=manualConfig.minutes){
         if(manualDate.value===todayRome&&minute<=currentMinute)continue;
         const label=value=>String(Math.floor(value/60)).padStart(2,'0')+':'+String(value%60).padStart(2,'0');
         manualSlot.add(new Option(label(minute)+'–'+label(minute+manualConfig.minutes),label(minute)));

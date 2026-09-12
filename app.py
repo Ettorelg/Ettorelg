@@ -55,7 +55,7 @@ def restrict_employee_access():
     employee_id = session.get("employee_id")
     if not employee_id:
         return None
-    allowed = {"employee_orders", "api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti", "api_crea_ordine_menu", "logout", "static", "pwa_manifest", "pwa_service_worker"}
+    allowed = {"employee_orders", "api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti", "api_crea_ordine_menu", "api_aggiorna_ordine", "logout", "static", "pwa_manifest", "pwa_service_worker"}
     if request.endpoint not in allowed or (request.endpoint in {"api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti"} and request.method != "GET") or (request.endpoint == "api_crea_ordine_menu" and request.path != "/api/ordini/manuale"):
         if request.path.startswith("/api/"):
             return jsonify({"error": "Accesso non consentito al dipendente."}), 403
@@ -3903,7 +3903,7 @@ def api_ordini_configurazione():
                             return jsonify({"error": "Limite per fascia non valido."}), 400
                         if not isinstance(pickup_enabled, bool):
                             return jsonify({"error": "Seleziona se usare le fasce di ritiro."}), 400
-                        if type(pickup_minutes) is not int or pickup_minutes not in {15, 20, 30} or pickup_criterion not in {"ordini", "articoli"} or not pickup_capacity.is_finite() or pickup_capacity < 0 or pickup_capacity > 10000 or pickup_capacity.as_tuple().exponent < -3 or (pickup_criterion == "ordini" and pickup_capacity != pickup_capacity.to_integral_value()):
+                        if type(pickup_minutes) is not int or not 1 <= pickup_minutes <= 240 or pickup_criterion not in {"ordini", "articoli"} or not pickup_capacity.is_finite() or pickup_capacity < 0 or pickup_capacity > 10000 or pickup_capacity.as_tuple().exponent < -3 or (pickup_criterion == "ordini" and pickup_capacity != pickup_capacity.to_integral_value()):
                             return jsonify({"error": "Durata o limite per fascia non validi."}), 400
                         if pickup_enabled:
                             time_pattern = r"(?:[01]\d|2[0-3]):[0-5]\d"
@@ -3911,8 +3911,8 @@ def api_ordini_configurazione():
                                 return jsonify({"error": "Imposta orari di ritiro validi."}), 400
                             start_minutes = int(pickup_start[:2]) * 60 + int(pickup_start[3:])
                             end_minutes = int(pickup_end[:2]) * 60 + int(pickup_end[3:])
-                            if start_minutes % 5 or end_minutes % 5 or end_minutes <= start_minutes or (end_minutes - start_minutes) % pickup_minutes:
-                                return jsonify({"error": "L'intervallo deve contenere fasce complete da 15, 20 o 30 minuti."}), 400
+                            if end_minutes <= start_minutes or end_minutes - start_minutes < pickup_minutes:
+                                return jsonify({"error": "L'intervallo deve contenere almeno una fascia completa."}), 400
                     if enabled is None and table_enabled is None and limit is None and not pickup_changed:
                         return jsonify({"error": "Nessuna impostazione indicata."}), 400
                     cur.execute("UPDATE negozi SET ordini_attivi=COALESCE(%s,ordini_attivi),ordini_tavolo_attivi=COALESCE(%s,ordini_tavolo_attivi),limite_ordini_giorno=COALESCE(%s,limite_ordini_giorno) WHERE id=%s", (enabled, table_enabled, limit, shop_id))
@@ -3961,7 +3961,7 @@ def api_disponibilita_ordini(slug: str):
                 start = int(shop[4][:2]) * 60 + int(shop[4][3:])
                 end = int(shop[5][:2]) * 60 + int(shop[5][3:])
                 now_rome = datetime.now(ZoneInfo("Europe/Rome"))
-                for minute in range(start, end, shop[6]):
+                for minute in range(start, end - shop[6] + 1, shop[6]):
                     slot = f"{minute // 60:02d}:{minute % 60:02d}"
                     needed = 1 if shop[8] == "ordini" else max(requested_articles, Decimal("0.001"))
                     if (requested != today or minute > now_rome.hour * 60 + now_rome.minute) and (not shop[7] or slot_usage.get(slot, 0) + needed <= shop[7]):
@@ -4054,8 +4054,8 @@ def api_crea_ordine_menu(slug: str | None = None):
         if not today <= requested <= today + timedelta(days=365):
             return jsonify({"error": "Scegli una data entro i prossimi 365 giorni."}), 400
         requested_time = str(data.get("ora_richiesta") or "").strip()
-        if requested_time and (not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", requested_time) or int(requested_time[3:]) % 5):
-            return jsonify({"error": "Scegli un orario valido a intervalli di 5 minuti."}), 400
+        if requested_time and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", requested_time):
+            return jsonify({"error": "Scegli un orario valido."}), 400
         if not (2 <= len(name) <= 120) or not (6 <= len(phone) <= 40) or not re.fullmatch(r"[+\d ()-]+", phone):
             return jsonify({"error": "Inserisci nome e telefono validi."}), 400
     if len(notes) > 500 or len(reference) > 80 or not isinstance(items, list) or not 1 <= len(items) <= 50:
@@ -4090,7 +4090,8 @@ def api_crea_ordine_menu(slug: str | None = None):
                             return jsonify({"error": "Scegli una fascia oraria di ritiro disponibile."}), 400
                         start_minutes = int(shop[5][:2]) * 60 + int(shop[5][3:])
                         requested_minutes = int(requested_time[:2]) * 60 + int(requested_time[3:])
-                        if (requested_minutes - start_minutes) % shop[7]:
+                        end_minutes = int(shop[6][:2]) * 60 + int(shop[6][3:])
+                        if (requested_minutes - start_minutes) % shop[7] or requested_minutes + shop[7] > end_minutes:
                             return jsonify({"error": "Scegli una fascia oraria di ritiro disponibile."}), 400
                         if requested == today and int(requested_time[:2]) * 60 + int(requested_time[3:]) <= now_rome.hour * 60 + now_rome.minute:
                             return jsonify({"error": "La fascia oraria selezionata è già passata."}), 409
@@ -4306,20 +4307,23 @@ def api_elenco_ordini():
 
 @app.patch("/api/ordini/<int:order_id>")
 def api_aggiorna_ordine(order_id: int):
-    if "user_id" not in session:
+    if "user_id" not in session and "employee_id" not in session:
         return jsonify({"error": "Accesso richiesto."}), 401
-    shop_id = get_user_shop_id(session["user_id"])
+    employee = bool(session.get("employee_id"))
+    shop_id = session.get("employee_shop_id") if employee else get_user_shop_id(session["user_id"])
     status = (request.get_json(silent=True) or {}).get("stato")
     if status not in {"da_evadere", "in_lavorazione", "evaso", "annullato"}:
         return jsonify({"error": "Stato non valido."}), 400
+    if employee and status != "evaso":
+        return jsonify({"error": "Il dipendente può soltanto segnare un ordine come evaso."}), 403
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE ordini_menu SET stato=%s,aggiornato_il=NOW()
-                    WHERE id=%s AND id_negozio=%s RETURNING id
-                """, (status, order_id, shop_id))
+                    WHERE id=%s AND id_negozio=%s AND (%s=FALSE OR stato IN ('da_evadere','in_lavorazione')) RETURNING id
+                """, (status, order_id, shop_id, employee))
                 if not cur.fetchone():
                     return jsonify({"error": "Ordine non trovato."}), 404
         return jsonify({"ok": True, "stato": status})
