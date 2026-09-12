@@ -1,0 +1,146 @@
+<style>
+  .orders-panel{max-width:1050px;color:#e7ecff}
+  .orders-panel h2{margin:0 0 8px}
+  .orders-panel p{color:#aab4d6;line-height:1.45}
+  .orders-activation,.orders-filters,.orders-summary,.order-card{border:1px solid rgba(255,255,255,.14);border-radius:15px;background:rgba(255,255,255,.04);padding:16px;margin:12px 0}
+  .orders-activation{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
+  .orders-activation p{margin:5px 0 0}
+  .orders-activation button,.order-card button,.orders-filters button{border:1px solid #6ea8fe;border-radius:10px;background:#234e86;color:#fff;padding:10px 14px;font:700 .9rem system-ui;cursor:pointer}
+  .orders-activation button.off{background:#5b2e37;border-color:#ef8c9a}
+  .orders-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+  .orders-filters label{display:grid;gap:5px;color:#c6d3f2;font-size:.84rem}
+  .orders-filters select,.orders-filters input{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
+  .orders-summary{display:flex;gap:10px;flex-wrap:wrap}
+  .orders-summary span{padding:8px 11px;border-radius:9px;background:rgba(255,255,255,.06);font-size:.85rem}
+  .order-card{border-left:5px solid #f4c269}
+  .order-card.done{border-left-color:#61c98a}.order-card.cancelled{border-left-color:#8a96ad}
+  .order-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .order-head strong{font-size:1rem}.order-head small{color:#aab4d6}
+  .order-card ul{padding-left:20px;margin:9px 0}
+  .order-card li{margin:3px 0}
+  .order-card .details{white-space:pre-wrap;overflow-wrap:anywhere;color:#c7d2ee;font-size:.87rem}
+  .order-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+  .order-actions button{font-size:.79rem;min-height:38px}
+  .order-actions button[disabled]{opacity:.5;cursor:default}
+  #ordersMessage{min-height:20px;color:#aee8bd}.orders-pages{display:flex;align-items:center;justify-content:center;gap:12px;margin:20px 0}.orders-pages button{border:1px solid #6ea8fe;border-radius:8px;background:#234e86;color:#fff;padding:9px 12px;cursor:pointer}.orders-pages button:disabled{opacity:.4;cursor:default}
+  @media(max-width:640px){.orders-filters>*{width:100%}.orders-filters button{width:100%}.orders-summary{display:grid;grid-template-columns:1fr 1fr}.orders-activation button{width:100%}}
+</style>
+<section class="orders-panel">
+  <h2>Ordini del menu</h2>
+  <p>Attiva le richieste dal menu pubblico. Il cliente invia l'ordine senza pagamento: <strong>devi confermarlo tu</strong> prima di prepararlo. Gli ordini restano visibili anche quando disattivi nuove richieste.</p>
+  <div class="orders-activation">
+    <div><strong>Ricezione ordini online</strong><p id="ordersState">Caricamento…</p></div>
+    <button id="ordersToggle" type="button" disabled>Caricamento…</button>
+  </div>
+  <div class="orders-filters">
+    <label>Periodo<select id="ordersPeriod"><option value="giorno">Giorno</option><option value="settimana">Settimana</option><option value="mese">Mese</option><option value="anno">Anno</option></select></label>
+    <label>Data di riferimento<input id="ordersDate" type="date"></label>
+    <button id="ordersRefresh" type="button">Aggiorna ordini</button>
+  </div>
+  <div id="ordersSummary" class="orders-summary"></div>
+  <p id="ordersMessage" role="status"></p>
+  <div id="ordersList"></div>
+  <div class="orders-pages"><button id="ordersPrevious" type="button">← Precedenti</button><span id="ordersPageInfo"></span><button id="ordersNext" type="button">Successivi →</button></div>
+</section>
+<script>
+  const orderPeriod = document.getElementById('ordersPeriod');
+  const orderDate = document.getElementById('ordersDate');
+  const orderList = document.getElementById('ordersList');
+  const orderSummary = document.getElementById('ordersSummary');
+  const orderMessage = document.getElementById('ordersMessage');
+  const orderToggle = document.getElementById('ordersToggle');
+  const orderState = document.getElementById('ordersState');
+  let ordersActive = false;
+  let ordersPage = 1;
+  const ordersPrevious = document.getElementById('ordersPrevious');
+  const ordersNext = document.getElementById('ordersNext');
+  const ordersPageInfo = document.getElementById('ordersPageInfo');
+  orderDate.value = new Date().toLocaleDateString('sv-SE', {timeZone:'Europe/Rome'});
+  function orderText(parent, tag, value, className=''){
+    const element=document.createElement(tag);
+    element.textContent=value;
+    if(className) element.className=className;
+    parent.appendChild(element);
+    return element;
+  }
+  async function loadOrdersConfig(){
+    const response=await fetch('/api/ordini/configurazione');
+    if(!response.ok) throw new Error('Impossibile caricare la configurazione.');
+    const data=await response.json();
+    ordersActive=data.attivi;
+    orderState.textContent=ordersActive ? 'Attiva: i clienti possono inviare richieste.' : 'Disattiva: il menu resta consultabile, ma non accetta ordini.';
+    orderToggle.textContent=ordersActive ? 'Disattiva nuovi ordini' : 'Attiva ordini';
+    orderToggle.classList.toggle('off',ordersActive);
+    orderToggle.disabled=false;
+  }
+  async function loadOrders(){
+    orderMessage.textContent='Aggiornamento in corso…';
+    const query=new URLSearchParams({periodo:orderPeriod.value,data:orderDate.value,pagina:String(ordersPage)});
+    try{
+      const response=await fetch('/api/ordini?'+query);
+      const data=await response.json();
+      if(!response.ok) throw new Error(data.error || 'Impossibile caricare gli ordini.');
+      orderSummary.replaceChildren();
+      const names={da_evadere:'Da evadere',in_lavorazione:'In lavorazione',evaso:'Evasi',annullato:'Annullati'};
+      for(const [status,name] of Object.entries(names)){
+        const metric=data.riepilogo[status] || {numero:0,totale:'0.00'};
+        orderText(orderSummary,'span',name+': '+metric.numero);
+      }
+      orderList.replaceChildren();
+      const pages=Math.max(1,Math.ceil(data.totale_ordini/data.dimensione_pagina));
+      ordersPageInfo.textContent='Pagina '+ordersPage+' di '+pages;
+      ordersPrevious.disabled=ordersPage<=1;
+      ordersNext.disabled=ordersPage>=pages;
+      if(!data.ordini.length) orderText(orderList,'p','Nessun ordine nel periodo selezionato.');
+      for(const order of data.ordini){
+        const card=document.createElement('article');
+        card.className='order-card '+(order.stato==='evaso'?'done':order.stato==='annullato'?'cancelled':'');
+        const head=orderText(card,'div','', 'order-head');
+        const heading=orderText(head,'div','');
+        orderText(heading,'strong','#'+order.id+' · '+order.nome+' · '+names[order.stato]);
+        orderText(heading,'small',' '+order.creato_il);
+        orderText(head,'strong','€ '+Number(order.totale).toFixed(2));
+        const list=orderText(card,'ul','');
+        for(const product of order.prodotti) orderText(list,'li',product.quantita+' × '+product.nome+' — € '+Number(product.totale).toFixed(2));
+        if(order.riferimento) orderText(card,'p','Riferimento: '+order.riferimento,'details');
+        if(order.note) orderText(card,'p','Note: '+order.note,'details');
+        const phone=orderText(card,'a','☎ '+order.telefono,'details');
+        phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'');
+        const actions=orderText(card,'div','', 'order-actions');
+        for(const [status,label] of Object.entries({da_evadere:'Da evadere',in_lavorazione:'In lavorazione',evaso:'Segna evaso',annullato:'Annulla'})){
+          const button=orderText(actions,'button',label);
+          button.type='button'; button.disabled=order.stato===status;
+          button.addEventListener('click',async()=>{
+            button.disabled=true;
+            try{
+              const result=await fetch('/api/ordini/'+order.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({stato:status})});
+              const resultData=await result.json();
+              if(!result.ok) throw new Error(resultData.error || 'Aggiornamento non riuscito.');
+              await loadOrders();
+            }catch(error){orderMessage.textContent=error.message;button.disabled=false;}
+          });
+        }
+        orderList.appendChild(card);
+      }
+      orderMessage.textContent='Dal '+data.da+' al '+data.a+' · '+data.totale_ordini+' ordini';
+    }catch(error){orderMessage.textContent=error.message;}
+  }
+  orderToggle.addEventListener('click',async()=>{
+    orderToggle.disabled=true;
+    try{
+      const response=await fetch('/api/ordini/configurazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({attivi:!ordersActive})});
+      const data=await response.json();
+      if(!response.ok) throw new Error(data.error || 'Salvataggio non riuscito.');
+      await loadOrdersConfig();
+    }catch(error){orderMessage.textContent=error.message;orderToggle.disabled=false;}
+  });
+  document.getElementById('ordersRefresh').addEventListener('click',loadOrders);
+  orderPeriod.addEventListener('change',()=>{ordersPage=1;loadOrders()});
+  orderDate.addEventListener('change',()=>{ordersPage=1;loadOrders()});
+  ordersPrevious.addEventListener('click',()=>{if(ordersPage>1){ordersPage--;loadOrders()}});
+  ordersNext.addEventListener('click',()=>{ordersPage++;loadOrders()});
+  loadOrdersConfig().catch(error=>{orderMessage.textContent=error.message});
+  loadOrders();
+  if(window.alphaOrdersTimer) clearInterval(window.alphaOrdersTimer);
+  window.alphaOrdersTimer=setInterval(()=>{if(location.hash==='#ordini') loadOrders();else clearInterval(window.alphaOrdersTimer)},30000);
+</script>

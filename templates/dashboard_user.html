@@ -88,6 +88,7 @@
         <button class="nav-item" data-section="categorie" data-requires-shop="1"><div class="icon">📁</div><div class="label">Categorie</div></button>
         <button class="nav-item" data-section="attivita"><div class="icon">🏪</div><div class="label">Negozio e orari</div></button>
         <button class="nav-item" data-section="menu_online" data-requires-shop="1"><div class="icon">📱</div><div class="label">Menu pubblico</div></button>
+        <button class="nav-item" data-section="ordini" data-requires-shop="1"><div class="icon">🛎️</div><div class="label">Ordini</div></button>
 
         <button class="nav-item" data-section="lingue" data-requires-shop="1"><div class="icon">🌐</div><div class="label">Lingue</div></button>
         <button class="nav-item" data-section="statistiche" data-requires-shop="1"><div class="icon">📊</div><div class="label">Statistiche</div></button>
@@ -149,7 +150,7 @@
       } catch (_) {}
     }
     showExpiryWarning();
-    const shopRequiredSections = new Set(['prodotti', 'categorie', 'sottocategorie', 'allergeni', 'menu_online', 'qrcode', 'anteprima', 'lingue', 'statistiche']);
+    const shopRequiredSections = new Set(['prodotti', 'categorie', 'sottocategorie', 'allergeni', 'menu_online', 'ordini', 'qrcode', 'anteprima', 'lingue', 'statistiche']);
 
     function syncShopLocks(){
       // Tutte le sezioni restano visibili e selezionabili. loadSection guida
@@ -198,6 +199,7 @@
       allergeni: "Gestione allergeni",
       attivita: "Negozio e orari",
       menu_online: "QR Code e anteprima",
+      ordini: "Ordini",
       lingue: "Lingue e traduzioni",
       statistiche: "Statistiche",
       licenze: "Licenze",

@@ -1040,6 +1040,34 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS ora_fine TIME")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS whatsapp TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS prenotazione_url TEXT")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ordini_attivi BOOLEAN NOT NULL DEFAULT FALSE")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS ordini_menu (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                        nome_cliente VARCHAR(120) NOT NULL,
+                        telefono_cliente VARCHAR(40) NOT NULL,
+                        riferimento VARCHAR(80) NOT NULL DEFAULT '',
+                        note VARCHAR(500) NOT NULL DEFAULT '',
+                        stato VARCHAR(20) NOT NULL DEFAULT 'da_evadere'
+                          CHECK (stato IN ('da_evadere','in_lavorazione','evaso','annullato')),
+                        totale NUMERIC(10,2) NOT NULL CHECK (totale >= 0),
+                        creato_il TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS ordini_menu_negozio_data ON ordini_menu (id_negozio, creato_il DESC)")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS righe_ordini_menu (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_ordine BIGINT NOT NULL REFERENCES ordini_menu(id) ON DELETE CASCADE,
+                        id_prodotto INTEGER REFERENCES prodotti(id) ON DELETE SET NULL,
+                        nome_prodotto VARCHAR(200) NOT NULL,
+                        quantita INTEGER NOT NULL CHECK (quantita BETWEEN 1 AND 99),
+                        prezzo_unitario NUMERIC(10,2) NOT NULL CHECK (prezzo_unitario >= 0),
+                        totale_riga NUMERIC(10,2) NOT NULL CHECK (totale_riga >= 0)
+                    )
+                """)
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS sito_web TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS instagram_url TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS google_maps_url TEXT")
@@ -3218,6 +3246,7 @@ def dashboard_user_section(section: str):
         "home",
         "attivita",
         "menu_online",
+        "ordini",
         "prodotti",
         "categorie",
         "sottocategorie",
@@ -3243,7 +3272,7 @@ def dashboard_user_section(section: str):
 
     shop_required_sections = {
         "prodotti", "categorie", "sottocategorie", "allergeni",
-        "menu_online", "qrcode", "anteprima", "lingue", "statistiche",
+        "menu_online", "ordini", "qrcode", "anteprima", "lingue", "statistiche",
     }
     if section in shop_required_sections and not get_user_shop_id(session["user_id"]):
         return (
@@ -3568,6 +3597,196 @@ def api_statistiche():
         conn.close()
 
 
+@app.route("/api/ordini/configurazione", methods=["GET", "PUT"])
+def api_ordini_configurazione():
+    if "user_id" not in session:
+        return jsonify({"error": "Accesso richiesto."}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if request.method == "PUT":
+                    enabled = (request.get_json(silent=True) or {}).get("attivi")
+                    if not isinstance(enabled, bool):
+                        return jsonify({"error": "Impostazione non valida."}), 400
+                    cur.execute("UPDATE negozi SET ordini_attivi=%s WHERE id=%s", (enabled, shop_id))
+                cur.execute("SELECT ordini_attivi FROM negozi WHERE id=%s", (shop_id,))
+                return jsonify({"attivi": bool(cur.fetchone()[0])})
+    finally:
+        conn.close()
+
+
+@app.post("/api/menu/<slug>/ordini")
+def api_crea_ordine_menu(slug: str):
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("nome") or "").strip()
+    phone = str(data.get("telefono") or "").strip()
+    reference = str(data.get("riferimento") or "").strip()
+    notes = str(data.get("note") or "").strip()
+    items = data.get("prodotti")
+    if not (2 <= len(name) <= 120) or not (6 <= len(phone) <= 40) or not re.fullmatch(r"[+\d ()-]+", phone):
+        return jsonify({"error": "Inserisci nome e telefono validi."}), 400
+    if len(reference) > 80 or len(notes) > 500 or not isinstance(items, list) or not 1 <= len(items) <= 50:
+        return jsonify({"error": "Controlla prodotti, riferimento e note."}), 400
+    quantities = {}
+    for item in items:
+        if not isinstance(item, dict) or type(item.get("id")) is not int or type(item.get("quantita")) is not int:
+            return jsonify({"error": "Prodotto o quantità non validi."}), 400
+        product_id, quantity = item["id"], item["quantita"]
+        if product_id <= 0 or not 1 <= quantity <= 99 or product_id in quantities:
+            return jsonify({"error": "Prodotto o quantità non validi."}), 400
+        quantities[product_id] = quantity
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id,ordini_attivi FROM negozi WHERE slug=%s FOR SHARE", (slug,))
+                shop = cur.fetchone()
+                if not shop or not shop[1]:
+                    return jsonify({"error": "Gli ordini online non sono disponibili per questo locale."}), 403
+                shop_id = shop[0]
+                cur.execute("""
+                    SELECT COUNT(*) FROM ordini_menu
+                    WHERE id_negozio=%s AND telefono_cliente=%s AND creato_il >= NOW() - INTERVAL '10 minutes'
+                """, (shop_id, phone))
+                if cur.fetchone()[0] >= 3:
+                    return jsonify({"error": "Hai inviato troppi ordini. Riprova tra qualche minuto."}), 429
+                cur.execute("""
+                    SELECT p.id,p.nome,p.prezzo_euro
+                    FROM prodotti p
+                    JOIN categorie c ON c.id=p.id_categoria AND c.visibile=TRUE
+                    LEFT JOIN sottocategorie sc ON sc.id=p.id_sottocategoria
+                    WHERE p.id_negozio=%s AND p.id=ANY(%s) AND p.disponibile=TRUE
+                      AND (p.visibile_da IS NULL OR p.visibile_da <= CURRENT_DATE)
+                      AND (p.visibile_fino IS NULL OR p.visibile_fino >= CURRENT_DATE)
+                      AND (p.ora_inizio IS NULL OR p.ora_inizio <= CURRENT_TIME)
+                      AND (p.ora_fine IS NULL OR p.ora_fine >= CURRENT_TIME)
+                      AND (c.visibile_da IS NULL OR c.visibile_da <= CURRENT_DATE)
+                      AND (c.visibile_fino IS NULL OR c.visibile_fino >= CURRENT_DATE)
+                      AND (c.ora_inizio IS NULL OR c.ora_inizio <= CURRENT_TIME)
+                      AND (c.ora_fine IS NULL OR c.ora_fine >= CURRENT_TIME)
+                      AND (sc.id IS NULL OR (sc.visibile=TRUE
+                        AND (sc.visibile_da IS NULL OR sc.visibile_da <= CURRENT_DATE)
+                        AND (sc.visibile_fino IS NULL OR sc.visibile_fino >= CURRENT_DATE)
+                        AND (sc.ora_inizio IS NULL OR sc.ora_inizio <= CURRENT_TIME)
+                        AND (sc.ora_fine IS NULL OR sc.ora_fine >= CURRENT_TIME)))
+                """, (shop_id, list(quantities)))
+                products = {row[0]: row for row in cur.fetchall()}
+                if len(products) != len(quantities):
+                    return jsonify({"error": "Un prodotto non è più disponibile. Aggiorna il menu e riprova."}), 409
+                total = sum((row[2] * quantities[row[0]] for row in products.values()), Decimal("0.00"))
+                cur.execute("""
+                    INSERT INTO ordini_menu (id_negozio,nome_cliente,telefono_cliente,riferimento,note,totale)
+                    VALUES (%s,%s,%s,%s,%s,%s) RETURNING id
+                """, (shop_id, name, phone, reference, notes, total))
+                order_id = cur.fetchone()[0]
+                for product_id, quantity in quantities.items():
+                    row = products[product_id]
+                    cur.execute("""
+                        INSERT INTO righe_ordini_menu
+                            (id_ordine,id_prodotto,nome_prodotto,quantita,prezzo_unitario,totale_riga)
+                        VALUES (%s,%s,%s,%s,%s,%s)
+                    """, (order_id, product_id, row[1], quantity, row[2], row[2] * quantity))
+        return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine inviato. Il locale deve ancora confermarlo."}), 201
+    finally:
+        conn.close()
+
+
+@app.get("/api/ordini")
+def api_elenco_ordini():
+    if "user_id" not in session:
+        return jsonify({"error": "Accesso richiesto."}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    period = request.args.get("periodo", "giorno")
+    if period not in {"giorno", "settimana", "mese", "anno"}:
+        return jsonify({"error": "Periodo non valido."}), 400
+    try:
+        selected = date.fromisoformat(request.args.get("data", date.today().isoformat()))
+    except ValueError:
+        return jsonify({"error": "Data non valida."}), 400
+    if period == "giorno":
+        start, end = selected, selected + timedelta(days=1)
+    elif period == "settimana":
+        start = selected - timedelta(days=selected.weekday())
+        end = start + timedelta(days=7)
+    elif period == "mese":
+        start = selected.replace(day=1)
+        end = date(start.year + (start.month == 12), start.month % 12 + 1, 1)
+    else:
+        start, end = date(selected.year, 1, 1), date(selected.year + 1, 1, 1)
+    try:
+        page = int(request.args.get("pagina", "1"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Pagina non valida."}), 400
+    if not 1 <= page <= 10000:
+        return jsonify({"error": "Pagina non valida."}), 400
+    page_size = 100
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT stato, COUNT(*), COALESCE(SUM(totale),0)
+                FROM ordini_menu WHERE id_negozio=%s
+                  AND (creato_il AT TIME ZONE 'Europe/Rome')::date >= %s
+                  AND (creato_il AT TIME ZONE 'Europe/Rome')::date < %s
+                GROUP BY stato
+            """, (shop_id, start, end))
+            summary = {row[0]: {"numero": row[1], "totale": str(row[2])} for row in cur.fetchall()}
+            cur.execute("""
+                SELECT id,nome_cliente,telefono_cliente,riferimento,note,stato,totale,
+                       TO_CHAR(creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI')
+                FROM ordini_menu WHERE id_negozio=%s
+                  AND (creato_il AT TIME ZONE 'Europe/Rome')::date >= %s
+                  AND (creato_il AT TIME ZONE 'Europe/Rome')::date < %s
+                ORDER BY CASE WHEN stato IN ('da_evadere','in_lavorazione') THEN 0 ELSE 1 END,
+                         creato_il DESC LIMIT %s OFFSET %s
+            """, (shop_id, start, end, page_size, (page - 1) * page_size))
+            orders = [dict(zip(("id","nome","telefono","riferimento","note","stato","totale","creato_il"), row)) for row in cur.fetchall()]
+            for order in orders:
+                order["totale"] = str(order["totale"])
+            if orders:
+                cur.execute("""
+                    SELECT id_ordine,nome_prodotto,quantita,prezzo_unitario,totale_riga
+                    FROM righe_ordini_menu WHERE id_ordine=ANY(%s) ORDER BY id
+                """, ([order["id"] for order in orders],))
+                lines = {}
+                for order_id, name, quantity, price, line_total in cur.fetchall():
+                    lines.setdefault(order_id, []).append({"nome": name, "quantita": quantity, "prezzo": str(price), "totale": str(line_total)})
+                for order in orders:
+                    order["prodotti"] = lines.get(order["id"], [])
+        return jsonify({"ordini": orders, "riepilogo": summary, "periodo": period, "da": start.isoformat(), "a": (end - timedelta(days=1)).isoformat(), "pagina": page, "dimensione_pagina": page_size, "totale_ordini": sum(item["numero"] for item in summary.values())})
+    finally:
+        conn.close()
+
+
+@app.patch("/api/ordini/<int:order_id>")
+def api_aggiorna_ordine(order_id: int):
+    if "user_id" not in session:
+        return jsonify({"error": "Accesso richiesto."}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    status = (request.get_json(silent=True) or {}).get("stato")
+    if status not in {"da_evadere", "in_lavorazione", "evaso", "annullato"}:
+        return jsonify({"error": "Stato non valido."}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE ordini_menu SET stato=%s,aggiornato_il=NOW()
+                    WHERE id=%s AND id_negozio=%s RETURNING id
+                """, (status, order_id, shop_id))
+                if not cur.fetchone():
+                    return jsonify({"error": "Ordine non trovato."}), 404
+        return jsonify({"ok": True, "stato": status})
+    finally:
+        conn.close()
+
+
 @app.get("/menu/<slug>")
 def public_menu(slug: str):
     requested_language = (request.args.get("lang") or "it").lower()
@@ -3582,7 +3801,8 @@ def public_menu(slug: str):
                        colore_accento, colore_sfondo, costo_coperto,
                        COALESCE(ordine_categorie_personalizzato, FALSE), COALESCE(whatsapp, ''),
                        COALESCE(prenotazione_url, ''),
-                       COALESCE((SELECT piano FROM licenze_utenti WHERE id_utente = negozi.id_utente LIMIT 1), 'professional')
+                       COALESCE((SELECT piano FROM licenze_utenti WHERE id_utente = negozi.id_utente LIMIT 1), 'professional'),
+                       COALESCE(ordini_attivi, FALSE)
                 FROM negozi WHERE slug = %s
                 """,
                 (slug,),
@@ -3602,6 +3822,7 @@ def public_menu(slug: str):
                 "whatsapp": row[18] or "",
                 "prenotazione_url": row[19] or "",
                 "piano": normalize_license_plan(row[20]),
+                "ordini_attivi": bool(row[21]),
             }
             cur.execute(
                 "INSERT INTO menu_visite (id_negozio, lingua, sorgente) VALUES (%s, %s, %s)",
