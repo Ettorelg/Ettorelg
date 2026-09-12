@@ -1044,6 +1044,9 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ordini_attivi BOOLEAN NOT NULL DEFAULT FALSE")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ordini_tavolo_attivi BOOLEAN NOT NULL DEFAULT FALSE")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS limite_ordini_giorno INTEGER NOT NULL DEFAULT 0")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS fasce_ritiro_attive BOOLEAN NOT NULL DEFAULT FALSE")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ritiro_dalle TIME")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ritiro_alle TIME")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS ordini_menu (
                         id BIGSERIAL PRIMARY KEY,
@@ -3669,18 +3672,29 @@ def api_ordini_configurazione():
                     enabled = payload.get("asporto_attivi", payload.get("attivi"))
                     table_enabled = payload.get("tavolo_attivi")
                     limit = payload.get("limite_giornaliero")
+                    pickup_changed = any(key in payload for key in ("fasce_ritiro_attive", "ritiro_dalle", "ritiro_alle"))
                     if enabled is not None and not isinstance(enabled, bool):
                         return jsonify({"error": "Impostazione non valida."}), 400
                     if table_enabled is not None and not isinstance(table_enabled, bool):
                         return jsonify({"error": "Impostazione tavoli non valida."}), 400
                     if limit is not None and (type(limit) is not int or not 0 <= limit <= 10000):
                         return jsonify({"error": "Limite giornaliero non valido."}), 400
-                    if enabled is None and table_enabled is None and limit is None:
+                    if pickup_changed:
+                        pickup_enabled = payload.get("fasce_ritiro_attive")
+                        pickup_start = str(payload.get("ritiro_dalle") or "").strip()
+                        pickup_end = str(payload.get("ritiro_alle") or "").strip()
+                        if not isinstance(pickup_enabled, bool):
+                            return jsonify({"error": "Seleziona se usare le fasce di ritiro."}), 400
+                        if pickup_enabled and (not re.fullmatch(r"(?:[01]\d|2[0-3]):(?:00|15|30|45)", pickup_start) or not re.fullmatch(r"(?:[01]\d|2[0-3]):(?:00|15|30|45)", pickup_end) or pickup_start >= pickup_end):
+                            return jsonify({"error": "Imposta una fascia valida, a intervalli di 15 minuti, con l'ora finale dopo quella iniziale."}), 400
+                    if enabled is None and table_enabled is None and limit is None and not pickup_changed:
                         return jsonify({"error": "Nessuna impostazione indicata."}), 400
                     cur.execute("UPDATE negozi SET ordini_attivi=COALESCE(%s,ordini_attivi),ordini_tavolo_attivi=COALESCE(%s,ordini_tavolo_attivi),limite_ordini_giorno=COALESCE(%s,limite_ordini_giorno) WHERE id=%s", (enabled, table_enabled, limit, shop_id))
-                cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno FROM negozi WHERE id=%s", (shop_id,))
+                    if pickup_changed:
+                        cur.execute("UPDATE negozi SET fasce_ritiro_attive=%s,ritiro_dalle=%s,ritiro_alle=%s WHERE id=%s", (pickup_enabled, pickup_start if pickup_enabled else None, pickup_end if pickup_enabled else None, shop_id))
+                cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI') FROM negozi WHERE id=%s", (shop_id,))
                 row = cur.fetchone()
-                return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2]})
+                return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2], "fasce_ritiro_attive": bool(row[3]), "ritiro_dalle": row[4], "ritiro_alle": row[5]})
     finally:
         conn.close()
 
@@ -3697,13 +3711,22 @@ def api_disponibilita_ordini(slug: str):
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id,ordini_attivi,limite_ordini_giorno FROM negozi WHERE slug=%s", (slug,))
+            cur.execute("SELECT id,ordini_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI') FROM negozi WHERE slug=%s", (slug,))
             shop = cur.fetchone()
             if not shop or not shop[1]:
                 return jsonify({"error": "Gli ordini online non sono disponibili."}), 403
             cur.execute("SELECT COUNT(*) FROM ordini_menu WHERE id_negozio=%s AND data_richiesta=%s AND origine IN ('cliente','asporto','titolare') AND stato<>'annullato'", (shop[0], requested))
             used = cur.fetchone()[0]
-            return jsonify({"disponibile": shop[2] == 0 or used < shop[2], "posti_rimanenti": None if shop[2] == 0 else max(0, shop[2] - used), "limite_giornaliero": shop[2]})
+            slots = []
+            if shop[3] and shop[4] and shop[5]:
+                start = int(shop[4][:2]) * 60 + int(shop[4][3:])
+                end = int(shop[5][:2]) * 60 + int(shop[5][3:])
+                now_rome = datetime.now(ZoneInfo("Europe/Rome"))
+                for minute in range(start, end, 15):
+                    if requested != today or minute > now_rome.hour * 60 + now_rome.minute:
+                        slots.append(f"{minute // 60:02d}:{minute % 60:02d}")
+            available = (shop[2] == 0 or used < shop[2]) and (not shop[3] or bool(slots))
+            return jsonify({"disponibile": available, "posti_rimanenti": None if shop[2] == 0 else max(0, shop[2] - used), "limite_giornaliero": shop[2], "fasce_ritiro_attive": bool(shop[3]), "fasce": slots})
     finally:
         conn.close()
 
@@ -3766,13 +3789,21 @@ def api_crea_ordine_menu(slug: str | None = None):
         with conn:
             with conn.cursor() as cur:
                 if manual:
-                    cur.execute("SELECT id,ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno FROM negozi WHERE id=%s FOR UPDATE", (shop_id_manual,))
+                    cur.execute("SELECT id,ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI') FROM negozi WHERE id=%s FOR UPDATE", (shop_id_manual,))
                 else:
-                    cur.execute("SELECT id,ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno FROM negozi WHERE slug=%s FOR UPDATE", (slug,))
+                    cur.execute("SELECT id,ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI') FROM negozi WHERE slug=%s FOR UPDATE", (slug,))
                 shop = cur.fetchone()
                 if not shop or (not manual and not shop[1 if mode == "asporto" else 2]):
                     return jsonify({"error": "Questa modalità d'ordine non è disponibile per il locale."}), 403
                 shop_id = shop[0]
+                if mode == "asporto":
+                    if shop[4]:
+                        if not requested_time or not shop[5] or not shop[6] or not shop[5] <= requested_time < shop[6]:
+                            return jsonify({"error": "Scegli una fascia oraria di ritiro disponibile."}), 400
+                        if requested == today and int(requested_time[:2]) * 60 + int(requested_time[3:]) <= now_rome.hour * 60 + now_rome.minute:
+                            return jsonify({"error": "La fascia oraria selezionata è già passata."}), 409
+                    elif requested_time:
+                        return jsonify({"error": "Questo punto vendita richiede solo il giorno di ritiro, senza orario."}), 400
                 if mode == "asporto" and shop[3]:
                     cur.execute("SELECT COUNT(*) FROM ordini_menu WHERE id_negozio=%s AND data_richiesta=%s AND origine IN ('cliente','asporto','titolare') AND stato<>'annullato'", (shop_id, requested))
                     if cur.fetchone()[0] >= shop[3]:

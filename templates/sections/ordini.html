@@ -7,7 +7,9 @@
   .orders-activation p{margin:5px 0 0}
   .orders-settings,.orders-manual{border:1px solid rgba(255,255,255,.14);border-radius:15px;background:rgba(255,255,255,.04);padding:16px;margin:12px 0}
   .orders-settings label,.orders-manual label{display:grid;gap:5px;color:#c6d3f2;font-size:.86rem}
-  .orders-settings input,.orders-manual input,.orders-manual select,.orders-manual textarea{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
+  .orders-settings input:not([type=checkbox]),.orders-manual input,.orders-manual select,.orders-manual textarea{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
+  .orders-settings .pickup-toggle{display:flex;align-items:center;gap:9px;margin:12px 0}.orders-settings .pickup-toggle input{width:19px;height:19px;accent-color:#6ea8fe}
+  .pickup-hours{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.pickup-hours[hidden],.orders-manual [hidden]{display:none!important}.pickup-hours label{min-width:140px}
   .orders-settings button,.orders-manual button{border:1px solid #6ea8fe;border-radius:10px;background:#234e86;color:#fff;padding:10px 14px;font:700 .9rem system-ui;cursor:pointer}
   .orders-manual form{display:grid;gap:10px}.orders-manual .manual-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.orders-manual .manual-line{display:flex;gap:8px;margin:8px 0}.orders-manual .manual-line select{flex:1;min-width:0}.orders-manual .manual-line input{width:105px}
   .orders-activation button,.order-card button,.orders-filters button{border:1px solid #6ea8fe;border-radius:10px;background:#234e86;color:#fff;padding:10px 14px;font:700 .9rem system-ui;cursor:pointer}
@@ -50,6 +52,16 @@
     <label>Ordini massimi al giorno <input id="ordersLimit" type="number" min="0" max="10000" step="1" value="0"></label>
     <button id="ordersSaveLimit" type="button">Salva limite</button>
   </div>
+  <div class="orders-settings">
+    <strong>Orario di ritiro per gli ordini da asporto</strong>
+    <p>Per un pastificio puoi richiedere solo il giorno. Per una pizzeria puoi mostrare fasce di 15 minuti comprese tra l'ora iniziale e quella finale (esclusa). Il limite giornaliero resta valido in entrambi i casi.</p>
+    <label class="pickup-toggle"><input id="pickupSlotsEnabled" type="checkbox"> Chiedi anche una fascia oraria</label>
+    <div class="pickup-hours" id="pickupHours">
+      <label>Dalle <input id="pickupStart" type="time" step="900" value="18:00"></label>
+      <label>Alle <input id="pickupEnd" type="time" step="900" value="23:00"></label>
+    </div>
+    <button id="pickupSave" type="button">Salva modalità di ritiro</button>
+  </div>
   <details class="orders-manual">
     <summary><strong>Inserisci un ordine manualmente</strong></summary>
     <form id="manualOrderForm">
@@ -57,7 +69,7 @@
         <label>Nome cliente <input name="nome" minlength="2" maxlength="120" required></label>
         <label>Telefono <input name="telefono" type="tel" minlength="6" maxlength="40" required></label>
         <label>Data richiesta <input name="data_richiesta" id="manualOrderDate" type="date" required></label>
-        <label>Orario richiesto (facoltativo) <input name="ora_richiesta" type="time" step="900"></label>
+        <label id="manualPickupField" hidden>Fascia oraria di ritiro <select name="ora_richiesta" id="manualPickupSlot"><option value="">Scegli un orario</option></select></label>
       </div>
       <label>Riferimento <input name="riferimento" maxlength="80"></label>
       <label>Note <textarea name="note" maxlength="500" rows="2"></textarea></label>
@@ -89,8 +101,13 @@
   const tableOrdersToggle = document.getElementById('tableOrdersToggle');
   const tableOrdersState = document.getElementById('tableOrdersState');
   const ordersLimit = document.getElementById('ordersLimit');
+  const pickupSlotsEnabled=document.getElementById('pickupSlotsEnabled');
+  const pickupHours=document.getElementById('pickupHours');
+  const pickupStart=document.getElementById('pickupStart');
+  const pickupEnd=document.getElementById('pickupEnd');
   let ordersActive = false;
   let tableOrdersActive = false;
+  let pickupConfig={enabled:false,start:'',end:''};
   let ordersPage = 1;
   const ordersPrevious = document.getElementById('ordersPrevious');
   const ordersNext = document.getElementById('ordersNext');
@@ -118,6 +135,12 @@
     ordersActive=data.asporto_attivi;
     tableOrdersActive=data.tavolo_attivi;
     ordersLimit.value=String(data.limite_giornaliero);
+    pickupConfig={enabled:data.fasce_ritiro_attive,start:data.ritiro_dalle||'',end:data.ritiro_alle||''};
+    pickupSlotsEnabled.checked=pickupConfig.enabled;
+    pickupStart.value=pickupConfig.start||'18:00';
+    pickupEnd.value=pickupConfig.end||'23:00';
+    pickupHours.hidden=!pickupConfig.enabled;
+    renderManualPickupSlots();
     orderState.textContent=ordersActive ? 'Attivi: il cliente può scegliere una data per l’asporto.' : 'Disattivati: il menu resta consultabile.';
     orderToggle.textContent=ordersActive ? 'Disattiva asporto' : 'Attiva asporto';
     orderToggle.classList.toggle('off',ordersActive);
@@ -208,13 +231,48 @@
       orderMessage.textContent='Limite giornaliero salvato.';
     }catch(error){orderMessage.textContent=error.message}
   });
+  pickupSlotsEnabled.addEventListener('change',()=>{pickupHours.hidden=!pickupSlotsEnabled.checked});
+  document.getElementById('pickupSave').addEventListener('click',async()=>{
+    const enabled=pickupSlotsEnabled.checked;
+    const start=pickupStart.value,end=pickupEnd.value;
+    if(enabled&&(!/^(?:[01]\d|2[0-3]):(?:00|15|30|45)$/.test(start)||!/^(?:[01]\d|2[0-3]):(?:00|15|30|45)$/.test(end)||start>=end)){
+      orderMessage.textContent='Imposta due orari validi, a intervalli di 15 minuti, con l’ora finale successiva a quella iniziale.';return;
+    }
+    try{
+      const response=await fetch('/api/ordini/configurazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fasce_ritiro_attive:enabled,ritiro_dalle:enabled?start:'',ritiro_alle:enabled?end:''})});
+      const data=await response.json();
+      if(!response.ok) throw new Error(data.error||'Salvataggio non riuscito.');
+      await loadOrdersConfig();
+      orderMessage.textContent=enabled?'Fasce di ritiro salvate.':'Ritiro con sola data salvato.';
+    }catch(error){orderMessage.textContent=error.message}
+  });
   const manualForm=document.getElementById('manualOrderForm');
   const manualLines=document.getElementById('manualOrderLines');
   const manualMessage=document.getElementById('manualOrderMessage');
   const manualDate=document.getElementById('manualOrderDate');
+  const manualPickupField=document.getElementById('manualPickupField');
+  const manualPickupSlot=document.getElementById('manualPickupSlot');
   manualDate.min=orderDate.value;
   manualDate.value=orderDate.value;
   manualDate.max=new Date(Date.parse(orderDate.value+'T12:00:00Z')+365*86400000).toISOString().slice(0,10);
+  function renderManualPickupSlots(){
+    manualPickupField.hidden=!pickupConfig.enabled;
+    manualPickupSlot.required=pickupConfig.enabled;
+    manualPickupSlot.replaceChildren(new Option('Scegli un orario',''));
+    if(!pickupConfig.enabled||!manualDate.value) return;
+    const start=Number(pickupConfig.start.slice(0,2))*60+Number(pickupConfig.start.slice(3));
+    const end=Number(pickupConfig.end.slice(0,2))*60+Number(pickupConfig.end.slice(3));
+    const now=new Date();
+    const [hour,minuteNow]=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now).split(':').map(Number);
+    const currentMinute=hour*60+minuteNow;
+    const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
+    for(let minute=start;minute<end;minute+=15){
+      if(manualDate.value===today&&minute<=currentMinute) continue;
+      const slot=String(Math.floor(minute/60)).padStart(2,'0')+':'+String(minute%60).padStart(2,'0');
+      manualPickupSlot.add(new Option(slot,slot));
+    }
+  }
+  manualDate.addEventListener('change',renderManualPickupSlots);
   let manualProducts=[];
   fetch('/api/prodotti').then(response=>response.json()).then(data=>{
     manualProducts=(data.items||[]).filter(item=>item.disponibile);
@@ -242,7 +300,7 @@
       const data=await response.json();
       if(!response.ok) throw new Error(data.error||'Registrazione non riuscita.');
       manualMessage.textContent='Ordine #'+data.ordine_id+' registrato.';
-      manualForm.reset();manualDate.value=manualDate.min;manualLines.replaceChildren();addManualLine();loadOrders();
+      manualForm.reset();manualDate.value=manualDate.min;renderManualPickupSlots();manualLines.replaceChildren();addManualLine();loadOrders();
     }catch(error){manualMessage.textContent=error.message}
   });
   document.getElementById('ordersRefresh').addEventListener('click',loadOrders);

@@ -33,10 +33,13 @@ def order_function(db):
 
 
 class FakeCursor:
-    def __init__(self, limit=0, active=True, table_active=False):
+    def __init__(self, limit=0, active=True, table_active=False, pickup_enabled=False, pickup_start=None, pickup_end=None):
         self.limit = limit
         self.active = active
         self.table_active = table_active
+        self.pickup_enabled = pickup_enabled
+        self.pickup_start = pickup_start
+        self.pickup_end = pickup_end
         self.query = ""
         self.statements = []
 
@@ -47,7 +50,7 @@ class FakeCursor:
         self.statements.append((query, params))
 
     def fetchone(self):
-        if "FROM negozi" in self.query: return (7, self.active, self.table_active, self.limit)
+        if "FROM negozi" in self.query: return (7, self.active, self.table_active, self.limit, self.pickup_enabled, self.pickup_start, self.pickup_end)
         if "data_richiesta=%s" in self.query: return (self.limit,)
         if "telefono_cliente=%s" in self.query: return (0,)
         if "origine='tavolo'" in self.query: return (0,)
@@ -60,7 +63,7 @@ class FakeCursor:
 
 
 class FakeConnection:
-    def __init__(self, limit=0, active=True, table_active=False): self.cur = FakeCursor(limit, active, table_active)
+    def __init__(self, limit=0, active=True, table_active=False, pickup_enabled=False, pickup_start=None, pickup_end=None): self.cur = FakeCursor(limit, active, table_active, pickup_enabled, pickup_start, pickup_end)
     def __enter__(self): return self
     def __exit__(self, *_): return False
     def cursor(self): return self.cur
@@ -117,13 +120,37 @@ def test_order_time_must_be_on_fifteen_minute_boundary():
 
 def test_valid_order_time_is_saved():
     data = payload(1)
+    data["data_richiesta"] = (datetime.now(ZoneInfo("Europe/Rome")).date() + timedelta(days=1)).isoformat()
     data["ora_richiesta"] = "12:15"
-    db = FakeConnection()
+    db = FakeConnection(pickup_enabled=True, pickup_start="12:00", pickup_end="13:00")
     with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
         response, status = order_function(db)("esempio")
     assert status == 201
     order = next(params for sql, params in db.cur.statements if "INSERT INTO ordini_menu" in sql)
     assert order[7] == "12:15"
+
+
+def test_date_only_shop_rejects_time():
+    data = payload(1)
+    data["ora_richiesta"] = "12:15"
+    db = FakeConnection()
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 400
+    assert "solo il giorno" in response.get_json()["error"]
+
+
+def test_time_slot_shop_requires_time_and_rejects_end_boundary():
+    db = FakeConnection(pickup_enabled=True, pickup_start="12:00", pickup_end="13:00")
+    data = payload(1)
+    data["data_richiesta"] = (datetime.now(ZoneInfo("Europe/Rome")).date() + timedelta(days=1)).isoformat()
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 400
+    data["ora_richiesta"] = "13:00"
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 400
 
 
 def test_table_order_requires_only_table_reference_and_does_not_use_takeaway_capacity():
