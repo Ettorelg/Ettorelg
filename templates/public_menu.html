@@ -159,6 +159,7 @@
         <form id="orderForm">
           <label>Data richiesta *<input name="data_richiesta" id="orderDate" type="date" required></label>
           <p id="orderAvailability" role="status"></p>
+          <label>Orario richiesto (facoltativo, ogni 15 minuti)<input name="ora_richiesta" type="time" step="900"></label>
           <label>Nome *<input name="nome" maxlength="120" minlength="2" required autocomplete="name" value="{{ customer_google.name if customer_google else '' }}"></label>
           <label>Telefono *<input name="telefono" type="tel" maxlength="40" minlength="6" required autocomplete="tel"></label>
           <label>Tavolo o riferimento (facoltativo)<input name="riferimento" maxlength="80" placeholder="Es. Tavolo 4 / Asporto"></label>
@@ -351,6 +352,7 @@
           riferimento:String(fields.get('riferimento') || '').trim(),
           note:String(fields.get('note') || '').trim(),
           data_richiesta:String(fields.get('data_richiesta') || ''),
+          ora_richiesta:String(fields.get('ora_richiesta') || ''),
           prodotti:[...orderCart.values()].map(item => ({id:item.id, quantita:item.quantita}))
         };
         try {

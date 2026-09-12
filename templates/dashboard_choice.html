@@ -29,17 +29,17 @@
   <main>
     <img class="logo" src="{{ url_for('static', filename='alpha-menu-logo.png') }}" alt="Alpha Menu">
     <h1>Bentornato, {{ username }}</h1>
-    <p class="intro">Scegli dove vuoi iniziare. Puoi sempre passare da una sezione all'altra nella dashboard.</p>
+    <p class="intro">Scegli se gestire il menu o aprire il banco di evasione degli ordini.</p>
     <div class="choices">
       <a class="choice" href="{{ url_for('dashboard_user') }}#home">
         <span class="icon" aria-hidden="true">☰</span>
         <strong>Dashboard del menu</strong>
         <span>Gestisci prodotti, categorie, grafica e impostazioni come sempre.</span>
       </a>
-      <a class="choice orders" href="{{ url_for('dashboard_user') }}#ordini">
+      <a class="choice orders" href="{{ url_for('fulfillment_dashboard') }}">
         <span class="icon" aria-hidden="true">🛎️</span>
         <strong>Ordini da evadere</strong>
-        <span>Apri gli ordini di oggi e consulta il riepilogo giorno per giorno.</span>
+        <span>Vedi cosa preparare oggi, raggruppato per giorno o fascia oraria.</span>
       </a>
     </div>
     <a class="logout" href="{{ url_for('logout') }}">Esci dall'account</a>

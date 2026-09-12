@@ -99,7 +99,29 @@ def test_owner_can_enter_order_when_online_orders_are_disabled():
         response, status = order_function(db)()
     assert status == 201
     order = next(params for sql, params in db.cur.statements if "INSERT INTO ordini_menu" in sql)
-    assert order[7] == "titolare"
+    assert order[8] == "titolare"
+
+
+def test_order_time_must_be_on_fifteen_minute_boundary():
+    data = payload(1)
+    data["ora_richiesta"] = "12:07"
+    db = FakeConnection()
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 400
+    assert "15 minuti" in response.get_json()["error"]
+    assert not db.cur.statements
+
+
+def test_valid_order_time_is_saved():
+    data = payload(1)
+    data["ora_richiesta"] = "12:15"
+    db = FakeConnection()
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 201
+    order = next(params for sql, params in db.cur.statements if "INSERT INTO ordini_menu" in sql)
+    assert order[7] == "12:15"
 
 
 def test_google_customer_login_does_not_create_owner_account():
@@ -119,3 +141,34 @@ def test_google_customer_login_does_not_create_owner_account():
         response = scope["auth_google_callback"]()
         assert response.location == "/menu/locale#orderPanel"
         assert session["customer_google"]["email"] == "cliente@example.it"
+
+
+def test_fulfillment_api_returns_only_shop_scoped_open_orders():
+    node = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "api_ordini_evasione"))
+    node.decorator_list = []
+    day = date.today()
+
+    class Cursor:
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def execute(self, sql, params):
+            assert "o.id_negozio=%s" in sql
+            assert "o.stato IN ('da_evadere','in_lavorazione')" in sql
+            assert params[0] == 7
+        def fetchall(self):
+            return [(19, day, "12:15", "Mario Rossi", "+39123456", "", "", "da_evadere", Decimal("6.00"), "cliente", "12/09/2026 09:00", "Articolo", Decimal("1.5"), Decimal("6.00"))]
+
+    db = SimpleNamespace(cursor=lambda: Cursor(), close=lambda: None)
+    scope = {
+        "request": request, "session": session, "jsonify": jsonify,
+        "date": date, "timedelta": timedelta,
+        "get_user_shop_id": lambda user_id: 7,
+        "psycopg2": SimpleNamespace(connect=lambda **kwargs: db),
+        "build_db_config": lambda: {},
+    }
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "app.py", "exec"), scope)
+    with FLASK.test_request_context("/api/ordini/evasione?periodo=giorno&data=" + day.isoformat()):
+        session["user_id"] = 11
+        result = scope["api_ordini_evasione"]().get_json()
+    assert result["ordini"][0]["ora_richiesta"] == "12:15"
+    assert result["ordini"][0]["prodotti"][0]["quantita"] == "1.5"

@@ -35,6 +35,7 @@
 <section class="orders-panel">
   <h2>Ordini del menu</h2>
   <p>Attiva le richieste dal menu pubblico. Il cliente invia l'ordine senza pagamento: <strong>devi confermarlo tu</strong> prima di prepararlo. Gli ordini restano visibili anche quando disattivi nuove richieste.</p>
+  <p><a href="{{ url_for('fulfillment_dashboard') }}" style="color:#a9d1ff;font-weight:800">Apri il riepilogo di evasione →</a></p>
   <div class="orders-activation">
     <div><strong>Ricezione ordini online</strong><p id="ordersState">Caricamento…</p></div>
     <button id="ordersToggle" type="button" disabled>Caricamento…</button>
@@ -52,6 +53,7 @@
         <label>Nome cliente <input name="nome" minlength="2" maxlength="120" required></label>
         <label>Telefono <input name="telefono" type="tel" minlength="6" maxlength="40" required></label>
         <label>Data richiesta <input name="data_richiesta" id="manualOrderDate" type="date" required></label>
+        <label>Orario richiesto (facoltativo) <input name="ora_richiesta" type="time" step="900"></label>
       </div>
       <label>Riferimento <input name="riferimento" maxlength="80"></label>
       <label>Note <textarea name="note" maxlength="500" rows="2"></textarea></label>
@@ -138,7 +140,7 @@
         const head=orderText(card,'div','', 'order-head');
         const heading=orderText(head,'div','');
         orderText(heading,'strong','#'+order.id+' · '+order.nome+' · '+names[order.stato]);
-        orderText(heading,'small','Per il '+order.data_richiesta+' · Inserito '+order.creato_il+(order.origine==='titolare'?' · Inserito dal titolare':''));
+        orderText(heading,'small','Per il '+order.data_richiesta+(order.ora_richiesta?' alle '+order.ora_richiesta:'')+' · Inserito '+order.creato_il+(order.origine==='titolare'?' · Inserito dal titolare':''));
         orderText(head,'strong','€ '+Number(order.totale).toFixed(2));
         const list=orderText(card,'ul','');
         for(const product of order.prodotti) orderText(list,'li',product.quantita+' × '+product.nome+' — € '+Number(product.totale).toFixed(2));
@@ -213,7 +215,7 @@
     const products=[...manualLines.querySelectorAll('.manual-line')].map(row=>({id:Number(row.querySelector('select').value),quantita:row.querySelector('input').value}));
     if(!products.length){manualMessage.textContent='Aggiungi almeno un articolo.';return}
     if(new Set(products.map(item=>item.id)).size!==products.length){manualMessage.textContent='Ogni articolo può comparire una sola volta: modifica la quantità.';return}
-    const payload={nome:fields.get('nome'),telefono:fields.get('telefono'),data_richiesta:fields.get('data_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),prodotti:products};
+    const payload={nome:fields.get('nome'),telefono:fields.get('telefono'),data_richiesta:fields.get('data_richiesta'),ora_richiesta:fields.get('ora_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),prodotti:products};
     manualMessage.textContent='Registrazione in corso…';
     try{
       const response=await fetch('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
