@@ -1047,6 +1047,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS fasce_ritiro_attive BOOLEAN NOT NULL DEFAULT FALSE")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ritiro_dalle TIME")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ritiro_alle TIME")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS unita_prezzo VARCHAR(6) NOT NULL DEFAULT 'pezzo' CHECK (unita_prezzo IN ('pezzo','kg'))")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS ordini_menu (
                         id BIGSERIAL PRIMARY KEY,
@@ -3818,7 +3819,7 @@ def api_crea_ordine_menu(slug: str | None = None):
                         if cur.fetchone()[0] >= 10:
                             return jsonify({"error": "Troppi ordini per questo tavolo. Riprova tra qualche minuto."}), 429
                 cur.execute("""
-                    SELECT p.id,p.nome,p.prezzo_euro
+                    SELECT p.id,p.nome,p.prezzo_euro,p.unita_prezzo
                     FROM prodotti p
                     JOIN categorie c ON c.id=p.id_categoria AND c.visibile=TRUE
                     LEFT JOIN sottocategorie sc ON sc.id=p.id_sottocategoria
@@ -3854,7 +3855,7 @@ def api_crea_ordine_menu(slug: str | None = None):
                         INSERT INTO righe_ordini_menu
                             (id_ordine,id_prodotto,nome_prodotto,quantita,prezzo_unitario,totale_riga)
                         VALUES (%s,%s,%s,%s,%s,%s)
-                    """, (order_id, product_id, row[1], quantity, row[2], line_totals[product_id]))
+                    """, (order_id, product_id, row[1] + (" (kg)" if row[3] == "kg" else ""), quantity, row[2], line_totals[product_id]))
         return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine registrato." if manual else ("Ordine al tavolo inviato." if mode == "tavolo" else "Ordine da asporto inviato. Il locale deve ancora confermarlo.")}), 201
     finally:
         conn.close()
@@ -4074,7 +4075,7 @@ def public_menu(slug: str):
                 SELECT p.id, p.nome, COALESCE(p.descrizione, ''), COALESCE(p.note, ''),
                        p.prezzo_euro, p.id_categoria, COALESCE(sc.id, 0), COALESCE(sc.nome, ''),
                        COALESCE(img.url, ''), COALESCE(p.etichette, ARRAY[]::TEXT[]),
-                       COALESCE(p.allergeni_auto, ARRAY[]::TEXT[]), p.disponibile
+                       COALESCE(p.allergeni_auto, ARRAY[]::TEXT[]), p.disponibile, p.unita_prezzo
                 FROM prodotti p
                 JOIN categorie c ON c.id = p.id_categoria AND c.visibile = TRUE
                 LEFT JOIN sottocategorie sc ON sc.id = p.id_sottocategoria
@@ -4112,7 +4113,7 @@ def public_menu(slug: str):
                     allergen_updates.append((detected_allergens, product[0]))
                 category["prodotti"].append({
                     "id": product[0], "nome": product[1], "descrizione": product[2],
-                    "note": product[3], "prezzo": f"{product[4]:.2f}".replace(".", ","),
+                    "note": product[3], "prezzo": f"{product[4]:.2f}".replace(".", ","), "unita_prezzo": product[12],
                     "sottocategoria_id": product[6], "sottocategoria": product[7],
                     "immagine_url": product[8] if shop["piano"] == "professional" else "",
                     "etichette": product[9] or [], "allergeni": detected_allergens, "disponibile": bool(product[11]),
@@ -4334,7 +4335,8 @@ def api_prodotti_list():
                     COALESCE(img.url, '') as immagine_url,
                     p.ordine, COALESCE(p.etichette, ARRAY[]::TEXT[]) as etichette,
                     COALESCE(p.note, '') as note,
-                    COALESCE(p.allergeni_auto, ARRAY[]::TEXT[]) as allergeni_auto
+                    COALESCE(p.allergeni_auto, ARRAY[]::TEXT[]) as allergeni_auto,
+                    p.unita_prezzo
                 FROM prodotti p
                 LEFT JOIN categorie c ON c.id = p.id_categoria
                 LEFT JOIN sottocategorie sc ON sc.id = p.id_sottocategoria
@@ -4361,6 +4363,7 @@ def api_prodotti_list():
                 "nome": r[1],
                 "descrizione": r[2] or "",
                 "prezzo_euro": str(r[3]),
+                "unita_prezzo": r[14],
                 "disponibile": bool(r[4]),
                 "id_categoria": r[5],
                 "categoria_nome": r[6] or "",
@@ -4449,6 +4452,7 @@ def api_prodotti_create():
     note = (request.form.get("note") or "").strip()
     allergeni_auto = detect_allergens(nome, descrizione)
     prezzo_euro = request.form.get("prezzo_euro")
+    unita_prezzo = (request.form.get("unita_prezzo") or "pezzo").strip()
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
     visibile_da = request.form.get("visibile_da") or None
     visibile_fino = request.form.get("visibile_fino") or None
@@ -4461,6 +4465,8 @@ def api_prodotti_create():
 
     if not nome:
         return jsonify({"error": "nome obbligatorio"}), 400
+    if unita_prezzo not in {"pezzo", "kg"}:
+        return jsonify({"error": "unità di prezzo non valida"}), 400
 
     try:
         prezzo_val = float(prezzo_euro)
@@ -4504,13 +4510,13 @@ def api_prodotti_create():
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, etichette, allergeni_auto)
+                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, etichette, allergeni_auto, unita_prezzo)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                         COALESCE(%s, (SELECT COALESCE(MAX(ordine), 0) + 10 FROM prodotti WHERE id_negozio = %s)),
-                        %s, %s
+                        %s, %s, %s
                     )
                     RETURNING id
-                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, shop_id, etichette, allergeni_auto))
+                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, shop_id, etichette, allergeni_auto, unita_prezzo))
                 new_id = cur.fetchone()[0]
 
                 # Senza un ordine manuale, mantieni l'ordine alfabetico nella categoria.
@@ -4571,9 +4577,9 @@ def api_prodotto_duplica(prodotto_id: int):
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, ordine, etichette, allergeni_auto)
+                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, ordine, etichette, allergeni_auto, unita_prezzo)
                     SELECT id_negozio, id_categoria, id_sottocategoria, LEFT(nome || ' COPIA', 100), descrizione, note,
-                           prezzo_euro, disponibile, COALESCE((SELECT MAX(ordine) + 10 FROM prodotti WHERE id_negozio=%s), 10), etichette, allergeni_auto
+                           prezzo_euro, disponibile, COALESCE((SELECT MAX(ordine) + 10 FROM prodotti WHERE id_negozio=%s), 10), etichette, allergeni_auto, unita_prezzo
                     FROM prodotti WHERE id=%s AND id_negozio=%s RETURNING id
                 """, (shop_id, prodotto_id, shop_id))
                 row = cur.fetchone()
@@ -4780,6 +4786,7 @@ def api_prodotti_update(prodotto_id: int):
     note = (request.form.get("note") or "").strip()
     allergeni_auto = detect_allergens(nome, descrizione)
     prezzo_euro = request.form.get("prezzo_euro")
+    unita_prezzo = (request.form.get("unita_prezzo") or "pezzo").strip()
     disponibile = (request.form.get("disponibile", "true").lower() == "true")
     visibile_da = request.form.get("visibile_da") or None
     visibile_fino = request.form.get("visibile_fino") or None
@@ -4793,6 +4800,8 @@ def api_prodotti_update(prodotto_id: int):
 
     if not nome:
         return jsonify({"error": "nome obbligatorio"}), 400
+    if unita_prezzo not in {"pezzo", "kg"}:
+        return jsonify({"error": "unità di prezzo non valida"}), 400
 
     try:
         prezzo_val = float(prezzo_euro)
@@ -4840,10 +4849,10 @@ def api_prodotti_update(prodotto_id: int):
 
                 cur.execute("""
                     UPDATE prodotti
-                    SET id_categoria=%s, id_sottocategoria=%s, nome=%s, descrizione=%s, note=%s, prezzo_euro=%s, disponibile=%s,
+                    SET id_categoria=%s, id_sottocategoria=%s, nome=%s, descrizione=%s, note=%s, prezzo_euro=%s, disponibile=%s, unita_prezzo=%s,
                         visibile_da=%s, visibile_fino=%s, ora_inizio=%s, ora_fine=%s, ordine=COALESCE(%s, ordine), etichette=%s, allergeni_auto=%s
                     WHERE id=%s
-                """, (id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, etichette, allergeni_auto, prodotto_id))
+                """, (id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, unita_prezzo, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, etichette, allergeni_auto, prodotto_id))
 
                 # immagine principale: gestisci remove / sostituzione
                 cur.execute("SELECT id, url FROM immagini_prodotti WHERE id_prodotto=%s AND principale=TRUE LIMIT 1", (prodotto_id,))

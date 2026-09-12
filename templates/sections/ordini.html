@@ -281,8 +281,10 @@
   function addManualLine(){
     const row=document.createElement('div');row.className='manual-line';
     const select=document.createElement('select');select.required=true;
-    for(const product of manualProducts){const option=document.createElement('option');option.value=String(product.id);option.textContent=product.nome+' · € '+product.prezzo_euro;select.appendChild(option)}
+    for(const product of manualProducts){const option=document.createElement('option');option.value=String(product.id);option.textContent=product.nome+' · € '+product.prezzo_euro+(product.unita_prezzo==='kg'?' / kg':'');select.appendChild(option)}
     const quantity=document.createElement('input');quantity.type='number';quantity.min='0.001';quantity.max='999';quantity.step='0.001';quantity.value='1';quantity.required=true;quantity.setAttribute('aria-label','Quantità');
+    const updateQuantityLabel=()=>{const product=manualProducts.find(item=>String(item.id)===select.value);quantity.setAttribute('aria-label',product?.unita_prezzo==='kg'?'Peso in kg':'Quantità')};
+    select.addEventListener('change',updateQuantityLabel);updateQuantityLabel();
     const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','Rimuovi articolo');remove.addEventListener('click',()=>row.remove());
     row.append(select,quantity,remove);manualLines.appendChild(row);
   }

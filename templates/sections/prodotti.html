@@ -109,6 +109,10 @@
       <label>Prezzo (€) *</label>
       <input id="prezzo_euro" type="number" min="0" step="0.01" required inputmode="decimal" placeholder="Es. 7.50" />
     </div>
+    <div class="field" style="max-width:240px">
+      <label>Prezzo riferito a</label>
+      <select id="unita_prezzo"><option value="pezzo">Un pezzo / porzione</option><option value="kg">Un chilogrammo (€/kg)</option></select>
+    </div>
 
     <div class="field" style="max-width:240px">
       <label>Disponibile</label>
@@ -393,7 +397,7 @@
             </div>
           </td>
           <td>${escapeHtml(cat)}${escapeHtml(sub)}</td>
-          <td class="right">€ ${escapeHtml(p.prezzo_euro)}</td>
+          <td class="right">€ ${escapeHtml(p.prezzo_euro)}${p.unita_prezzo === 'kg' ? ' / kg' : ''}</td>
           <td>${badge}</td>
           <td class="right">
             <button class="btn" type="button" onclick="toggleAvailability(${p.id})">${p.disponibile ? "⏸ Esaurito" : "▶ Disponibile"}</button>
@@ -422,6 +426,7 @@
       f("id").value = "";
       f("nome").value = "";
       f("prezzo_euro").value = "";
+      f("unita_prezzo").value = "pezzo";
       f("descrizione").value = "";
       f("note").value = "";
       renderDetectedAllergens([]);
@@ -452,6 +457,7 @@
       f("id").value = p.id;
       f("nome").value = p.nome;
       f("prezzo_euro").value = p.prezzo_euro;
+      f("unita_prezzo").value = p.unita_prezzo || "pezzo";
       f("descrizione").value = p.descrizione || "";
       f("note").value = p.note || "";
       renderDetectedAllergens(p.allergeni_auto || []);
@@ -824,6 +830,7 @@
     const fd = new FormData();
     fd.append("nome", f("nome").value.trim());
     fd.append("prezzo_euro", f("prezzo_euro").value.trim());
+    fd.append("unita_prezzo", f("unita_prezzo").value);
     fd.append("descrizione", f("descrizione").value.trim());
     fd.append("note", f("note").value.trim());
     fd.append("disponibile", f("disponibile").value === "true" ? "true" : "false");

@@ -33,13 +33,14 @@ def order_function(db):
 
 
 class FakeCursor:
-    def __init__(self, limit=0, active=True, table_active=False, pickup_enabled=False, pickup_start=None, pickup_end=None):
+    def __init__(self, limit=0, active=True, table_active=False, pickup_enabled=False, pickup_start=None, pickup_end=None, product_unit="pezzo"):
         self.limit = limit
         self.active = active
         self.table_active = table_active
         self.pickup_enabled = pickup_enabled
         self.pickup_start = pickup_start
         self.pickup_end = pickup_end
+        self.product_unit = product_unit
         self.query = ""
         self.statements = []
 
@@ -58,12 +59,12 @@ class FakeCursor:
         raise AssertionError(self.query)
 
     def fetchall(self):
-        if "FROM prodotti p" in self.query: return [(3, "Articolo", Decimal("4.00"))]
+        if "FROM prodotti p" in self.query: return [(3, "Articolo", Decimal("4.00"), self.product_unit)]
         raise AssertionError(self.query)
 
 
 class FakeConnection:
-    def __init__(self, limit=0, active=True, table_active=False, pickup_enabled=False, pickup_start=None, pickup_end=None): self.cur = FakeCursor(limit, active, table_active, pickup_enabled, pickup_start, pickup_end)
+    def __init__(self, limit=0, active=True, table_active=False, pickup_enabled=False, pickup_start=None, pickup_end=None, product_unit="pezzo"): self.cur = FakeCursor(limit, active, table_active, pickup_enabled, pickup_start, pickup_end, product_unit)
     def __enter__(self): return self
     def __exit__(self, *_): return False
     def cursor(self): return self.cur
@@ -85,6 +86,17 @@ def test_decimal_quantity_is_saved_with_exact_total():
     assert status == 201
     assert response.get_json()["totale"] == "6.00"
     line = next(params for sql, params in db.cur.statements if "INSERT INTO righe_ordini_menu" in sql)
+    assert line[3] == Decimal("1.5")
+
+
+def test_kilogram_product_uses_weight_and_labels_order_line():
+    db = FakeConnection(product_unit="kg")
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=payload("1,5")):
+        response, status = order_function(db)("esempio")
+    assert status == 201
+    assert response.get_json()["totale"] == "6.00"
+    line = next(params for sql, params in db.cur.statements if "INSERT INTO righe_ordini_menu" in sql)
+    assert line[2] == "Articolo (kg)"
     assert line[3] == Decimal("1.5")
 
 

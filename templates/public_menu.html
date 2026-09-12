@@ -128,7 +128,7 @@
           {% set product_subcategory = product.sottocategoria or '' %}
           {% if product_subcategory and product_subcategory != subcategory_state.current %}<div class="print-subcategory-separator">{{ product_subcategory }}</div>{% endif %}
           {% set subcategory_state.current = product_subcategory %}
-          <article class="product{% if product.immagine_url %} with-image{% endif %}{% if not product.disponibile %} sold-out{% endif %}" role="button" tabindex="0" aria-label="Apri dettagli di {{ product.nome }}" data-product-open data-track-url="{{ url_for('track_product_open', slug=shop.slug, product_id=product.id, lang=language) }}" data-search="{{ (product.nome ~ ' ' ~ product.descrizione ~ ' ' ~ product.note)|lower|e }}" data-labels="{{ product.etichette|join('|')|lower|e }}" data-allergens="{{ product.allergeni|join('|')|lower|e }}" data-available="{{ 'true' if product.disponibile else 'false' }}" data-order-id="{{ product.id }}" data-order-name="{{ product.nome|e }}" data-order-price="{{ product.prezzo|replace(',', '.') }}">
+          <article class="product{% if product.immagine_url %} with-image{% endif %}{% if not product.disponibile %} sold-out{% endif %}" role="button" tabindex="0" aria-label="Apri dettagli di {{ product.nome }}" data-product-open data-track-url="{{ url_for('track_product_open', slug=shop.slug, product_id=product.id, lang=language) }}" data-search="{{ (product.nome ~ ' ' ~ product.descrizione ~ ' ' ~ product.note)|lower|e }}" data-labels="{{ product.etichette|join('|')|lower|e }}" data-allergens="{{ product.allergeni|join('|')|lower|e }}" data-available="{{ 'true' if product.disponibile else 'false' }}" data-order-id="{{ product.id }}" data-order-name="{{ product.nome|e }}" data-order-price="{{ product.prezzo|replace(',', '.') }}" data-order-unit="{{ product.unita_prezzo }}">
             {% if product.immagine_url %}<img src="{{ product.immagine_url }}" alt="{{ product.nome }}" loading="lazy">{% endif %}
             <div>
               {% if product.sottocategoria %}<span class="subcat">{{ product.sottocategoria }}</span>{% endif %}
@@ -140,7 +140,7 @@
               </div>{% endif %}
               {% if product.allergeni %}<div class="allergen-line" aria-label="Allergeni: {{ product.allergeni|join(', ') }}"><strong><span aria-hidden="true">⚠</span> Allergeni:</strong>{% for allergen in product.allergeni %}<span class="chip allergen">{{ allergen }}</span>{% endfor %}</div>{% endif %}
             </div>
-            <div class="price">€ {{ product.prezzo }}{% if not product.disponibile %}<span class="sold-out-badge">{{ ui.sold_out }}</span>{% endif %}</div><span class="product-open-hint">Tocca per i dettagli</span>
+            <div class="price">€ {{ product.prezzo }}{% if product.unita_prezzo == 'kg' %} / kg{% endif %}{% if not product.disponibile %}<span class="sold-out-badge">{{ ui.sold_out }}</span>{% endif %}</div><span class="product-open-hint">Tocca per i dettagli</span>
           </article>
           {% endfor %}
         </div>
@@ -313,11 +313,11 @@
           const row = document.createElement('div');
           row.className = 'order-line';
           const name = document.createElement('span');
-          name.textContent = item.nome + ' · € ' + money(item.prezzoCentesimi * item.quantita);
+          name.textContent = item.nome + ' · ' + item.quantita.toLocaleString('it-IT') + (item.unita==='kg'?' kg':'') + ' · € ' + money(item.prezzoCentesimi * item.quantita);
           const controls = document.createElement('div');
           const quantity = document.createElement('input');
           quantity.type='number'; quantity.min='0.001'; quantity.max='999'; quantity.step='0.001';
-          quantity.value=String(item.quantita); quantity.setAttribute('aria-label','Quantità di '+item.nome);
+          quantity.value=String(item.quantita); quantity.setAttribute('aria-label',(item.unita==='kg'?'Peso in kg di ':'Quantità di ')+item.nome);
           quantity.addEventListener('change',()=>{
             const value=Number(quantity.value);
             if(value>=0.001 && value<=999 && Math.abs(Math.round(value*1000)-value*1000)<1e-6) item.quantita=value;
@@ -352,7 +352,7 @@
           const id = Number(card.dataset.orderId);
           const current = orderCart.get(id);
           if (current) current.quantita = Math.min(current.quantita + 1, 999);
-          else orderCart.set(id, {id, nome:card.dataset.orderName, prezzoCentesimi:Math.round(Number(card.dataset.orderPrice)*100), quantita:1});
+          else orderCart.set(id, {id, nome:card.dataset.orderName, prezzoCentesimi:Math.round(Number(card.dataset.orderPrice)*100), unita:card.dataset.orderUnit, quantita:1});
           orderFeedback.textContent = '';
           renderOrderCart();
         });
