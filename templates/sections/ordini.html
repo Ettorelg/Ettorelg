@@ -7,7 +7,7 @@
   .orders-activation p{margin:5px 0 0}
   .orders-settings,.orders-manual{border:1px solid rgba(255,255,255,.14);border-radius:15px;background:rgba(255,255,255,.04);padding:16px;margin:12px 0}
   .orders-settings label,.orders-manual label{display:grid;gap:5px;color:#c6d3f2;font-size:.86rem}
-  .orders-settings input:not([type=checkbox]),.orders-manual input,.orders-manual select,.orders-manual textarea{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
+  .orders-settings input:not([type=checkbox]),.orders-settings select,.orders-manual input,.orders-manual select,.orders-manual textarea{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
   .orders-settings .pickup-toggle{display:flex;align-items:center;gap:9px;margin:12px 0}.orders-settings .pickup-toggle input{width:19px;height:19px;accent-color:#6ea8fe}
   .pickup-hours{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.pickup-hours[hidden],.orders-manual [hidden]{display:none!important}.pickup-hours label{min-width:140px}
   .orders-settings button,.orders-manual button{border:1px solid #6ea8fe;border-radius:10px;background:#234e86;color:#fff;padding:10px 14px;font:700 .9rem system-ui;cursor:pointer}
@@ -54,11 +54,14 @@
   </div>
   <div class="orders-settings">
     <strong>Orario di ritiro per gli ordini da asporto</strong>
-    <p>Per un pastificio puoi richiedere solo il giorno. Per una pizzeria puoi mostrare fasce di 15 minuti comprese tra l'ora iniziale e quella finale (esclusa). Il limite giornaliero resta valido in entrambi i casi.</p>
+    <p>Per un pastificio puoi richiedere solo il giorno. Per una pizzeria puoi mostrare fasce di 15, 20 o 30 minuti. Puoi limitare gli ordini oppure la quantità totale di articoli per fascia; per i prodotti a peso, 1,5 kg conta come 1,5. Imposta 0 per nessun limite per fascia. L'ora finale è esclusa e il limite giornaliero resta valido.</p>
     <label class="pickup-toggle"><input id="pickupSlotsEnabled" type="checkbox"> Chiedi anche una fascia oraria</label>
     <div class="pickup-hours" id="pickupHours">
-      <label>Dalle <input id="pickupStart" type="time" step="900" value="18:00"></label>
-      <label>Alle <input id="pickupEnd" type="time" step="900" value="23:00"></label>
+      <label>Dalle <input id="pickupStart" type="time" step="300" value="18:00"></label>
+      <label>Alle <input id="pickupEnd" type="time" step="300" value="23:00"></label>
+      <label>Durata fascia <select id="pickupMinutes"><option value="15">15 minuti</option><option value="20">20 minuti</option><option value="30">30 minuti</option></select></label>
+      <label>Limite per fascia <input id="pickupCapacity" type="number" min="0" max="10000" step="0.001" value="0"></label>
+      <label>Limita <select id="pickupCriterion"><option value="ordini">Numero di ordini</option><option value="articoli">Quantità totale di articoli</option></select></label>
     </div>
     <button id="pickupSave" type="button">Salva modalità di ritiro</button>
   </div>
@@ -105,6 +108,9 @@
   const pickupHours=document.getElementById('pickupHours');
   const pickupStart=document.getElementById('pickupStart');
   const pickupEnd=document.getElementById('pickupEnd');
+  const pickupMinutes=document.getElementById('pickupMinutes');
+  const pickupCapacity=document.getElementById('pickupCapacity');
+  const pickupCriterion=document.getElementById('pickupCriterion');
   let ordersActive = false;
   let tableOrdersActive = false;
   let pickupConfig={enabled:false,start:'',end:''};
@@ -135,10 +141,13 @@
     ordersActive=data.asporto_attivi;
     tableOrdersActive=data.tavolo_attivi;
     ordersLimit.value=String(data.limite_giornaliero);
-    pickupConfig={enabled:data.fasce_ritiro_attive,start:data.ritiro_dalle||'',end:data.ritiro_alle||''};
+    pickupConfig={enabled:data.fasce_ritiro_attive,start:data.ritiro_dalle||'',end:data.ritiro_alle||'',minutes:data.minuti_fascia_ritiro||15};
     pickupSlotsEnabled.checked=pickupConfig.enabled;
     pickupStart.value=pickupConfig.start||'18:00';
     pickupEnd.value=pickupConfig.end||'23:00';
+    pickupMinutes.value=String(pickupConfig.minutes);
+    pickupCapacity.value=String(data.limite_fascia_ritiro||0);
+    pickupCriterion.value=data.criterio_limite_fascia||'ordini';
     pickupHours.hidden=!pickupConfig.enabled;
     renderManualPickupSlots();
     orderState.textContent=ordersActive ? 'Attivi: il cliente può scegliere una data per l’asporto.' : 'Disattivati: il menu resta consultabile.';
@@ -235,11 +244,18 @@
   document.getElementById('pickupSave').addEventListener('click',async()=>{
     const enabled=pickupSlotsEnabled.checked;
     const start=pickupStart.value,end=pickupEnd.value;
-    if(enabled&&(!/^(?:[01]\d|2[0-3]):(?:00|15|30|45)$/.test(start)||!/^(?:[01]\d|2[0-3]):(?:00|15|30|45)$/.test(end)||start>=end)){
-      orderMessage.textContent='Imposta due orari validi, a intervalli di 15 minuti, con l’ora finale successiva a quella iniziale.';return;
+    const minutes=Number(pickupMinutes.value),capacity=Number(pickupCapacity.value),criterion=pickupCriterion.value;
+    const timePattern=/^(?:[01]\d|2[0-3]):[0-5]\d$/;
+    const startValue=Number(start.slice(0,2))*60+Number(start.slice(3));
+    const endValue=Number(end.slice(0,2))*60+Number(end.slice(3));
+    if(![15,20,30].includes(minutes)||!Number.isFinite(capacity)||capacity<0||capacity>10000||Math.round(capacity*1000)!==capacity*1000||(criterion==='ordini'&&!Number.isInteger(capacity))){
+      orderMessage.textContent='Imposta un limite valido: numero intero per gli ordini, fino a tre decimali per gli articoli.';return;
+    }
+    if(enabled&&(!timePattern.test(start)||!timePattern.test(end)||startValue%5||endValue%5||endValue<=startValue||(endValue-startValue)%minutes)){
+      orderMessage.textContent='L’intervallo deve contenere fasce complete della durata scelta (15, 20 o 30 minuti).';return;
     }
     try{
-      const response=await fetch('/api/ordini/configurazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fasce_ritiro_attive:enabled,ritiro_dalle:enabled?start:'',ritiro_alle:enabled?end:''})});
+      const response=await fetch('/api/ordini/configurazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fasce_ritiro_attive:enabled,ritiro_dalle:enabled?start:'',ritiro_alle:enabled?end:'',minuti_fascia_ritiro:minutes,limite_fascia_ritiro:capacity,criterio_limite_fascia:criterion})});
       const data=await response.json();
       if(!response.ok) throw new Error(data.error||'Salvataggio non riuscito.');
       await loadOrdersConfig();
@@ -266,10 +282,12 @@
     const [hour,minuteNow]=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now).split(':').map(Number);
     const currentMinute=hour*60+minuteNow;
     const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
-    for(let minute=start;minute<end;minute+=15){
+    for(let minute=start;minute<end;minute+=pickupConfig.minutes){
       if(manualDate.value===today&&minute<=currentMinute) continue;
       const slot=String(Math.floor(minute/60)).padStart(2,'0')+':'+String(minute%60).padStart(2,'0');
-      manualPickupSlot.add(new Option(slot,slot));
+      const endMinute=minute+pickupConfig.minutes;
+      const endSlot=String(Math.floor(endMinute/60)).padStart(2,'0')+':'+String(endMinute%60).padStart(2,'0');
+      manualPickupSlot.add(new Option(slot+'–'+endSlot,slot));
     }
   }
   manualDate.addEventListener('change',renderManualPickupSlots);

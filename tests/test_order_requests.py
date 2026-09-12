@@ -32,8 +32,21 @@ def order_function(db):
     return scope["api_crea_ordine_menu"]
 
 
+def availability_function(db):
+    node = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "api_disponibilita_ordini"))
+    node.decorator_list = []
+    scope = {
+        "request": request, "jsonify": jsonify, "date": date, "datetime": datetime,
+        "timedelta": timedelta, "ZoneInfo": ZoneInfo, "Decimal": Decimal,
+        "psycopg2": SimpleNamespace(connect=lambda **kwargs: db),
+        "build_db_config": lambda: {},
+    }
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "app.py", "exec"), scope)
+    return scope["api_disponibilita_ordini"]
+
+
 class FakeCursor:
-    def __init__(self, limit=0, active=True, table_active=False, pickup_enabled=False, pickup_start=None, pickup_end=None, product_unit="pezzo"):
+    def __init__(self, limit=0, active=True, table_active=False, pickup_enabled=False, pickup_start=None, pickup_end=None, product_unit="pezzo", pickup_minutes=15, pickup_capacity=Decimal("0"), pickup_criterion="ordini", used_slot_orders=0, used_slot_articles=Decimal("0"), slot_rows=None):
         self.limit = limit
         self.active = active
         self.table_active = table_active
@@ -41,6 +54,12 @@ class FakeCursor:
         self.pickup_start = pickup_start
         self.pickup_end = pickup_end
         self.product_unit = product_unit
+        self.pickup_minutes = pickup_minutes
+        self.pickup_capacity = pickup_capacity
+        self.pickup_criterion = pickup_criterion
+        self.used_slot_orders = used_slot_orders
+        self.used_slot_articles = used_slot_articles
+        self.slot_rows = slot_rows or []
         self.query = ""
         self.statements = []
 
@@ -51,7 +70,10 @@ class FakeCursor:
         self.statements.append((query, params))
 
     def fetchone(self):
-        if "FROM negozi" in self.query: return (7, self.active, self.table_active, self.limit, self.pickup_enabled, self.pickup_start, self.pickup_end)
+        if "FROM negozi" in self.query and "ordini_tavolo_attivi" not in self.query:
+            return (7, self.active, self.limit, self.pickup_enabled, self.pickup_start, self.pickup_end, self.pickup_minutes, self.pickup_capacity, self.pickup_criterion)
+        if "FROM negozi" in self.query: return (7, self.active, self.table_active, self.limit, self.pickup_enabled, self.pickup_start, self.pickup_end, self.pickup_minutes, self.pickup_capacity, self.pickup_criterion)
+        if "COUNT(DISTINCT o.id)" in self.query: return (self.used_slot_orders, self.used_slot_articles)
         if "data_richiesta=%s" in self.query: return (self.limit,)
         if "telefono_cliente=%s" in self.query: return (0,)
         if "origine='tavolo'" in self.query: return (0,)
@@ -59,12 +81,13 @@ class FakeCursor:
         raise AssertionError(self.query)
 
     def fetchall(self):
+        if "GROUP BY o.ora_richiesta" in self.query: return self.slot_rows
         if "FROM prodotti p" in self.query: return [(3, "Articolo", Decimal("4.00"), self.product_unit)]
         raise AssertionError(self.query)
 
 
 class FakeConnection:
-    def __init__(self, limit=0, active=True, table_active=False, pickup_enabled=False, pickup_start=None, pickup_end=None, product_unit="pezzo"): self.cur = FakeCursor(limit, active, table_active, pickup_enabled, pickup_start, pickup_end, product_unit)
+    def __init__(self, **kwargs): self.cur = FakeCursor(**kwargs)
     def __enter__(self): return self
     def __exit__(self, *_): return False
     def cursor(self): return self.cur
@@ -119,14 +142,14 @@ def test_owner_can_enter_order_when_online_orders_are_disabled():
     assert order[8] == "titolare"
 
 
-def test_order_time_must_be_on_fifteen_minute_boundary():
+def test_order_time_must_be_on_five_minute_boundary():
     data = payload(1)
     data["ora_richiesta"] = "12:07"
     db = FakeConnection()
     with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
         response, status = order_function(db)("esempio")
     assert status == 400
-    assert "15 minuti" in response.get_json()["error"]
+    assert "5 minuti" in response.get_json()["error"]
     assert not db.cur.statements
 
 
@@ -140,6 +163,52 @@ def test_valid_order_time_is_saved():
     assert status == 201
     order = next(params for sql, params in db.cur.statements if "INSERT INTO ordini_menu" in sql)
     assert order[7] == "12:15"
+
+
+def test_twenty_minute_slots_accept_only_configured_start_times():
+    data = payload(1)
+    data["data_richiesta"] = (datetime.now(ZoneInfo("Europe/Rome")).date() + timedelta(days=1)).isoformat()
+    data["ora_richiesta"] = "12:20"
+    db = FakeConnection(pickup_enabled=True, pickup_start="12:00", pickup_end="13:00", pickup_minutes=20)
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 201
+    data["ora_richiesta"] = "12:15"
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 400
+
+
+def test_slot_order_limit_rejects_full_slot():
+    data = payload(1)
+    data["data_richiesta"] = (datetime.now(ZoneInfo("Europe/Rome")).date() + timedelta(days=1)).isoformat()
+    data["ora_richiesta"] = "12:00"
+    db = FakeConnection(pickup_enabled=True, pickup_start="12:00", pickup_end="13:00", pickup_capacity=Decimal("2"), used_slot_orders=2)
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 409
+    assert "capienza" in response.get_json()["error"]
+
+
+def test_slot_article_limit_counts_decimal_quantities():
+    data = payload("1,5")
+    data["data_richiesta"] = (datetime.now(ZoneInfo("Europe/Rome")).date() + timedelta(days=1)).isoformat()
+    data["ora_richiesta"] = "12:00"
+    db = FakeConnection(pickup_enabled=True, pickup_start="12:00", pickup_end="13:00", pickup_capacity=Decimal("3"), pickup_criterion="articoli", used_slot_articles=Decimal("2"))
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        response, status = order_function(db)("esempio")
+    assert status == 409
+
+
+def test_availability_returns_only_slots_with_capacity_for_cart():
+    tomorrow = (datetime.now(ZoneInfo("Europe/Rome")).date() + timedelta(days=1)).isoformat()
+    db = FakeConnection(pickup_enabled=True, pickup_start="12:00", pickup_end="13:00", pickup_minutes=20,
+                        pickup_capacity=Decimal("3"), pickup_criterion="articoli",
+                        slot_rows=[("12:00", 1, Decimal("2")), ("12:20", 1, Decimal("1"))])
+    with FLASK.test_request_context("/api/menu/esempio/ordini/disponibilita?data=" + tomorrow + "&articoli=1.5"):
+        response = availability_function(db)("esempio")
+    assert response.get_json()["fasce"] == ["12:20", "12:40"]
+    assert response.get_json()["minuti_fascia_ritiro"] == 20
 
 
 def test_date_only_shop_rejects_time():

@@ -281,25 +281,34 @@
       orderDate.value = todayRome;
       let orderDateAvailable = true;
       let pickupSlotsRequired = false;
+      let availabilityRequestId = 0;
       async function checkOrderDate(){
         if(orderMode!=='asporto') return;
         const checkedDate=orderDate.value;
+        const requestId=++availabilityRequestId;
         orderDateAvailable = false;
         orderSubmit.disabled = true;
         orderAvailability.textContent = 'Controllo disponibilità…';
         try {
-          const response = await fetch({{ url_for('api_disponibilita_ordini', slug=shop.slug)|tojson }}+'?data='+encodeURIComponent(checkedDate));
+          const articles=[...orderCart.values()].reduce((sum,item)=>sum+item.quantita,0);
+          const response = await fetch({{ url_for('api_disponibilita_ordini', slug=shop.slug)|tojson }}+'?data='+encodeURIComponent(checkedDate)+'&articoli='+encodeURIComponent(articles.toFixed(3)));
           const info = await response.json();
-          if(checkedDate!==orderDate.value) return;
+          if(requestId!==availabilityRequestId||checkedDate!==orderDate.value||orderMode!=='asporto') return;
           if (!response.ok) throw new Error(info.error || 'Disponibilità non verificabile.');
           pickupSlotsRequired=info.fasce_ritiro_attive;
           orderPickupField.hidden=!pickupSlotsRequired;
           orderPickupSlot.required=pickupSlotsRequired;
+          const previousSlot=orderPickupSlot.value;
           orderPickupSlot.replaceChildren(new Option('Scegli un orario',''));
-          for(const slot of info.fasce || []) orderPickupSlot.add(new Option(slot,slot));
+          for(const slot of info.fasce || []){
+            const minute=Number(slot.slice(0,2))*60+Number(slot.slice(3))+Number(info.minuti_fascia_ritiro||15);
+            const end=String(Math.floor(minute/60)).padStart(2,'0')+':'+String(minute%60).padStart(2,'0');
+            orderPickupSlot.add(new Option(slot+'–'+end,slot));
+          }
+          if((info.fasce || []).includes(previousSlot)) orderPickupSlot.value=previousSlot;
           orderDateAvailable = info.disponibile;
           orderAvailability.textContent = info.disponibile ? (info.posti_rimanenti === null ? 'Data disponibile.' : 'Data disponibile: '+info.posti_rimanenti+' ordini ancora possibili.') : (pickupSlotsRequired && !(info.fasce || []).length ? 'Nessun orario di ritiro disponibile per questa data.' : 'Data completa: scegline un’altra.');
-        } catch (error) { if(checkedDate===orderDate.value) orderAvailability.textContent = error.message; }
+        } catch (error) { if(requestId===availabilityRequestId&&checkedDate===orderDate.value) orderAvailability.textContent = error.message; }
         renderOrderCart();
       }
       orderDate.addEventListener('change', checkOrderDate);
@@ -322,10 +331,11 @@
             const value=Number(quantity.value);
             if(value>=0.001 && value<=999 && Math.abs(Math.round(value*1000)-value*1000)<1e-6) item.quantita=value;
             renderOrderCart();
+            if(orderMode==='asporto') checkOrderDate();
           });
           const remove=document.createElement('button');
           remove.type='button'; remove.textContent='×'; remove.setAttribute('aria-label','Rimuovi '+item.nome);
-          remove.addEventListener('click',()=>{orderCart.delete(item.id);renderOrderCart()});
+          remove.addEventListener('click',()=>{orderCart.delete(item.id);renderOrderCart();if(orderMode==='asporto')checkOrderDate()});
           controls.append(quantity,remove);
           row.append(name, controls);
           orderLines.appendChild(row);
@@ -355,6 +365,7 @@
           else orderCart.set(id, {id, nome:card.dataset.orderName, prezzoCentesimi:Math.round(Number(card.dataset.orderPrice)*100), unita:card.dataset.orderUnit, quantita:1});
           orderFeedback.textContent = '';
           renderOrderCart();
+          if(orderMode==='asporto') checkOrderDate();
         });
         card.appendChild(button);
         orderAddButtons.push(button);
