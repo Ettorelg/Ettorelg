@@ -205,6 +205,16 @@ def test_public_menu_keeps_order_form_closed_until_products_are_selected():
     assert '{{ ui.book }}' not in html
 
 
+def test_public_order_google_action_and_estimated_total_are_prominent():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
+    assert 'class="google-signin" href="{{ url_for(\'auth_google_order\', slug=shop.slug) }}"' in html
+    assert '<span>Accedi con Google</span>' in html
+    assert 'id="orderGoogleInfo" hidden' in html
+    assert 'id="orderTotal"' in html
+    assert '#orderTotal{display:block' in html
+    assert 'font-size:clamp(1.15rem,3vw,1.42rem)' in html
+
+
 def test_kilogram_product_uses_weight_and_labels_order_line():
     db = FakeConnection(product_unit="kg")
     with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=payload("1,5")):
