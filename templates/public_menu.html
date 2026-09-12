@@ -380,7 +380,7 @@
         button.textContent = '+ Aggiungi all’ordine';
         button.addEventListener('click', event => {
           event.stopPropagation();
-          if(orderMode==='view')setOrderMode('asporto');
+          if(orderMode==='view')return;
           const id = Number(card.dataset.orderId);
           const current = orderCart.get(id);
           if (current) current.quantita = Math.min(current.quantita + 1, 999);
@@ -410,7 +410,7 @@
         for(const field of orderForm.querySelectorAll('input[name="data_richiesta"],input[name="nome"],input[name="telefono"]')) field.required=mode==='asporto';
         orderForm.querySelector('input[name="tavolo"]').required=mode==='tavolo';
         orderPrivacyField.querySelector('input').required=mode==='asporto';
-        orderAddButtons.forEach(button=>button.hidden=mode==='view'&&!orderTakeawayStart);
+        orderAddButtons.forEach(button=>button.hidden=mode==='view');
         orderFeedback.textContent='';
         orderDateAvailable=mode!=='asporto';
         renderOrderCart();

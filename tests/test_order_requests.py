@@ -199,10 +199,20 @@ def test_public_menu_keeps_order_form_closed_until_products_are_selected():
     assert 'id="orderCartPreviewTotal"' in html
     assert 'id="orderCartOpen" type="button">Prenota un ordine' in html
     assert "if(orderCart.size&&!orderPanel.open){orderPanel.showModal()" in html
-    assert "if(orderMode==='view')setOrderMode('asporto')" in html
+    assert "if(orderMode==='view')return" in html
+    assert "orderAddButtons.forEach(button=>button.hidden=mode==='view')" in html
     assert "button.classList.toggle('selected',Boolean(selected))" in html
     assert "orderPanel.hidden=mode==='view'" not in html
     assert '{{ ui.book }}' not in html
+
+
+def test_public_menu_view_mode_is_read_only_and_takeaway_mode_allows_ordering():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
+    assert "showMenu.addEventListener('click', () => openMenu('view'))" in html
+    assert "orderTakeawayStart?.addEventListener('click', () => openMenu('asporto'))" in html
+    assert "orderAddButtons.forEach(button=>button.hidden=mode==='view')" in html
+    assert "if(orderMode==='view')return" in html
+    assert "if(orderMode==='view')setOrderMode('asporto')" not in html
 
 
 def test_public_order_google_action_and_estimated_total_are_prominent():
