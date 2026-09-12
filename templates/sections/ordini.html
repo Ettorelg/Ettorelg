@@ -10,6 +10,8 @@
   .orders-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
   .orders-filters label{display:grid;gap:5px;color:#c6d3f2;font-size:.84rem}
   .orders-filters select,.orders-filters input{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
+  .orders-day-navigation{display:flex;gap:8px;align-items:center}
+  .orders-day-navigation[hidden]{display:none}
   .orders-summary{display:flex;gap:10px;flex-wrap:wrap}
   .orders-summary span{padding:8px 11px;border-radius:9px;background:rgba(255,255,255,.06);font-size:.85rem}
   .order-card{border-left:5px solid #f4c269}
@@ -23,7 +25,7 @@
   .order-actions button{font-size:.79rem;min-height:38px}
   .order-actions button[disabled]{opacity:.5;cursor:default}
   #ordersMessage{min-height:20px;color:#aee8bd}.orders-pages{display:flex;align-items:center;justify-content:center;gap:12px;margin:20px 0}.orders-pages button{border:1px solid #6ea8fe;border-radius:8px;background:#234e86;color:#fff;padding:9px 12px;cursor:pointer}.orders-pages button:disabled{opacity:.4;cursor:default}
-  @media(max-width:640px){.orders-filters>*{width:100%}.orders-filters button{width:100%}.orders-summary{display:grid;grid-template-columns:1fr 1fr}.orders-activation button{width:100%}}
+  @media(max-width:640px){.orders-filters>*{width:100%}.orders-filters button{width:100%}.orders-day-navigation button{width:auto;flex:1}.orders-summary{display:grid;grid-template-columns:1fr 1fr}.orders-activation button{width:100%}}
 </style>
 <section class="orders-panel">
   <h2>Ordini del menu</h2>
@@ -35,6 +37,7 @@
   <div class="orders-filters">
     <label>Periodo<select id="ordersPeriod"><option value="giorno">Giorno</option><option value="settimana">Settimana</option><option value="mese">Mese</option><option value="anno">Anno</option></select></label>
     <label>Data di riferimento<input id="ordersDate" type="date"></label>
+    <div class="orders-day-navigation" id="ordersDayNavigation"><button id="ordersPreviousDay" type="button">← Giorno prima</button><button id="ordersNextDay" type="button">Giorno dopo →</button></div>
     <button id="ordersRefresh" type="button">Aggiorna ordini</button>
   </div>
   <div id="ordersSummary" class="orders-summary"></div>
@@ -56,6 +59,14 @@
   const ordersNext = document.getElementById('ordersNext');
   const ordersPageInfo = document.getElementById('ordersPageInfo');
   orderDate.value = new Date().toLocaleDateString('sv-SE', {timeZone:'Europe/Rome'});
+  function moveOrdersDay(offset){
+    const [year,month,day]=orderDate.value.split('-').map(Number);
+    if(!year || !month || !day) return;
+    const next=new Date(Date.UTC(year,month-1,day+offset));
+    orderDate.value=next.toISOString().slice(0,10);
+    ordersPage=1;
+    loadOrders();
+  }
   function orderText(parent, tag, value, className=''){
     const element=document.createElement(tag);
     element.textContent=value;
@@ -135,8 +146,10 @@
     }catch(error){orderMessage.textContent=error.message;orderToggle.disabled=false;}
   });
   document.getElementById('ordersRefresh').addEventListener('click',loadOrders);
-  orderPeriod.addEventListener('change',()=>{ordersPage=1;loadOrders()});
+  orderPeriod.addEventListener('change',()=>{document.getElementById('ordersDayNavigation').hidden=orderPeriod.value!=='giorno';ordersPage=1;loadOrders()});
   orderDate.addEventListener('change',()=>{ordersPage=1;loadOrders()});
+  document.getElementById('ordersPreviousDay').addEventListener('click',()=>moveOrdersDay(-1));
+  document.getElementById('ordersNextDay').addEventListener('click',()=>moveOrdersDay(1));
   ordersPrevious.addEventListener('click',()=>{if(ordersPage>1){ordersPage--;loadOrders()}});
   ordersNext.addEventListener('click',()=>{ordersPage++;loadOrders()});
   loadOrdersConfig().catch(error=>{orderMessage.textContent=error.message});

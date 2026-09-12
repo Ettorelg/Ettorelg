@@ -1291,7 +1291,7 @@ def login():
     session.update(user_id=user_id, username=username_db, is_admin=bool(is_admin))
     if not is_admin:
         trigger_license_expiry_email(user_id)
-    return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
+    return redirect("/dashboard_admin" if is_admin else url_for("dashboard_choice"))
 
 
 @app.route("/password-dimenticata", methods=["GET", "POST"])
@@ -1550,7 +1550,7 @@ def auth_google_callback():
         session.update(user_id=user_id, username=username, is_admin=bool(is_admin))
         if not is_admin:
             trigger_license_expiry_email(user_id)
-        return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
+        return redirect("/dashboard_admin" if is_admin else url_for("dashboard_choice"))
     finally:
         conn.close()
 
@@ -1705,7 +1705,7 @@ def auth_apple_callback():
         session.update(user_id=user_id, username=username, is_admin=bool(is_admin))
         if not is_admin:
             trigger_license_expiry_email(user_id)
-        return redirect("/dashboard_admin" if is_admin else "/dashboard_user")
+        return redirect("/dashboard_admin" if is_admin else url_for("dashboard_choice"))
     finally:
         conn.close()
 
@@ -3221,6 +3221,14 @@ def api_admin_user_delete(user_id: int):
 def logout():
     session.clear()
     return redirect("/login")
+
+@app.get("/dashboard/scelta")
+def dashboard_choice():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    if session.get("is_admin"):
+        return redirect("/dashboard_admin")
+    return render_template("dashboard_choice.html", username=session.get("username", "utente"))
 
 @app.route("/dashboard_user")
 def dashboard_user():
