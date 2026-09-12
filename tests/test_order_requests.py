@@ -468,8 +468,11 @@ def test_order_forms_pair_reference_and_notes_and_manual_products_are_searchable
     assert 'class="manual-extra-fields"' in fulfillment
     assert 'class="order-details" id="orderDetails"' in public
     assert "search.type='search'" in fulfillment
-    assert "node(productLabel,'datalist')" in fulfillment
-    assert "manualProductChoices.get(search.value.trim())" in fulfillment
+    assert "node(productPicker,'div',undefined,'product-results')" in fulfillment
+    assert "manualProducts.filter(product=>" in fulfillment
+    assert "row.dataset.productId=String(product.id)" in fulfillment
+    assert "id:Number(row.dataset.productId)" in fulfillment
+    assert "datalist" not in fulfillment
     assert "Scegli ogni articolo dai suggerimenti" in fulfillment
     assert '<option value="anno">Anno</option>' in fulfillment
 
