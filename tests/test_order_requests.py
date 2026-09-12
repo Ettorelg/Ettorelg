@@ -337,3 +337,15 @@ def test_fulfillment_page_defaults_to_product_totals_and_can_switch_to_orders():
     assert 'id="ordersView" type="button" aria-pressed="false"' in html
     assert "let displayMode='totali'" in html
     assert "selectDisplayMode('ordini')" in html
+
+
+def test_order_operations_are_on_fulfillment_page_not_settings():
+    root = Path(__file__).resolve().parents[1] / "templates"
+    settings = (root / "sections" / "ordini.html").read_text(encoding="utf-8")
+    fulfillment = (root / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    for old_control in ('id="manualOrderForm"', 'id="ordersPeriod"', 'id="ordersSummary"', 'id="ordersList"'):
+        assert old_control not in settings
+    assert 'id="addOrderButton"' in fulfillment
+    assert 'id="manualOrderForm"' in fulfillment
+    assert 'id="historyPeriod"' in fulfillment
+    assert '<option value="anno">Anno</option>' in fulfillment

@@ -1,52 +1,22 @@
 <style>
-  .orders-panel{max-width:1050px;color:#e7ecff}
-  .orders-panel h2{margin:0 0 8px}
-  .orders-panel p{color:#aab4d6;line-height:1.45}
-  .orders-activation,.orders-filters,.orders-summary,.order-card{border:1px solid rgba(255,255,255,.14);border-radius:15px;background:rgba(255,255,255,.04);padding:16px;margin:12px 0}
-  .orders-activation{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
-  .orders-activation p{margin:5px 0 0}
-  .orders-settings,.orders-manual{border:1px solid rgba(255,255,255,.14);border-radius:15px;background:rgba(255,255,255,.04);padding:16px;margin:12px 0}
-  .orders-settings label,.orders-manual label{display:grid;gap:5px;color:#c6d3f2;font-size:.86rem}
-  .orders-settings input:not([type=checkbox]),.orders-settings select,.orders-manual input,.orders-manual select,.orders-manual textarea{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
+  .orders-panel{max-width:1050px;color:#e7ecff}.orders-panel h2{margin:0 0 8px}.orders-panel p{color:#aab4d6;line-height:1.45}
+  .orders-activation,.orders-settings,.orders-link{border:1px solid rgba(255,255,255,.14);border-radius:15px;background:rgba(255,255,255,.04);padding:16px;margin:12px 0}
+  .orders-activation{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}.orders-activation p{margin:5px 0 0}
+  .orders-activation button,.orders-settings button,.orders-link a{border:1px solid #6ea8fe;border-radius:10px;background:#234e86;color:#fff;padding:10px 14px;font:700 .9rem system-ui;cursor:pointer;text-decoration:none}
+  .orders-activation button.off{background:#5b2e37;border-color:#ef8c9a}.orders-activation button:disabled{opacity:.5}
+  .orders-link{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;border-color:#6ea8fe;background:#1d3c65}.orders-link p{margin:5px 0 0}.orders-link a{display:inline-flex;align-items:center;min-height:45px}
+  .orders-settings label{display:grid;gap:5px;color:#c6d3f2;font-size:.86rem}.orders-settings input:not([type=checkbox]),.orders-settings select{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
   .orders-settings .pickup-toggle{display:flex;align-items:center;gap:9px;margin:12px 0}.orders-settings .pickup-toggle input{width:19px;height:19px;accent-color:#6ea8fe}
-  .orders-manual .pickup-toggle{display:flex;align-items:center;gap:9px}.orders-manual .pickup-toggle input{width:19px;height:19px;min-height:0;padding:0;accent-color:#6ea8fe}
-  .pickup-hours{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.pickup-hours[hidden],.orders-manual [hidden]{display:none!important}.pickup-hours label{min-width:140px}
-  .orders-settings button,.orders-manual button{border:1px solid #6ea8fe;border-radius:10px;background:#234e86;color:#fff;padding:10px 14px;font:700 .9rem system-ui;cursor:pointer}
-  .orders-manual form{display:grid;gap:10px}.orders-manual .manual-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.orders-manual .manual-line{display:flex;gap:8px;margin:8px 0}.orders-manual .manual-line select{flex:1;min-width:0}.orders-manual .manual-line input{width:105px}
-  .orders-activation button,.order-card button,.orders-filters button{border:1px solid #6ea8fe;border-radius:10px;background:#234e86;color:#fff;padding:10px 14px;font:700 .9rem system-ui;cursor:pointer}
-  .orders-activation button.off{background:#5b2e37;border-color:#ef8c9a}
-  .orders-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
-  .orders-filters label{display:grid;gap:5px;color:#c6d3f2;font-size:.84rem}
-  .orders-filters select,.orders-filters input{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
-  .orders-day-navigation{display:flex;gap:8px;align-items:center}
-  .orders-day-navigation[hidden]{display:none}
-  .orders-summary{display:flex;gap:10px;flex-wrap:wrap}
-  .orders-summary span{padding:8px 11px;border-radius:9px;background:rgba(255,255,255,.06);font-size:.85rem}
-  .order-card{border-left:5px solid #f4c269}
-  .order-card.done{border-left-color:#61c98a}.order-card.cancelled{border-left-color:#8a96ad}
-  .order-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
-  .order-head strong{font-size:1rem}.order-head small{color:#aab4d6}
-  .order-card ul{padding-left:20px;margin:9px 0}
-  .order-card li{margin:3px 0}
-  .order-card .details{white-space:pre-wrap;overflow-wrap:anywhere;color:#c7d2ee;font-size:.87rem}
-  .order-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
-  .order-actions button{font-size:.79rem;min-height:38px}
-  .order-actions button[disabled]{opacity:.5;cursor:default}
-  #ordersMessage{min-height:20px;color:#aee8bd}.orders-pages{display:flex;align-items:center;justify-content:center;gap:12px;margin:20px 0}.orders-pages button{border:1px solid #6ea8fe;border-radius:8px;background:#234e86;color:#fff;padding:9px 12px;cursor:pointer}.orders-pages button:disabled{opacity:.4;cursor:default}
-  @media(max-width:640px){.orders-filters>*{width:100%}.orders-filters button{width:100%}.orders-day-navigation button{width:auto;flex:1}.orders-summary{display:grid;grid-template-columns:1fr 1fr}.orders-activation button{width:100%}.orders-manual .manual-fields{grid-template-columns:1fr}}
+  .pickup-hours{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.pickup-hours[hidden]{display:none!important}.pickup-hours label{min-width:140px}
+  #ordersMessage{min-height:20px;color:#aee8bd}
+  @media(max-width:640px){.orders-activation button,.orders-link a{width:100%;justify-content:center}}
 </style>
 <section class="orders-panel">
-  <h2>Ordini del menu</h2>
-  <p>Configura separatamente gli ordini da asporto e gli ordini al tavolo. La semplice visualizzazione del menu non permette di ordinare. Gli ordini restano visibili anche quando disattivi una modalità.</p>
-  <p><a href="{{ url_for('fulfillment_dashboard') }}" style="color:#a9d1ff;font-weight:800">Apri il riepilogo di evasione →</a></p>
-  <div class="orders-activation">
-    <div><strong>Ordini da asporto</strong><p id="ordersState">Caricamento…</p></div>
-    <button id="ordersToggle" type="button" disabled>Caricamento…</button>
-  </div>
-  <div class="orders-activation">
-    <div><strong>Ordini al tavolo</strong><p id="tableOrdersState">Il cliente indica il tavolo e invia l'ordine per subito, senza nome, telefono o data.</p></div>
-    <button id="tableOrdersToggle" type="button" disabled>Caricamento…</button>
-  </div>
+  <h2>Impostazioni ordini</h2>
+  <p>Qui configuri gli ordini da asporto e al tavolo. Per inserirli manualmente, evaderli o consultarne il riepilogo usa il banco evasione.</p>
+  <div class="orders-link"><div><strong>Banco evasione e storico ordini</strong><p>Ordini da preparare, inserimento manuale e riepilogo per periodo.</p></div><a href="{{ url_for('fulfillment_dashboard') }}">Apri riepilogo di evasione →</a></div>
+  <div class="orders-activation"><div><strong>Ordini da asporto</strong><p id="ordersState">Caricamento…</p></div><button id="ordersToggle" type="button" disabled>Caricamento…</button></div>
+  <div class="orders-activation"><div><strong>Ordini al tavolo</strong><p id="tableOrdersState">Il cliente indica il tavolo e invia l'ordine per subito, senza nome, telefono o data.</p></div><button id="tableOrdersToggle" type="button" disabled>Caricamento…</button></div>
   <div class="orders-settings">
     <strong>Capacità giornaliera</strong>
     <p>Numero massimo di ordini da asporto per la data richiesta. Non limita gli ordini al tavolo. Imposta 0 per non applicare un limite; gli ordini annullati liberano un posto.</p>
@@ -55,7 +25,7 @@
   </div>
   <div class="orders-settings">
     <strong>Orario di ritiro per gli ordini da asporto</strong>
-    <p>Per un pastificio puoi richiedere solo il giorno. Per una pizzeria puoi mostrare fasce di 15, 20 o 30 minuti. Puoi limitare gli ordini oppure la quantità totale di articoli per fascia; per i prodotti a peso, 1,5 kg conta come 1,5. Imposta 0 per nessun limite per fascia. L'ora finale è esclusa e il limite giornaliero resta valido.</p>
+    <p>Puoi richiedere solo il giorno oppure fasce di 15, 20 o 30 minuti. Puoi limitare gli ordini oppure la quantità totale di articoli per fascia; per i prodotti a peso, 1,5 kg conta come 1,5. Imposta 0 per nessun limite per fascia. L'ora finale è esclusa.</p>
     <label class="pickup-toggle"><input id="pickupSlotsEnabled" type="checkbox"> Chiedi anche una fascia oraria</label>
     <div class="pickup-hours" id="pickupHours">
       <label>Dalle <input id="pickupStart" type="time" step="300" value="18:00"></label>
@@ -66,46 +36,15 @@
     </div>
     <button id="pickupSave" type="button">Salva modalità di ritiro</button>
   </div>
-  <details class="orders-manual">
-    <summary><strong>Inserisci un ordine manualmente</strong></summary>
-    <form id="manualOrderForm">
-      <div class="manual-fields">
-        <label>Nome cliente <input name="nome" minlength="2" maxlength="120" required></label>
-        <label>Telefono <input name="telefono" type="tel" minlength="6" maxlength="40" required></label>
-        <label>Data richiesta <input name="data_richiesta" id="manualOrderDate" type="date" required></label>
-        <label id="manualPickupField" hidden>Fascia oraria di ritiro <select name="ora_richiesta" id="manualPickupSlot"><option value="">Scegli un orario</option></select></label>
-      </div>
-      <label>Riferimento <input name="riferimento" maxlength="80"></label>
-      <label>Note <textarea name="note" maxlength="500" rows="2"></textarea></label>
-      <label class="pickup-toggle"><input name="salva_cliente" type="checkbox"> Salva o aggiorna il cliente in rubrica per richiamarlo in futuro</label>
-      <div id="manualOrderLines"></div>
-      <button id="manualAddLine" type="button">+ Aggiungi articolo</button>
-      <button type="submit">Registra ordine</button>
-      <p id="manualOrderMessage" role="status"></p>
-    </form>
-  </details>
-  <div class="orders-filters">
-    <label>Periodo<select id="ordersPeriod"><option value="giorno">Giorno</option><option value="settimana">Settimana</option><option value="mese">Mese</option><option value="anno">Anno</option></select></label>
-    <label>Data di riferimento<input id="ordersDate" type="date"></label>
-    <div class="orders-day-navigation" id="ordersDayNavigation"><button id="ordersPreviousDay" type="button">← Giorno prima</button><button id="ordersNextDay" type="button">Giorno dopo →</button></div>
-    <button id="ordersRefresh" type="button">Aggiorna ordini</button>
-  </div>
-  <div id="ordersSummary" class="orders-summary"></div>
   <p id="ordersMessage" role="status"></p>
-  <div id="ordersList"></div>
-  <div class="orders-pages"><button id="ordersPrevious" type="button">← Precedenti</button><span id="ordersPageInfo"></span><button id="ordersNext" type="button">Successivi →</button></div>
 </section>
 <script>
-  const orderPeriod = document.getElementById('ordersPeriod');
-  const orderDate = document.getElementById('ordersDate');
-  const orderList = document.getElementById('ordersList');
-  const orderSummary = document.getElementById('ordersSummary');
-  const orderMessage = document.getElementById('ordersMessage');
-  const orderToggle = document.getElementById('ordersToggle');
-  const orderState = document.getElementById('ordersState');
-  const tableOrdersToggle = document.getElementById('tableOrdersToggle');
-  const tableOrdersState = document.getElementById('tableOrdersState');
-  const ordersLimit = document.getElementById('ordersLimit');
+  const orderMessage=document.getElementById('ordersMessage');
+  const orderToggle=document.getElementById('ordersToggle');
+  const orderState=document.getElementById('ordersState');
+  const tableOrdersToggle=document.getElementById('tableOrdersToggle');
+  const tableOrdersState=document.getElementById('tableOrdersState');
+  const ordersLimit=document.getElementById('ordersLimit');
   const pickupSlotsEnabled=document.getElementById('pickupSlotsEnabled');
   const pickupHours=document.getElementById('pickupHours');
   const pickupStart=document.getElementById('pickupStart');
@@ -113,227 +52,45 @@
   const pickupMinutes=document.getElementById('pickupMinutes');
   const pickupCapacity=document.getElementById('pickupCapacity');
   const pickupCriterion=document.getElementById('pickupCriterion');
-  let ordersActive = false;
-  let tableOrdersActive = false;
-  let pickupConfig={enabled:false,start:'',end:''};
-  let ordersPage = 1;
-  const ordersPrevious = document.getElementById('ordersPrevious');
-  const ordersNext = document.getElementById('ordersNext');
-  const ordersPageInfo = document.getElementById('ordersPageInfo');
-  orderDate.value = new Date().toLocaleDateString('sv-SE', {timeZone:'Europe/Rome'});
-  function moveOrdersDay(offset){
-    const [year,month,day]=orderDate.value.split('-').map(Number);
-    if(!year || !month || !day) return;
-    const next=new Date(Date.UTC(year,month-1,day+offset));
-    orderDate.value=next.toISOString().slice(0,10);
-    ordersPage=1;
-    loadOrders();
-  }
-  function orderText(parent, tag, value, className=''){
-    const element=document.createElement(tag);
-    element.textContent=value;
-    if(className) element.className=className;
-    parent.appendChild(element);
-    return element;
-  }
+  let ordersActive=false,tableOrdersActive=false;
   async function loadOrdersConfig(){
     const response=await fetch('/api/ordini/configurazione');
-    if(!response.ok) throw new Error('Impossibile caricare la configurazione.');
+    if(!response.ok)throw new Error('Impossibile caricare la configurazione.');
     const data=await response.json();
-    ordersActive=data.asporto_attivi;
-    tableOrdersActive=data.tavolo_attivi;
+    ordersActive=data.asporto_attivi;tableOrdersActive=data.tavolo_attivi;
     ordersLimit.value=String(data.limite_giornaliero);
-    pickupConfig={enabled:data.fasce_ritiro_attive,start:data.ritiro_dalle||'',end:data.ritiro_alle||'',minutes:data.minuti_fascia_ritiro||15};
-    pickupSlotsEnabled.checked=pickupConfig.enabled;
-    pickupStart.value=pickupConfig.start||'18:00';
-    pickupEnd.value=pickupConfig.end||'23:00';
-    pickupMinutes.value=String(pickupConfig.minutes);
+    pickupSlotsEnabled.checked=data.fasce_ritiro_attive;
+    pickupStart.value=data.ritiro_dalle||'18:00';pickupEnd.value=data.ritiro_alle||'23:00';
+    pickupMinutes.value=String(data.minuti_fascia_ritiro||15);
     pickupCapacity.value=String(data.limite_fascia_ritiro||0);
     pickupCriterion.value=data.criterio_limite_fascia||'ordini';
-    pickupHours.hidden=!pickupConfig.enabled;
-    renderManualPickupSlots();
-    orderState.textContent=ordersActive ? 'Attivi: il cliente può scegliere una data per l’asporto.' : 'Disattivati: il menu resta consultabile.';
-    orderToggle.textContent=ordersActive ? 'Disattiva asporto' : 'Attiva asporto';
-    orderToggle.classList.toggle('off',ordersActive);
-    orderToggle.disabled=false;
-    tableOrdersState.textContent=tableOrdersActive ? 'Attivi: dal menu si può ordinare indicando il tavolo.' : 'Disattivati: nessun ordine al tavolo.';
-    tableOrdersToggle.textContent=tableOrdersActive ? 'Disattiva ordini al tavolo' : 'Attiva ordini al tavolo';
-    tableOrdersToggle.classList.toggle('off',tableOrdersActive);
-    tableOrdersToggle.disabled=false;
+    pickupHours.hidden=!data.fasce_ritiro_attive;
+    orderState.textContent=ordersActive?'Attivi: il cliente può scegliere una data per l’asporto.':'Disattivati: il menu resta consultabile.';
+    orderToggle.textContent=ordersActive?'Disattiva asporto':'Attiva asporto';orderToggle.classList.toggle('off',ordersActive);orderToggle.disabled=false;
+    tableOrdersState.textContent=tableOrdersActive?'Attivi: dal menu si può ordinare indicando il tavolo.':'Disattivati: nessun ordine al tavolo.';
+    tableOrdersToggle.textContent=tableOrdersActive?'Disattiva ordini al tavolo':'Attiva ordini al tavolo';tableOrdersToggle.classList.toggle('off',tableOrdersActive);tableOrdersToggle.disabled=false;
   }
-  async function loadOrders(){
-    orderMessage.textContent='Aggiornamento in corso…';
-    const query=new URLSearchParams({periodo:orderPeriod.value,data:orderDate.value,pagina:String(ordersPage)});
-    try{
-      const response=await fetch('/api/ordini?'+query);
-      const data=await response.json();
-      if(!response.ok) throw new Error(data.error || 'Impossibile caricare gli ordini.');
-      orderSummary.replaceChildren();
-      const names={da_evadere:'Da evadere',in_lavorazione:'In lavorazione',evaso:'Evasi',annullato:'Annullati'};
-      for(const [status,name] of Object.entries(names)){
-        const metric=data.riepilogo[status] || {numero:0,totale:'0.00'};
-        orderText(orderSummary,'span',name+': '+metric.numero);
-      }
-      orderList.replaceChildren();
-      const pages=Math.max(1,Math.ceil(data.totale_ordini/data.dimensione_pagina));
-      ordersPageInfo.textContent='Pagina '+ordersPage+' di '+pages;
-      ordersPrevious.disabled=ordersPage<=1;
-      ordersNext.disabled=ordersPage>=pages;
-      if(!data.ordini.length) orderText(orderList,'p','Nessun ordine nel periodo selezionato.');
-      for(const order of data.ordini){
-        const card=document.createElement('article');
-        card.className='order-card '+(order.stato==='evaso'?'done':order.stato==='annullato'?'cancelled':'');
-        const head=orderText(card,'div','', 'order-head');
-        const heading=orderText(head,'div','');
-        orderText(heading,'strong','#'+order.id+' · '+order.nome+' · '+names[order.stato]);
-        orderText(heading,'small',(order.origine==='tavolo'?'Al tavolo':'Da asporto')+' · Per il '+order.data_richiesta+(order.ora_richiesta?' alle '+order.ora_richiesta:'')+' · Inserito '+order.creato_il+(order.origine==='titolare'?' · Inserito dal titolare':''));
-        orderText(head,'strong','€ '+Number(order.totale).toFixed(2));
-        const list=orderText(card,'ul','');
-        for(const product of order.prodotti) orderText(list,'li',product.quantita+' × '+product.nome+' — € '+Number(product.totale).toFixed(2));
-        if(order.riferimento) orderText(card,'p','Riferimento: '+order.riferimento,'details');
-        if(order.note) orderText(card,'p','Note: '+order.note,'details');
-        if(order.telefono){const phone=orderText(card,'a','☎ '+order.telefono,'details');phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
-        if(order.email_cliente) orderText(card,'p','Google: '+order.email_cliente,'details');
-        const actions=orderText(card,'div','', 'order-actions');
-        for(const [status,label] of Object.entries({da_evadere:'Da evadere',in_lavorazione:'In lavorazione',evaso:'Segna evaso',annullato:'Annulla'})){
-          const button=orderText(actions,'button',label);
-          button.type='button'; button.disabled=order.stato===status;
-          button.addEventListener('click',async()=>{
-            button.disabled=true;
-            try{
-              const result=await fetch('/api/ordini/'+order.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({stato:status})});
-              const resultData=await result.json();
-              if(!result.ok) throw new Error(resultData.error || 'Aggiornamento non riuscito.');
-              await loadOrders();
-            }catch(error){orderMessage.textContent=error.message;button.disabled=false;}
-          });
-        }
-        orderList.appendChild(card);
-      }
-      orderMessage.textContent='Dal '+data.da+' al '+data.a+' · '+data.totale_ordini+' ordini';
-    }catch(error){orderMessage.textContent=error.message;}
+  async function saveOrdersConfig(payload,success){
+    const response=await fetch('/api/ordini/configurazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'Salvataggio non riuscito.');
+    await loadOrdersConfig();orderMessage.textContent=success;
   }
-  orderToggle.addEventListener('click',async()=>{
-    orderToggle.disabled=true;
-    try{
-      const response=await fetch('/api/ordini/configurazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({asporto_attivi:!ordersActive})});
-      const data=await response.json();
-      if(!response.ok) throw new Error(data.error || 'Salvataggio non riuscito.');
-      await loadOrdersConfig();
-    }catch(error){orderMessage.textContent=error.message;orderToggle.disabled=false;}
-  });
-  tableOrdersToggle.addEventListener('click',async()=>{
-    tableOrdersToggle.disabled=true;
-    try{
-      const response=await fetch('/api/ordini/configurazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({tavolo_attivi:!tableOrdersActive})});
-      const data=await response.json();
-      if(!response.ok) throw new Error(data.error||'Salvataggio non riuscito.');
-      await loadOrdersConfig();
-    }catch(error){orderMessage.textContent=error.message;tableOrdersToggle.disabled=false;}
-  });
+  orderToggle.addEventListener('click',async()=>{orderToggle.disabled=true;try{await saveOrdersConfig({asporto_attivi:!ordersActive},'Impostazione asporto salvata.')}catch(error){orderMessage.textContent=error.message;orderToggle.disabled=false}});
+  tableOrdersToggle.addEventListener('click',async()=>{tableOrdersToggle.disabled=true;try{await saveOrdersConfig({tavolo_attivi:!tableOrdersActive},'Impostazione tavoli salvata.')}catch(error){orderMessage.textContent=error.message;tableOrdersToggle.disabled=false}});
   document.getElementById('ordersSaveLimit').addEventListener('click',async()=>{
-    const limit=Number(ordersLimit.value);
-    if(!Number.isInteger(limit)||limit<0||limit>10000){orderMessage.textContent='Inserisci un limite da 0 a 10000.';return}
-    try{
-      const response=await fetch('/api/ordini/configurazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({limite_giornaliero:limit})});
-      const data=await response.json();
-      if(!response.ok) throw new Error(data.error||'Salvataggio non riuscito.');
-      ordersLimit.value=String(data.limite_giornaliero);
-      orderMessage.textContent='Limite giornaliero salvato.';
-    }catch(error){orderMessage.textContent=error.message}
+    const limit=Number(ordersLimit.value);if(!Number.isInteger(limit)||limit<0||limit>10000){orderMessage.textContent='Inserisci un limite da 0 a 10000.';return}
+    try{await saveOrdersConfig({limite_giornaliero:limit},'Limite giornaliero salvato.')}catch(error){orderMessage.textContent=error.message}
   });
   pickupSlotsEnabled.addEventListener('change',()=>{pickupHours.hidden=!pickupSlotsEnabled.checked});
   document.getElementById('pickupSave').addEventListener('click',async()=>{
-    const enabled=pickupSlotsEnabled.checked;
-    const start=pickupStart.value,end=pickupEnd.value;
+    const enabled=pickupSlotsEnabled.checked,start=pickupStart.value,end=pickupEnd.value;
     const minutes=Number(pickupMinutes.value),capacity=Number(pickupCapacity.value),criterion=pickupCriterion.value;
-    const timePattern=/^(?:[01]\d|2[0-3]):[0-5]\d$/;
+    const pattern=/^(?:[01]\d|2[0-3]):[0-5]\d$/;
     const startValue=Number(start.slice(0,2))*60+Number(start.slice(3));
     const endValue=Number(end.slice(0,2))*60+Number(end.slice(3));
-    if(![15,20,30].includes(minutes)||!Number.isFinite(capacity)||capacity<0||capacity>10000||Math.round(capacity*1000)!==capacity*1000||(criterion==='ordini'&&!Number.isInteger(capacity))){
-      orderMessage.textContent='Imposta un limite valido: numero intero per gli ordini, fino a tre decimali per gli articoli.';return;
-    }
-    if(enabled&&(!timePattern.test(start)||!timePattern.test(end)||startValue%5||endValue%5||endValue<=startValue||(endValue-startValue)%minutes)){
-      orderMessage.textContent='L’intervallo deve contenere fasce complete della durata scelta (15, 20 o 30 minuti).';return;
-    }
-    try{
-      const response=await fetch('/api/ordini/configurazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fasce_ritiro_attive:enabled,ritiro_dalle:enabled?start:'',ritiro_alle:enabled?end:'',minuti_fascia_ritiro:minutes,limite_fascia_ritiro:capacity,criterio_limite_fascia:criterion})});
-      const data=await response.json();
-      if(!response.ok) throw new Error(data.error||'Salvataggio non riuscito.');
-      await loadOrdersConfig();
-      orderMessage.textContent=enabled?'Fasce di ritiro salvate.':'Ritiro con sola data salvato.';
-    }catch(error){orderMessage.textContent=error.message}
+    if(![15,20,30].includes(minutes)||!Number.isFinite(capacity)||capacity<0||capacity>10000||Math.round(capacity*1000)!==capacity*1000||(criterion==='ordini'&&!Number.isInteger(capacity))){orderMessage.textContent='Imposta un limite valido: numero intero per gli ordini, fino a tre decimali per gli articoli.';return}
+    if(enabled&&(!pattern.test(start)||!pattern.test(end)||startValue%5||endValue%5||endValue<=startValue||(endValue-startValue)%minutes)){orderMessage.textContent='L’intervallo deve contenere fasce complete della durata scelta.';return}
+    try{await saveOrdersConfig({fasce_ritiro_attive:enabled,ritiro_dalle:enabled?start:'',ritiro_alle:enabled?end:'',minuti_fascia_ritiro:minutes,limite_fascia_ritiro:capacity,criterio_limite_fascia:criterion},enabled?'Fasce di ritiro salvate.':'Ritiro con sola data salvato.')}catch(error){orderMessage.textContent=error.message}
   });
-  const manualForm=document.getElementById('manualOrderForm');
-  const manualLines=document.getElementById('manualOrderLines');
-  const manualMessage=document.getElementById('manualOrderMessage');
-  const manualDate=document.getElementById('manualOrderDate');
-  const manualPickupField=document.getElementById('manualPickupField');
-  const manualPickupSlot=document.getElementById('manualPickupSlot');
-  manualDate.min=orderDate.value;
-  manualDate.value=orderDate.value;
-  manualDate.max=new Date(Date.parse(orderDate.value+'T12:00:00Z')+365*86400000).toISOString().slice(0,10);
-  function renderManualPickupSlots(){
-    manualPickupField.hidden=!pickupConfig.enabled;
-    manualPickupSlot.required=pickupConfig.enabled;
-    manualPickupSlot.replaceChildren(new Option('Scegli un orario',''));
-    if(!pickupConfig.enabled||!manualDate.value) return;
-    const start=Number(pickupConfig.start.slice(0,2))*60+Number(pickupConfig.start.slice(3));
-    const end=Number(pickupConfig.end.slice(0,2))*60+Number(pickupConfig.end.slice(3));
-    const now=new Date();
-    const [hour,minuteNow]=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now).split(':').map(Number);
-    const currentMinute=hour*60+minuteNow;
-    const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
-    for(let minute=start;minute<end;minute+=pickupConfig.minutes){
-      if(manualDate.value===today&&minute<=currentMinute) continue;
-      const slot=String(Math.floor(minute/60)).padStart(2,'0')+':'+String(minute%60).padStart(2,'0');
-      const endMinute=minute+pickupConfig.minutes;
-      const endSlot=String(Math.floor(endMinute/60)).padStart(2,'0')+':'+String(endMinute%60).padStart(2,'0');
-      manualPickupSlot.add(new Option(slot+'–'+endSlot,slot));
-    }
-  }
-  manualDate.addEventListener('change',renderManualPickupSlots);
-  let manualProducts=[];
-  fetch('/api/prodotti').then(response=>response.json()).then(data=>{
-    manualProducts=(data.items||[]).filter(item=>item.disponibile);
-    addManualLine();
-  }).catch(()=>{manualMessage.textContent='Articoli non disponibili.'});
-  function addManualLine(){
-    const row=document.createElement('div');row.className='manual-line';
-    const select=document.createElement('select');select.required=true;
-    for(const product of manualProducts){const option=document.createElement('option');option.value=String(product.id);option.textContent=product.nome+' · € '+product.prezzo_euro+(product.unita_prezzo==='kg'?' / kg':'');select.appendChild(option)}
-    const quantity=document.createElement('input');quantity.type='number';quantity.min='0.001';quantity.max='999';quantity.step='0.001';quantity.value='1';quantity.required=true;quantity.setAttribute('aria-label','Quantità');
-    const updateQuantityLabel=()=>{const product=manualProducts.find(item=>String(item.id)===select.value);quantity.setAttribute('aria-label',product?.unita_prezzo==='kg'?'Peso in kg':'Quantità')};
-    select.addEventListener('change',updateQuantityLabel);updateQuantityLabel();
-    const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','Rimuovi articolo');remove.addEventListener('click',()=>row.remove());
-    row.append(select,quantity,remove);manualLines.appendChild(row);
-  }
-  document.getElementById('manualAddLine').addEventListener('click',addManualLine);
-  manualForm.addEventListener('submit',async event=>{
-    event.preventDefault();
-    const fields=new FormData(manualForm);
-    const products=[...manualLines.querySelectorAll('.manual-line')].map(row=>({id:Number(row.querySelector('select').value),quantita:row.querySelector('input').value}));
-    if(!products.length){manualMessage.textContent='Aggiungi almeno un articolo.';return}
-    if(new Set(products.map(item=>item.id)).size!==products.length){manualMessage.textContent='Ogni articolo può comparire una sola volta: modifica la quantità.';return}
-    const payload={nome:fields.get('nome'),telefono:fields.get('telefono'),data_richiesta:fields.get('data_richiesta'),ora_richiesta:fields.get('ora_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),salva_cliente:fields.has('salva_cliente'),prodotti:products};
-    manualMessage.textContent='Registrazione in corso…';
-    try{
-      const response=await fetch('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const data=await response.json();
-      if(!response.ok) throw new Error(data.error||'Registrazione non riuscita.');
-      manualMessage.textContent='Ordine #'+data.ordine_id+' registrato.';
-      manualForm.reset();manualDate.value=manualDate.min;renderManualPickupSlots();manualLines.replaceChildren();addManualLine();loadOrders();
-    }catch(error){manualMessage.textContent=error.message}
-  });
-  document.getElementById('ordersRefresh').addEventListener('click',loadOrders);
-  orderPeriod.addEventListener('change',()=>{document.getElementById('ordersDayNavigation').hidden=orderPeriod.value!=='giorno';ordersPage=1;loadOrders()});
-  orderDate.addEventListener('change',()=>{ordersPage=1;loadOrders()});
-  document.getElementById('ordersPreviousDay').addEventListener('click',()=>moveOrdersDay(-1));
-  document.getElementById('ordersNextDay').addEventListener('click',()=>moveOrdersDay(1));
-  ordersPrevious.addEventListener('click',()=>{if(ordersPage>1){ordersPage--;loadOrders()}});
-  ordersNext.addEventListener('click',()=>{ordersPage++;loadOrders()});
   loadOrdersConfig().catch(error=>{orderMessage.textContent=error.message});
-  loadOrders();
-  if(window.alphaOrdersTimer) clearInterval(window.alphaOrdersTimer);
-  window.alphaOrdersTimer=setInterval(()=>{if(location.hash==='#ordini') loadOrders();else clearInterval(window.alphaOrdersTimer)},30000);
 </script>
