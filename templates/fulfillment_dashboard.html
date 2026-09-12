@@ -228,7 +228,7 @@
     manualDate.min=todayRome;
     manualDate.max=new Date(Date.parse(todayRome+'T12:00:00Z')+365*86400000).toISOString().slice(0,10);
     manualDate.value=todayRome;
-    let manualConfig={enabled:false,start:'',end:'',minutes:15};
+    let manualConfig={enabled:false,windows:[],minutes:15};
     let manualProducts=[];
     let manualLineNumber=0;
     let manualSettingsLoaded=false;
@@ -237,14 +237,18 @@
       manualSlot.required=manualConfig.enabled;
       manualSlot.replaceChildren(new Option('Scegli una fascia',''));
       if(!manualConfig.enabled||!manualDate.value)return;
-      const start=Number(manualConfig.start.slice(0,2))*60+Number(manualConfig.start.slice(3));
-      const end=Number(manualConfig.end.slice(0,2))*60+Number(manualConfig.end.slice(3));
+      const weekday=(new Date(manualDate.value+'T12:00:00Z').getUTCDay()+6)%7;
+      const windows=manualConfig.windows[weekday]||[];
       const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date()).split(':').map(Number);
       const currentMinute=parts[0]*60+parts[1];
-      for(let minute=start;minute+manualConfig.minutes<=end;minute+=manualConfig.minutes){
-        if(manualDate.value===todayRome&&minute<=currentMinute)continue;
-        const label=value=>String(Math.floor(value/60)).padStart(2,'0')+':'+String(value%60).padStart(2,'0');
-        manualSlot.add(new Option(label(minute)+'–'+label(minute+manualConfig.minutes),label(minute)));
+      for(const window of windows){
+        const start=Number(window.dalle.slice(0,2))*60+Number(window.dalle.slice(3));
+        const end=Number(window.alle.slice(0,2))*60+Number(window.alle.slice(3));
+        for(let minute=start;minute+manualConfig.minutes<=end;minute+=manualConfig.minutes){
+          if(manualDate.value===todayRome&&minute<=currentMinute)continue;
+          const label=value=>String(Math.floor(value/60)).padStart(2,'0')+':'+String(value%60).padStart(2,'0');
+          manualSlot.add(new Option(label(minute)+'–'+label(minute+manualConfig.minutes),label(minute)));
+        }
       }
     }
     manualDate.addEventListener('change',renderManualSlots);
@@ -280,7 +284,7 @@
       const [configResponse,productsResponse]=await Promise.all([fetch('/api/ordini/configurazione'),fetch('/api/prodotti')]);
       if(!configResponse.ok||!productsResponse.ok)throw new Error('Impossibile caricare le impostazioni o gli articoli.');
       const config=await configResponse.json(),products=await productsResponse.json();
-      manualConfig={enabled:config.fasce_ritiro_attive,start:config.ritiro_dalle||'',end:config.ritiro_alle||'',minutes:config.minuti_fascia_ritiro||15};
+      manualConfig={enabled:config.fasce_ritiro_attive,windows:config.fasce_settimanali||[],minutes:config.minuti_fascia_ritiro||15};
       manualProducts=(products.items||[]).filter(item=>item.disponibile);
       manualSettingsLoaded=true;
       renderManualSlots();

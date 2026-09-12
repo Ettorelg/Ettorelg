@@ -1,6 +1,7 @@
 """Regole del nuovo ordine senza richiedere un database esterno."""
 import ast
 import copy
+import json
 import re
 from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
@@ -27,7 +28,10 @@ def order_function(db):
         "psycopg2": SimpleNamespace(connect=lambda **kwargs: db),
         "build_db_config": lambda: {},
         "get_user_shop_id": lambda user_id: 7,
+        "json": json,
     }
+    helper = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "pickup_windows_for_day"))
+    exec(compile(ast.Module(body=[helper], type_ignores=[]), "app.py", "exec"), scope)
     exec(compile(ast.Module(body=[node], type_ignores=[]), "app.py", "exec"), scope)
     return scope["api_crea_ordine_menu"]
 
@@ -40,13 +44,16 @@ def availability_function(db):
         "timedelta": timedelta, "ZoneInfo": ZoneInfo, "Decimal": Decimal,
         "psycopg2": SimpleNamespace(connect=lambda **kwargs: db),
         "build_db_config": lambda: {},
+        "json": json,
     }
+    helper = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "pickup_windows_for_day"))
+    exec(compile(ast.Module(body=[helper], type_ignores=[]), "app.py", "exec"), scope)
     exec(compile(ast.Module(body=[node], type_ignores=[]), "app.py", "exec"), scope)
     return scope["api_disponibilita_ordini"]
 
 
 class FakeCursor:
-    def __init__(self, limit=0, active=True, table_active=False, pickup_enabled=False, pickup_start=None, pickup_end=None, product_unit="pezzo", pickup_minutes=15, pickup_capacity=Decimal("0"), pickup_criterion="ordini", used_slot_orders=0, used_slot_articles=Decimal("0"), slot_rows=None):
+    def __init__(self, limit=0, active=True, table_active=False, pickup_enabled=False, pickup_start=None, pickup_end=None, product_unit="pezzo", pickup_minutes=15, pickup_capacity=Decimal("0"), pickup_criterion="ordini", used_slot_orders=0, used_slot_articles=Decimal("0"), slot_rows=None, weekly_schedule=None):
         self.limit = limit
         self.active = active
         self.table_active = table_active
@@ -60,6 +67,7 @@ class FakeCursor:
         self.used_slot_orders = used_slot_orders
         self.used_slot_articles = used_slot_articles
         self.slot_rows = slot_rows or []
+        self.weekly_schedule = weekly_schedule
         self.query = ""
         self.statements = []
 
@@ -71,8 +79,8 @@ class FakeCursor:
 
     def fetchone(self):
         if "FROM negozi" in self.query and "ordini_tavolo_attivi" not in self.query:
-            return (7, self.active, self.limit, self.pickup_enabled, self.pickup_start, self.pickup_end, self.pickup_minutes, self.pickup_capacity, self.pickup_criterion)
-        if "FROM negozi" in self.query: return (7, self.active, self.table_active, self.limit, self.pickup_enabled, self.pickup_start, self.pickup_end, self.pickup_minutes, self.pickup_capacity, self.pickup_criterion)
+            return (7, self.active, self.limit, self.pickup_enabled, self.pickup_start, self.pickup_end, self.pickup_minutes, self.pickup_capacity, self.pickup_criterion, self.weekly_schedule)
+        if "FROM negozi" in self.query: return (7, self.active, self.table_active, self.limit, self.pickup_enabled, self.pickup_start, self.pickup_end, self.pickup_minutes, self.pickup_capacity, self.pickup_criterion, self.weekly_schedule)
         if "COUNT(DISTINCT o.id)" in self.query: return (self.used_slot_orders, self.used_slot_articles)
         if "data_richiesta=%s" in self.query: return (self.limit,)
         if "telefono_cliente=%s" in self.query: return (0,)
@@ -339,6 +347,45 @@ def test_custom_seventeen_minute_slots_skip_incomplete_tail():
     with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
         _response, status = order_function(db)("esempio")
     assert status == 400
+
+
+def test_two_pickup_windows_apply_only_to_the_selected_weekday():
+    tomorrow = datetime.now(ZoneInfo("Europe/Rome")).date() + timedelta(days=1)
+    schedule = [[] for _ in range(7)]
+    schedule[tomorrow.weekday()] = [{"dalle": "11:00", "alle": "12:00"}, {"dalle": "18:30", "alle": "19:30"}]
+    db = FakeConnection(pickup_enabled=True, pickup_minutes=30, weekly_schedule=schedule)
+    with FLASK.test_request_context("/api/menu/esempio/ordini/disponibilita?data=" + tomorrow.isoformat()):
+        response = availability_function(db)("esempio")
+    assert response.get_json()["fasce"] == ["11:00", "11:30", "18:30", "19:00"]
+    data = payload(1)
+    data.update(data_richiesta=tomorrow.isoformat(), ora_richiesta="18:30")
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        _response, status = order_function(db)("esempio")
+    assert status == 201
+    data["ora_richiesta"] = "14:00"
+    with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=data):
+        _response, status = order_function(db)("esempio")
+    assert status == 400
+    following = tomorrow + timedelta(days=1)
+    with FLASK.test_request_context("/api/menu/esempio/ordini/disponibilita?data=" + following.isoformat()):
+        response = availability_function(db)("esempio")
+    assert response.get_json()["fasce"] == []
+    assert response.get_json()["disponibile"] is False
+
+
+def test_weekly_pickup_schedule_rejects_overlap_and_more_than_two_windows():
+    node = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "validate_pickup_schedule"))
+    scope = {"re": re}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "app.py", "exec"), scope)
+    validate = scope["validate_pickup_schedule"]
+    schedule = [[] for _ in range(7)]
+    schedule[0] = [{"dalle": "18:00", "alle": "19:00"}, {"dalle": "12:00", "alle": "13:00"}]
+    assert validate(schedule, 30)[0] == [{"dalle": "12:00", "alle": "13:00"}, {"dalle": "18:00", "alle": "19:00"}]
+    schedule[0][1]["dalle"] = "18:30"
+    schedule[0][1]["alle"] = "19:30"
+    assert validate(schedule, 30) is None
+    schedule[0] = [{"dalle": "12:00", "alle": "13:00"}] * 3
+    assert validate(schedule, 30) is None
 
 
 def test_slot_order_limit_rejects_full_slot():

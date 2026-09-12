@@ -1083,6 +1083,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ritiro_dalle TIME")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ritiro_alle TIME")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS minuti_fascia_ritiro INTEGER NOT NULL DEFAULT 15")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS fasce_ritiro_settimanali JSONB")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS limite_fascia_ritiro NUMERIC(10,3) NOT NULL DEFAULT 0")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS criterio_limite_fascia VARCHAR(10) NOT NULL DEFAULT 'ordini'")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS unita_prezzo VARCHAR(6) NOT NULL DEFAULT 'pezzo' CHECK (unita_prezzo IN ('pezzo','kg'))")
@@ -3868,6 +3869,41 @@ def api_statistiche_ordini():
         conn.close()
 
 
+def pickup_windows_for_day(schedule, requested: date, fallback_start: str | None, fallback_end: str | None) -> list[tuple[str, str]]:
+    """Return the shop's pickup windows for one weekday, preserving legacy hours."""
+    if schedule is None:
+        return [(fallback_start, fallback_end)] if fallback_start and fallback_end else []
+    if isinstance(schedule, str):
+        schedule = json.loads(schedule)
+    return [(window["dalle"], window["alle"]) for window in schedule[requested.weekday()]]
+
+
+def validate_pickup_schedule(schedule, minutes: int) -> list[list[dict[str, str]]] | None:
+    if not isinstance(schedule, list) or len(schedule) != 7:
+        return None
+    normalized = []
+    for day in schedule:
+        if not isinstance(day, list) or len(day) > 2:
+            return None
+        windows = []
+        for window in day:
+            if not isinstance(window, dict) or set(window) != {"dalle", "alle"}:
+                return None
+            start, end = window["dalle"], window["alle"]
+            if not isinstance(start, str) or not isinstance(end, str) or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", start) or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", end):
+                return None
+            start_minute = int(start[:2]) * 60 + int(start[3:])
+            end_minute = int(end[:2]) * 60 + int(end[3:])
+            if end_minute - start_minute < minutes:
+                return None
+            windows.append({"dalle": start, "alle": end})
+        windows.sort(key=lambda item: item["dalle"])
+        if len(windows) == 2 and windows[0]["alle"] > windows[1]["dalle"]:
+            return None
+        normalized.append(windows)
+    return normalized
+
+
 @app.route("/api/ordini/configurazione", methods=["GET", "PUT"])
 def api_ordini_configurazione():
     if "user_id" not in session and "employee_id" not in session:
@@ -3884,7 +3920,7 @@ def api_ordini_configurazione():
                     enabled = payload.get("asporto_attivi", payload.get("attivi"))
                     table_enabled = payload.get("tavolo_attivi")
                     limit = payload.get("limite_giornaliero")
-                    pickup_changed = any(key in payload for key in ("fasce_ritiro_attive", "ritiro_dalle", "ritiro_alle", "minuti_fascia_ritiro", "limite_fascia_ritiro", "criterio_limite_fascia"))
+                    pickup_changed = any(key in payload for key in ("fasce_ritiro_attive", "ritiro_dalle", "ritiro_alle", "minuti_fascia_ritiro", "limite_fascia_ritiro", "criterio_limite_fascia", "fasce_settimanali"))
                     if enabled is not None and not isinstance(enabled, bool):
                         return jsonify({"error": "Impostazione non valida."}), 400
                     if table_enabled is not None and not isinstance(table_enabled, bool):
@@ -3905,7 +3941,13 @@ def api_ordini_configurazione():
                             return jsonify({"error": "Seleziona se usare le fasce di ritiro."}), 400
                         if type(pickup_minutes) is not int or not 1 <= pickup_minutes <= 240 or pickup_criterion not in {"ordini", "articoli"} or not pickup_capacity.is_finite() or pickup_capacity < 0 or pickup_capacity > 10000 or pickup_capacity.as_tuple().exponent < -3 or (pickup_criterion == "ordini" and pickup_capacity != pickup_capacity.to_integral_value()):
                             return jsonify({"error": "Durata o limite per fascia non validi."}), 400
-                        if pickup_enabled:
+                        schedule_supplied = "fasce_settimanali" in payload
+                        schedule = validate_pickup_schedule(payload.get("fasce_settimanali"), pickup_minutes) if schedule_supplied else None
+                        if schedule_supplied and schedule is None:
+                            return jsonify({"error": "Imposta fino a due intervalli validi e non sovrapposti per ogni giorno."}), 400
+                        if pickup_enabled and schedule_supplied and not any(schedule):
+                            return jsonify({"error": "Imposta almeno un intervallo di ritiro nella settimana."}), 400
+                        if pickup_enabled and not schedule_supplied:
                             time_pattern = r"(?:[01]\d|2[0-3]):[0-5]\d"
                             if not re.fullmatch(time_pattern, pickup_start) or not re.fullmatch(time_pattern, pickup_end):
                                 return jsonify({"error": "Imposta orari di ritiro validi."}), 400
@@ -3917,10 +3959,11 @@ def api_ordini_configurazione():
                         return jsonify({"error": "Nessuna impostazione indicata."}), 400
                     cur.execute("UPDATE negozi SET ordini_attivi=COALESCE(%s,ordini_attivi),ordini_tavolo_attivi=COALESCE(%s,ordini_tavolo_attivi),limite_ordini_giorno=COALESCE(%s,limite_ordini_giorno) WHERE id=%s", (enabled, table_enabled, limit, shop_id))
                     if pickup_changed:
-                        cur.execute("UPDATE negozi SET fasce_ritiro_attive=%s,ritiro_dalle=%s,ritiro_alle=%s,minuti_fascia_ritiro=%s,limite_fascia_ritiro=%s,criterio_limite_fascia=%s WHERE id=%s", (pickup_enabled, pickup_start if pickup_enabled else None, pickup_end if pickup_enabled else None, pickup_minutes, pickup_capacity, pickup_criterion, shop_id))
-                cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia FROM negozi WHERE id=%s", (shop_id,))
+                        cur.execute("UPDATE negozi SET fasce_ritiro_attive=%s,ritiro_dalle=%s,ritiro_alle=%s,minuti_fascia_ritiro=%s,limite_fascia_ritiro=%s,criterio_limite_fascia=%s,fasce_ritiro_settimanali=COALESCE(%s::jsonb,fasce_ritiro_settimanali) WHERE id=%s", (pickup_enabled, pickup_start if pickup_enabled else None, pickup_end if pickup_enabled else None, pickup_minutes, pickup_capacity, pickup_criterion, json.dumps(schedule) if schedule_supplied else None, shop_id))
+                cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia,fasce_ritiro_settimanali FROM negozi WHERE id=%s", (shop_id,))
                 row = cur.fetchone()
-                return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2], "fasce_ritiro_attive": bool(row[3]), "ritiro_dalle": row[4], "ritiro_alle": row[5], "minuti_fascia_ritiro": row[6], "limite_fascia_ritiro": str(row[7]), "criterio_limite_fascia": row[8]})
+                legacy_windows = [[{"dalle": row[4], "alle": row[5]}] if row[4] and row[5] else [] for _ in range(7)]
+                return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2], "fasce_ritiro_attive": bool(row[3]), "ritiro_dalle": row[4], "ritiro_alle": row[5], "minuti_fascia_ritiro": row[6], "limite_fascia_ritiro": str(row[7]), "criterio_limite_fascia": row[8], "fasce_settimanali": row[9] if row[9] is not None else legacy_windows})
     finally:
         conn.close()
 
@@ -3943,7 +3986,7 @@ def api_disponibilita_ordini(slug: str):
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id,ordini_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia FROM negozi WHERE slug=%s", (slug,))
+            cur.execute("SELECT id,ordini_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia,fasce_ritiro_settimanali FROM negozi WHERE slug=%s", (slug,))
             shop = cur.fetchone()
             if not shop or not shop[1]:
                 return jsonify({"error": "Gli ordini online non sono disponibili."}), 403
@@ -3957,15 +4000,16 @@ def api_disponibilita_ordini(slug: str):
                                GROUP BY o.ora_richiesta""", (shop[0], requested))
                 slot_usage = {row[0]: row[1] if shop[8] == "ordini" else row[2] for row in cur.fetchall()}
             slots = []
-            if shop[3] and shop[4] and shop[5]:
-                start = int(shop[4][:2]) * 60 + int(shop[4][3:])
-                end = int(shop[5][:2]) * 60 + int(shop[5][3:])
+            if shop[3]:
                 now_rome = datetime.now(ZoneInfo("Europe/Rome"))
-                for minute in range(start, end - shop[6] + 1, shop[6]):
-                    slot = f"{minute // 60:02d}:{minute % 60:02d}"
-                    needed = 1 if shop[8] == "ordini" else max(requested_articles, Decimal("0.001"))
-                    if (requested != today or minute > now_rome.hour * 60 + now_rome.minute) and (not shop[7] or slot_usage.get(slot, 0) + needed <= shop[7]):
-                        slots.append(slot)
+                for start_time, end_time in pickup_windows_for_day(shop[9], requested, shop[4], shop[5]):
+                    start = int(start_time[:2]) * 60 + int(start_time[3:])
+                    end = int(end_time[:2]) * 60 + int(end_time[3:])
+                    for minute in range(start, end - shop[6] + 1, shop[6]):
+                        slot = f"{minute // 60:02d}:{minute % 60:02d}"
+                        needed = 1 if shop[8] == "ordini" else max(requested_articles, Decimal("0.001"))
+                        if (requested != today or minute > now_rome.hour * 60 + now_rome.minute) and (not shop[7] or slot_usage.get(slot, 0) + needed <= shop[7]):
+                            slots.append(slot)
             available = (shop[2] == 0 or used < shop[2]) and (not shop[3] or bool(slots))
             return jsonify({"disponibile": available, "posti_rimanenti": None if shop[2] == 0 else max(0, shop[2] - used), "limite_giornaliero": shop[2], "fasce_ritiro_attive": bool(shop[3]), "fasce": slots, "minuti_fascia_ritiro": shop[6], "limite_fascia_ritiro": str(shop[7]), "criterio_limite_fascia": shop[8]})
     finally:
@@ -4077,21 +4121,25 @@ def api_crea_ordine_menu(slug: str | None = None):
         with conn:
             with conn.cursor() as cur:
                 if manual:
-                    cur.execute("SELECT id,ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia FROM negozi WHERE id=%s FOR UPDATE", (shop_id_manual,))
+                    cur.execute("SELECT id,ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia,fasce_ritiro_settimanali FROM negozi WHERE id=%s FOR UPDATE", (shop_id_manual,))
                 else:
-                    cur.execute("SELECT id,ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia FROM negozi WHERE slug=%s FOR UPDATE", (slug,))
+                    cur.execute("SELECT id,ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia,fasce_ritiro_settimanali FROM negozi WHERE slug=%s FOR UPDATE", (slug,))
                 shop = cur.fetchone()
                 if not shop or (not manual and not shop[1 if mode == "asporto" else 2]):
                     return jsonify({"error": "Questa modalità d'ordine non è disponibile per il locale."}), 403
                 shop_id = shop[0]
                 if mode == "asporto":
                     if shop[4]:
-                        if not requested_time or not shop[5] or not shop[6] or not shop[5] <= requested_time < shop[6]:
+                        if not requested_time:
                             return jsonify({"error": "Scegli una fascia oraria di ritiro disponibile."}), 400
-                        start_minutes = int(shop[5][:2]) * 60 + int(shop[5][3:])
                         requested_minutes = int(requested_time[:2]) * 60 + int(requested_time[3:])
-                        end_minutes = int(shop[6][:2]) * 60 + int(shop[6][3:])
-                        if (requested_minutes - start_minutes) % shop[7] or requested_minutes + shop[7] > end_minutes:
+                        windows = pickup_windows_for_day(shop[10], requested, shop[5], shop[6])
+                        if not any(
+                            requested_minutes >= int(start_time[:2]) * 60 + int(start_time[3:])
+                            and requested_minutes + shop[7] <= int(end_time[:2]) * 60 + int(end_time[3:])
+                            and (requested_minutes - int(start_time[:2]) * 60 - int(start_time[3:])) % shop[7] == 0
+                            for start_time, end_time in windows
+                        ):
                             return jsonify({"error": "Scegli una fascia oraria di ritiro disponibile."}), 400
                         if requested == today and int(requested_time[:2]) * 60 + int(requested_time[3:]) <= now_rome.hour * 60 + now_rome.minute:
                             return jsonify({"error": "La fascia oraria selezionata è già passata."}), 409

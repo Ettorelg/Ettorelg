@@ -8,6 +8,7 @@
   .orders-settings label{display:grid;gap:5px;color:#c6d3f2;font-size:.86rem}.orders-settings input:not([type=checkbox]),.orders-settings select{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
   .orders-settings .pickup-toggle{display:flex;align-items:center;gap:9px;margin:12px 0}.orders-settings .pickup-toggle input{width:19px;height:19px;accent-color:#6ea8fe}
   .pickup-hours{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.pickup-hours[hidden]{display:none!important}.pickup-hours label{min-width:140px}
+  .weekly-pickup{display:grid;gap:8px;width:100%}.weekly-pickup-row{display:grid;grid-template-columns:100px repeat(4,minmax(100px,1fr));gap:8px;align-items:end;padding:10px;border:1px solid rgba(255,255,255,.13);border-radius:9px}.weekly-pickup-row strong{align-self:center}.weekly-pickup-row label{min-width:0}.weekly-pickup-row input{width:100%}@media(max-width:700px){.weekly-pickup-row{grid-template-columns:repeat(2,minmax(0,1fr))}.weekly-pickup-row strong{grid-column:1/-1}}
   #ordersMessage{min-height:20px;color:#aee8bd}
   @media(max-width:640px){.orders-activation button,.orders-link a{width:100%;justify-content:center}}
 </style>
@@ -25,14 +26,13 @@
   </div>
   <div class="orders-settings">
     <strong>Orario di ritiro per gli ordini da asporto</strong>
-    <p>Puoi richiedere solo il giorno oppure scegliere liberamente la durata delle fasce, da 1 a 240 minuti. Puoi limitare gli ordini oppure la quantità totale di articoli per fascia; per i prodotti a peso, 1,5 kg conta come 1,5. Imposta 0 per nessun limite per fascia. Eventuali minuti finali che non completano una fascia restano esclusi.</p>
+    <p>Puoi richiedere solo il giorno oppure impostare fino a due intervalli per ogni giorno della settimana, ad esempio pranzo e cena. Le fasce dentro ciascun intervallo hanno la durata in minuti che scegli tu. Lascia vuoto un giorno senza ritiri. Puoi limitare gli ordini o gli articoli per fascia; 0 significa nessun limite. Eventuali minuti finali che non completano una fascia restano esclusi.</p>
     <label class="pickup-toggle"><input id="pickupSlotsEnabled" type="checkbox"> Chiedi anche una fascia oraria</label>
     <div class="pickup-hours" id="pickupHours">
-      <label>Dalle <input id="pickupStart" type="time" step="60" value="18:00"></label>
-      <label>Alle <input id="pickupEnd" type="time" step="60" value="23:00"></label>
       <label>Durata fascia (minuti) <input id="pickupMinutes" type="number" min="1" max="240" step="1" value="15"></label>
       <label>Limite per fascia <input id="pickupCapacity" type="number" min="0" max="10000" step="0.001" value="0"></label>
       <label>Limita <select id="pickupCriterion"><option value="ordini">Numero di ordini</option><option value="articoli">Quantità totale di articoli</option></select></label>
+      <div id="weeklyPickup" class="weekly-pickup" aria-label="Intervalli di ritiro per giorno"></div>
     </div>
     <button id="pickupSave" type="button">Salva modalità di ritiro</button>
   </div>
@@ -47,11 +47,24 @@
   const ordersLimit=document.getElementById('ordersLimit');
   const pickupSlotsEnabled=document.getElementById('pickupSlotsEnabled');
   const pickupHours=document.getElementById('pickupHours');
-  const pickupStart=document.getElementById('pickupStart');
-  const pickupEnd=document.getElementById('pickupEnd');
+  const weeklyPickup=document.getElementById('weeklyPickup');
   const pickupMinutes=document.getElementById('pickupMinutes');
   const pickupCapacity=document.getElementById('pickupCapacity');
   const pickupCriterion=document.getElementById('pickupCriterion');
+  const weekdayNames=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
+  function renderWeeklyPickup(schedule){
+    weeklyPickup.replaceChildren();
+    weekdayNames.forEach((name,day)=>{
+      const row=document.createElement('div');row.className='weekly-pickup-row';row.dataset.day=String(day);
+      const title=document.createElement('strong');title.textContent=name;row.append(title);
+      for(let windowIndex=0;windowIndex<2;windowIndex++)for(const [field,labelText] of [['dalle','Dalle'],['alle','Alle']]){
+        const label=document.createElement('label');label.textContent=(windowIndex+1)+'ª fascia · '+labelText;
+        const input=document.createElement('input');input.type='time';input.step='60';input.dataset.window=String(windowIndex);input.dataset.field=field;
+        input.value=schedule?.[day]?.[windowIndex]?.[field]||'';label.append(input);row.append(label);
+      }
+      weeklyPickup.append(row);
+    });
+  }
   let ordersActive=false,tableOrdersActive=false;
   async function loadOrdersConfig(){
     const response=await fetch('/api/ordini/configurazione');
@@ -60,7 +73,7 @@
     ordersActive=data.asporto_attivi;tableOrdersActive=data.tavolo_attivi;
     ordersLimit.value=String(data.limite_giornaliero);
     pickupSlotsEnabled.checked=data.fasce_ritiro_attive;
-    pickupStart.value=data.ritiro_dalle||'18:00';pickupEnd.value=data.ritiro_alle||'23:00';
+    renderWeeklyPickup(data.fasce_settimanali);
     pickupMinutes.value=String(data.minuti_fascia_ritiro||15);
     pickupCapacity.value=String(data.limite_fascia_ritiro||0);
     pickupCriterion.value=data.criterio_limite_fascia||'ordini';
@@ -83,15 +96,22 @@
   });
   pickupSlotsEnabled.addEventListener('change',()=>{pickupHours.hidden=!pickupSlotsEnabled.checked});
   document.getElementById('pickupSave').addEventListener('click',async()=>{
-    const enabled=pickupSlotsEnabled.checked,start=pickupStart.value,end=pickupEnd.value;
+    const enabled=pickupSlotsEnabled.checked;
     const minutes=Number(pickupMinutes.value),capacity=Number(pickupCapacity.value),criterion=pickupCriterion.value;
     const pattern=/^(?:[01]\d|2[0-3]):[0-5]\d$/;
-    const startValue=Number(start.slice(0,2))*60+Number(start.slice(3));
-    const endValue=Number(end.slice(0,2))*60+Number(end.slice(3));
     if(!Number.isInteger(minutes)||minutes<1||minutes>240){orderMessage.textContent='Scegli una durata da 1 a 240 minuti.';return}
     if(!Number.isFinite(capacity)||capacity<0||capacity>10000||Math.round(capacity*1000)!==capacity*1000||(criterion==='ordini'&&!Number.isInteger(capacity))){orderMessage.textContent='Imposta un limite valido: numero intero per gli ordini, fino a tre decimali per gli articoli.';return}
-    if(enabled&&(!pattern.test(start)||!pattern.test(end)||endValue<=startValue||endValue-startValue<minutes)){orderMessage.textContent='Scegli orari che contengano almeno una fascia completa.';return}
-    try{await saveOrdersConfig({fasce_ritiro_attive:enabled,ritiro_dalle:enabled?start:'',ritiro_alle:enabled?end:'',minuti_fascia_ritiro:minutes,limite_fascia_ritiro:capacity,criterio_limite_fascia:criterion},enabled?'Fasce di ritiro salvate.':'Ritiro con sola data salvato.')}catch(error){orderMessage.textContent=error.message}
+    const schedule=[];
+    for(const row of weeklyPickup.children){const day=[];for(let index=0;index<2;index++){
+      const start=row.querySelector(`[data-window="${index}"][data-field="dalle"]`).value;
+      const end=row.querySelector(`[data-window="${index}"][data-field="alle"]`).value;
+      if(!start&&!end)continue;
+      const startValue=Number(start.slice(0,2))*60+Number(start.slice(3));const endValue=Number(end.slice(0,2))*60+Number(end.slice(3));
+      if(!pattern.test(start)||!pattern.test(end)||endValue-startValue<minutes){orderMessage.textContent='Completa gli orari di ogni fascia e lascia almeno '+minutes+' minuti.';return}
+      day.push({dalle:start,alle:end});
+    }day.sort((a,b)=>a.dalle.localeCompare(b.dalle));if(day.length===2&&day[0].alle>day[1].dalle){orderMessage.textContent='Le due fasce dello stesso giorno non possono sovrapporsi.';return}schedule.push(day)}
+    if(enabled&&!schedule.some(day=>day.length)){orderMessage.textContent='Imposta almeno un intervallo nella settimana.';return}
+    try{await saveOrdersConfig({fasce_ritiro_attive:enabled,fasce_settimanali:schedule,minuti_fascia_ritiro:minutes,limite_fascia_ritiro:capacity,criterio_limite_fascia:criterion},enabled?'Fasce settimanali salvate.':'Ritiro con sola data salvato.')}catch(error){orderMessage.textContent=error.message}
   });
   loadOrdersConfig().catch(error=>{orderMessage.textContent=error.message});
 </script>
