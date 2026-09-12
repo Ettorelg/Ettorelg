@@ -28,6 +28,11 @@ class EmployeeAccessTests(unittest.TestCase):
         self.assertIn("/api/ordini/manuale", EMPLOYEE_VIEW)
         self.assertNotIn("method:'PATCH'", EMPLOYEE_VIEW)
         self.assertIn("setInterval(load,15000)", EMPLOYEE_VIEW)
+        self.assertIn('id="summaryView"', EMPLOYEE_VIEW)
+        self.assertIn('id="ordersView"', EMPLOYEE_VIEW)
+        self.assertIn("quantityMode='total'", EMPLOYEE_VIEW)
+        self.assertIn('id="period"', EMPLOYEE_VIEW)
+        self.assertIn('id="grouping"', EMPLOYEE_VIEW)
 
     def test_owner_can_manage_employees(self):
         self.assertIn("Accessi dipendenti", ACCOUNT)
