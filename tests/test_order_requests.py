@@ -343,6 +343,18 @@ def test_fulfillment_page_always_shows_product_totals_and_completed_orders():
     assert "load({silent:true})},5000" in html
 
 
+def test_fulfillment_page_keeps_separate_product_and_order_views():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert 'id="summaryView" type="button" aria-pressed="true"' in html
+    assert 'id="ordersView" type="button" aria-pressed="false"' in html
+    assert "let lastOrders=[],displayMode='totali'" in html
+    assert "prep.hidden=displayMode!=='totali'" in html
+    assert "grid.hidden=displayMode!=='ordini'" in html
+    assert "['Evasi',amounts.done,'evaded']" in html
+    assert "['Da preparare',amounts.pending,'remaining']" in html
+    assert "['Totale',amounts.total,'all']" in html
+
+
 def test_order_operations_are_on_fulfillment_page_not_settings():
     root = Path(__file__).resolve().parents[1] / "templates"
     settings = (root / "sections" / "ordini.html").read_text(encoding="utf-8")

@@ -7,7 +7,7 @@
   <link rel="icon" href="{{ url_for('static', filename='alpha-menu-favicon.png') }}" type="image/png">
   <title>Evasione ordini · Alpha Menu</title>
   <style>
-    *{box-sizing:border-box}
+    *{box-sizing:border-box}[hidden]{display:none!important}
     body{margin:0;min-height:100vh;background:#0d1627;color:#f2f6ff;font:16px/1.45 Inter,system-ui,Arial,sans-serif}body.modal-open{overflow:hidden}
     button,input,select{font:inherit}
     a{color:#a9d0ff}
@@ -21,11 +21,11 @@
     .toolbar label{display:grid;gap:5px;color:#bfd0e8;font-size:.82rem;font-weight:700}.toolbar input,.toolbar select{height:43px;padding:8px 11px;color:#fff;background:#0e1a2d;border:1px solid #53708d;border-radius:9px}
     .toolbar button,.actions button{min-height:38px;padding:7px 11px;color:#dbe8fa;background:#203650;border:1px solid #46617e;border-radius:9px;cursor:pointer;font-weight:750}.toolbar button:hover,.actions button:hover{background:#3675b7}.toolbar button:disabled,.actions button:disabled{opacity:.55;cursor:default}.toolbar .date-compact{display:flex;align-items:center;gap:7px;font-size:.8rem}.toolbar .date-compact input{height:38px}.filter-options{position:relative;margin-left:auto}.filter-options summary{min-height:38px;padding:8px 12px;border:1px solid #46617e;border-radius:9px;background:#203650;color:#dbe8fa;cursor:pointer;font-size:.85rem;font-weight:750;list-style:none}.filter-options summary::-webkit-details-marker{display:none}.filter-options[open] summary{background:#295b94}.filter-options .filter-content{position:absolute;right:0;top:calc(100% + 7px);z-index:9;display:flex;gap:10px;align-items:end;flex-wrap:wrap;min-width:320px;padding:13px;border:1px solid #53708d;border-radius:10px;background:#1b304c;box-shadow:0 14px 30px #0006}.filter-options label{min-width:135px}
     .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}.metric{padding:18px;border:1px solid #3b5674;border-radius:14px;background:#1b304c}.metric b{display:block;font-size:2rem;line-height:1.1}.metric span{color:#b8c9e1;font-size:.85rem}
-    .metric.featured{border-color:#78b8ff;background:#214b78}
+    .metric.featured{border-color:#78b8ff;background:#214b78}.view-toggle{display:flex;gap:8px;flex-wrap:wrap;margin:19px 0 0}.view-toggle button{min-height:46px;padding:10px 16px;border:1px solid #53708d;border-radius:10px;background:#172a45;color:#d7e6f8;cursor:pointer;font-weight:800}.view-toggle button[aria-pressed="true"]{border-color:#9bcdff;background:#2a5f99;color:#fff;box-shadow:0 0 0 2px #9bcdff44}
     #status{min-height:24px;color:#c4d6ef;margin:12px 0}
     .group{margin:20px 0 28px;border:1px solid #426286;border-radius:17px;background:#15263e;overflow:hidden}.group-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 20px;background:#21416a}.group-head h2{margin:0;font-size:1.15rem}.group-head span{color:#d1e5ff;font-weight:700}
     .prep{padding:16px 20px;border-bottom:1px solid #35516c}.prep strong{display:block;margin-bottom:9px;color:#fff}
-    .prep-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:10px}.prep-item{padding:13px;border:1px solid #5b82ab;border-radius:10px;background:#294d76}.prep-item b{display:block;margin-bottom:7px}.prep-item small{display:block;color:#e2eeff;line-height:1.55}
+    .prep-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.prep-item{padding:18px;border:1px solid #5b82ab;border-radius:12px;background:#294d76}.prep-item .prep-total-number{display:block;font-size:clamp(2.5rem,4vw,4.2rem);font-weight:900;line-height:1;letter-spacing:-.04em;color:#fff}.prep-item .prep-name{display:block;min-height:2.4em;margin:9px 0 15px;font-size:1.02rem;font-weight:800;line-height:1.2}.prep-breakdown{display:grid;gap:5px;padding-top:11px;border-top:1px solid #6b91b6}.prep-breakdown span{display:flex;justify-content:space-between;gap:10px;font-size:.9rem}.prep-breakdown b{font-size:1rem}.prep-breakdown .evaded{color:#a9b6c8;text-decoration:line-through}.prep-breakdown .remaining{color:#fff;font-weight:800}.prep-breakdown .all{color:#d7e9ff}
     .order-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:15px}.order-card{padding:17px;border:1px solid #395779;border-left:5px solid #ffbf64;border-radius:12px;background:#1b304b}.order-card.working{border-left-color:#71b7ff}.order-card.done{border-left-color:#8b96a7;background:#263242;color:#b4becd}.order-card.done h3,.order-card.done li,.order-card.done .meta{text-decoration:line-through}.order-card.done .meta{color:#97a5b7}.order-card h3{margin:0 0 4px;font-size:1.02rem}.order-card .meta{color:#b6c8e0;font-size:.8rem}.order-card ul{margin:11px 0;padding-left:21px}.order-card li{margin:4px 0}.order-card p{margin:7px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.88rem}.order-card a{display:inline-block;margin-top:6px;font-weight:750}.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}.actions button{font-size:.8rem;min-height:37px;padding:7px 10px}.actions .finish{background:#1c7653;border-color:#53d5a0}.actions .cancel{background:#693542;border-color:#c57c8a}
     .empty{padding:38px 24px;text-align:center;border:1px dashed #536d8b;border-radius:15px;color:#bdd0e9;background:#172841}
     .manual-order{width:min(800px,calc(100vw - 24px));max-height:calc(100dvh - 32px);margin:auto;border:1px solid #79a7d9;border-radius:17px;background:#182b45;color:#f2f6ff;padding:22px;overflow:auto;box-shadow:0 28px 80px #0009}.manual-order::backdrop{background:#050b16c9;backdrop-filter:blur(4px)}.manual-order:not([open]){display:none}.manual-order-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}.manual-order-head h2{margin:0;font-size:1.35rem}.manual-order-head p{margin:5px 0 0;color:#bed0e7;font-size:.85rem}.manual-order .manual-close{width:42px;min-width:42px;height:42px;padding:0;border:1px solid #7698bd;border-radius:9px;background:#213e62;color:#fff;font-size:1.4rem;cursor:pointer}.manual-order form{display:grid;gap:13px}.manual-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.manual-order label{display:grid;gap:5px;color:#c5d6ee;font-size:.85rem;font-weight:700}.manual-order input:not([type=checkbox]),.manual-order select,.manual-order textarea{width:100%;min-height:42px;padding:9px 11px;border:1px solid #5b7798;border-radius:9px;background:#0e1a2d;color:#fff;font:inherit}.manual-order textarea{min-height:74px}.manual-order [hidden]{display:none!important}.manual-order button{min-height:40px;padding:8px 12px;border:1px solid #79b3f6;border-radius:9px;background:#2b609b;color:#fff;font-weight:750;cursor:pointer}.manual-order button:disabled{opacity:.5}.customer-save{display:flex!important;align-items:center;gap:9px}.customer-save input{width:18px;height:18px;accent-color:#6ca6ec}.customer-results{display:grid;gap:6px;max-height:220px;overflow:auto}.customer-result{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid #395779;border-radius:9px}.customer-result span{min-width:0;overflow-wrap:anywhere}.manual-lines{display:grid;gap:8px}.manual-line{display:grid;grid-template-columns:minmax(0,1fr) 125px auto;gap:8px;align-items:end}.manual-hint{margin:0;color:#aec2df;font-size:.83rem}.manual-feedback{min-height:20px;margin:0;color:#b9e9ca;font-weight:700}
@@ -66,6 +66,7 @@
       </form>
     </dialog>
     <div class="metrics" aria-label="Riepilogo ordini"><div class="metric featured"><b id="articleCount">0</b><span>Articoli da preparare</span></div><div class="metric"><b id="totalCount">0</b><span>Ordini totali</span></div><div class="metric"><b id="pendingCount">0</b><span>Ordini da evadere</span></div><div class="metric"><b id="doneCount">0</b><span>Ordini evasi</span></div></div>
+    <div class="view-toggle" role="group" aria-label="Vista evasione"><button id="summaryView" type="button" aria-pressed="true">Da preparare in totale</button><button id="ordersView" type="button" aria-pressed="false">Singoli ordini da evadere</button></div>
     <p id="status" role="status"></p>
     <div id="groups"></div>
     <dialog class="history" id="orderHistory" aria-labelledby="historyTitle"><div class="history-head"><h2 id="historyTitle">Storico e riepilogo</h2><button id="historyClose" type="button" aria-label="Chiudi storico">×</button></div><p>Consulta anche gli ordini annullati, per giorno, settimana, mese o anno.</p>
@@ -81,7 +82,7 @@
     const grouping=document.getElementById('grouping');
     const groups=document.getElementById('groups');
     const status=document.getElementById('status');
-    let lastOrders=[];
+    let lastOrders=[],displayMode='totali';
     const quantityFormat=new Intl.NumberFormat('it-IT',{maximumFractionDigits:3});
     dateField.value=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
     function node(parent,tag,text,className){const element=document.createElement(tag);if(text!==undefined)element.textContent=text;if(className)element.className=className;parent.appendChild(element);return element}
@@ -113,7 +114,7 @@
         node(head,'h2',groupLabel(key));
         const open=items.filter(order=>order.stato!=='evaso').length,done=items.length-open;
         node(head,'span',items.length+' totali · '+open+' da evadere · '+done+' evasi');
-        const prep=node(section,'div',undefined,'prep');node(prep,'strong','Totali articoli per questa data');
+        const prep=node(section,'div',undefined,'prep');prep.hidden=displayMode!=='totali';node(prep,'strong','Da preparare in totale');
         const prepList=node(prep,'div',undefined,'prep-list');
         const totals=new Map();
         for(const order of items)for(const product of order.prodotti){
@@ -122,10 +123,15 @@
           const row=totals.get(product.nome);row.total+=amount;row[order.stato==='evaso'?'done':'pending']+=amount;
         }
         for(const [name,amounts] of totals){
-          const item=node(prepList,'div',undefined,'prep-item');node(item,'b',name);
-          node(item,'small','Totale: '+quantityFormat.format(amounts.total/1000)+' · Da preparare: '+quantityFormat.format(amounts.pending/1000)+' · Evasi: '+quantityFormat.format(amounts.done/1000));
+          const item=node(prepList,'div',undefined,'prep-item');
+          node(item,'span',quantityFormat.format(amounts.total/1000),'prep-total-number');
+          node(item,'span',name,'prep-name');
+          const breakdown=node(item,'div',undefined,'prep-breakdown');
+          for(const [label,value,style] of [['Evasi',amounts.done,'evaded'],['Da preparare',amounts.pending,'remaining'],['Totale',amounts.total,'all']]){
+            const row=node(breakdown,'span',undefined,style);node(row,'span',label);node(row,'b',quantityFormat.format(value/1000));
+          }
         }
-        const grid=node(section,'div',undefined,'order-grid');
+        const grid=node(section,'div',undefined,'order-grid');grid.hidden=displayMode!=='ordini';
         for(const order of [...items].sort((a,b)=>Number(a.stato==='evaso')-Number(b.stato==='evaso'))){
           const card=node(grid,'article',undefined,'order-card'+(order.stato==='in_lavorazione'?' working':order.stato==='evaso'?' done':''));
           node(card,'h3','#'+order.id+' · '+order.nome);
@@ -165,6 +171,9 @@
         status.textContent='Dal '+displayDate(result.da)+' al '+displayDate(result.a)+' · '+result.ordini.length+' ordini · aggiornamento automatico attivo';
       }catch(error){if(current===requestNumber)status.textContent=error.message+' · Nuovo tentativo automatico tra 5 secondi.'}
     }
+    function selectDisplayMode(mode){displayMode=mode;document.getElementById('summaryView').setAttribute('aria-pressed',String(mode==='totali'));document.getElementById('ordersView').setAttribute('aria-pressed',String(mode==='ordini'));render(lastOrders)}
+    document.getElementById('summaryView').addEventListener('click',()=>selectDisplayMode('totali'));
+    document.getElementById('ordersView').addEventListener('click',()=>selectDisplayMode('ordini'));
     document.getElementById('previous').addEventListener('click',()=>changeDate(-1));
     document.getElementById('next').addEventListener('click',()=>changeDate(1));
     document.getElementById('today').addEventListener('click',()=>{dateField.value=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});period.value='giorno';load()});
