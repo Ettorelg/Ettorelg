@@ -163,7 +163,7 @@
           <div class="order-contact-fields" data-takeaway-field hidden><label>Telefono *<input name="telefono" type="tel" maxlength="40" minlength="6" autocomplete="tel"></label><label>Email (facoltativa)<input name="email" type="email" maxlength="254" autocomplete="email" value="{{ customer_google.email if customer_google else '' }}"></label></div>
           <div class="order-details" id="orderDetails"><label data-takeaway-field hidden>Riferimento ritiro (facoltativo)<input name="riferimento" maxlength="80" placeholder="Es. Banco"></label><label id="orderTableField" hidden>Numero o riferimento del tavolo *<input name="tavolo" maxlength="80" placeholder="Es. 4"></label><label>Note (facoltative)<textarea name="note" maxlength="500" rows="1"></textarea></label></div>
           <label class="order-privacy" id="orderPrivacyField" hidden><input type="checkbox"> Ho letto l'informativa sul trattamento dei dati dell'ordine. <a href="/privacy" target="_blank" rel="noopener">Informativa privacy</a></label>
-          <label class="order-privacy" id="orderSaveCustomerField" data-takeaway-field hidden><input name="salva_cliente" type="checkbox"> Salva nome, telefono ed eventuale email nella rubrica del locale per ritrovarmi nei prossimi ordini (facoltativo).</label>
+          <label class="order-privacy" id="orderSaveCustomerField" data-takeaway-field hidden><input name="salva_cliente" type="checkbox" checked> Salva nome, telefono ed eventuale email nella rubrica del locale per ritrovarmi nei prossimi ordini. Puoi togliere la spunta.</label>
           <button id="orderSubmit" type="submit">Invia richiesta d'ordine</button>
           <p id="orderFeedback" role="status"></p>
         </form>

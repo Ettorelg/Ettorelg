@@ -185,7 +185,7 @@ def test_online_customer_choice_must_be_boolean():
 def test_public_takeaway_form_offers_optional_address_book_choice():
     html = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
     assert 'id="orderSaveCustomerField" data-takeaway-field hidden' in html
-    assert '<input name="salva_cliente" type="checkbox">' in html
+    assert '<input name="salva_cliente" type="checkbox" checked>' in html
     assert "salva_cliente:orderMode==='asporto'&&fields.has('salva_cliente')" in html
     assert 'name="email" type="email"' in html
 
