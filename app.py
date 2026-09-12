@@ -4194,9 +4194,12 @@ def api_ordini_evasione():
                        TO_CHAR(o.ora_richiesta,'HH24:MI'), o.nome_cliente,o.telefono_cliente,
                        o.riferimento,o.note,o.stato,o.totale,o.origine,
                        TO_CHAR(o.creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
-                       r.nome_prodotto,r.quantita,r.totale_riga
+                       r.nome_prodotto,r.quantita,r.totale_riga,r.id_prodotto,
+                       c.id,c.nome,c.ordine,p.ordine
                 FROM ordini_menu o
                 LEFT JOIN righe_ordini_menu r ON r.id_ordine=o.id
+                LEFT JOIN prodotti p ON p.id=r.id_prodotto AND p.id_negozio=o.id_negozio
+                LEFT JOIN categorie c ON c.id=p.id_categoria
                 WHERE o.id_negozio=%s AND o.stato IN ('da_evadere','in_lavorazione','evaso')
                   AND COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date) >= %s
                   AND COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date) < %s
@@ -4219,7 +4222,11 @@ def api_ordini_evasione():
                 }
                 orders_by_id[row[0]] = order
             if row[11] is not None:
-                order["prodotti"].append({"nome": row[11], "quantita": str(row[12]), "totale": str(row[13])})
+                order["prodotti"].append({"nome": row[11], "quantita": str(row[12]), "totale": str(row[13]),
+                                          "id_prodotto": row[14], "id_categoria": row[15],
+                                          "categoria": row[16] or "Senza categoria",
+                                          "ordine_categoria": row[17] if row[17] is not None else 999999,
+                                          "ordine_prodotto": row[18] if row[18] is not None else 999999})
         return jsonify({"ordini": list(orders_by_id.values()), "da": start.isoformat(), "a": (end - timedelta(days=1)).isoformat()})
     finally:
         conn.close()

@@ -27,6 +27,7 @@
     .prep{padding:16px 20px;border-bottom:1px solid #35516c}.prep strong{display:block;margin-bottom:9px;color:#fff}
     .prep-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.prep-head strong{margin:0}.quantity-switch{display:flex;gap:6px;flex-wrap:wrap}.quantity-switch button{min-height:34px;padding:5px 11px;border:1px solid #6c90b8;border-radius:8px;background:#203b5a;color:#dcecff;font-size:.82rem;font-weight:800;cursor:pointer}.quantity-switch button[aria-pressed="true"]{border-color:#fff;background:#3875b3;color:#fff;box-shadow:0 0 0 2px #ffffff22}
     .prep-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.prep-item{padding:18px;border:1px solid #5b82ab;border-radius:12px;background:#294d76}.prep-item .prep-total-number{display:block;font-size:clamp(2.5rem,4vw,4.2rem);font-weight:900;line-height:1;letter-spacing:-.04em;color:#fff}.prep-item .prep-name{display:block;min-height:2.4em;margin:9px 0 15px;font-size:1.02rem;font-weight:800;line-height:1.2}.prep-breakdown{display:grid;gap:5px;padding-top:11px;border-top:1px solid #6b91b6}.prep-breakdown span{display:flex;justify-content:space-between;gap:10px;font-size:.9rem}.prep-breakdown b{font-size:1rem}.prep-breakdown .evaded{color:#a9b6c8;text-decoration:line-through}.prep-breakdown .remaining{color:#fff;font-weight:800}.prep-breakdown .all{color:#d7e9ff}
+    .prep-category{display:block;color:#bbd1ec;margin:-9px 0 12px;font-size:.75rem}.filter-content select{min-width:145px}
     .order-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:15px}.order-card{padding:17px;border:1px solid #395779;border-left:5px solid #ffbf64;border-radius:12px;background:#1b304b}.order-card.working{border-left-color:#71b7ff}.order-card.done{border-left-color:#8b96a7;background:#263242;color:#b4becd}.order-card.done h3,.order-card.done li,.order-card.done .meta{text-decoration:line-through}.order-card.done .meta{color:#97a5b7}.order-card h3{margin:0 0 4px;font-size:1.02rem}.order-card .meta{color:#b6c8e0;font-size:.8rem}.order-card ul{margin:11px 0;padding-left:21px}.order-card li{margin:4px 0}.order-card p{margin:7px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.88rem}.order-card a{display:inline-block;margin-top:6px;font-weight:750}.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}.actions button{font-size:.8rem;min-height:37px;padding:7px 10px}.actions .finish{background:#1c7653;border-color:#53d5a0}.actions .cancel{background:#693542;border-color:#c57c8a}
     .empty{padding:38px 24px;text-align:center;border:1px dashed #536d8b;border-radius:15px;color:#bdd0e9;background:#172841}
     .manual-order{width:min(900px,calc(100vw - 24px));max-height:calc(100dvh - 24px);margin:auto;border:1px solid #79a7d9;border-radius:17px;background:#182b45;color:#f2f6ff;padding:16px;overflow:auto;box-shadow:0 28px 80px #0009}.manual-order::backdrop{background:#050b16c9;backdrop-filter:blur(4px)}.manual-order:not([open]){display:none}.manual-order-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}.manual-order-head h2{margin:0;font-size:1.28rem}.manual-order-head p{margin:2px 0 0;color:#bed0e7;font-size:.8rem}.manual-order .manual-close{width:38px;min-width:38px;height:38px;padding:0;border:1px solid #7698bd;border-radius:9px;background:#213e62;color:#fff;font-size:1.4rem;cursor:pointer}.manual-order form{display:grid;gap:9px}.manual-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px}.manual-extra-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.manual-order label{display:grid;gap:4px;min-width:0;color:#c5d6ee;font-size:.82rem;font-weight:700}.manual-order input:not([type=checkbox]),.manual-order select,.manual-order textarea{width:100%;min-height:38px;padding:7px 9px;border:1px solid #5b7798;border-radius:9px;background:#0e1a2d;color:#fff;font:inherit}.manual-order textarea{height:38px;min-height:38px;resize:vertical}.manual-order [hidden]{display:none!important}.manual-order button{min-height:37px;padding:7px 11px;border:1px solid #79b3f6;border-radius:9px;background:#2b609b;color:#fff;font-weight:750;cursor:pointer}.manual-order button:disabled{opacity:.5}.customer-save{display:flex!important;align-items:center;gap:9px}.customer-save input{width:18px;height:18px;accent-color:#6ca6ec}.customer-results{display:grid;gap:5px;max-height:140px;overflow:auto}.customer-result{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px;border:1px solid #395779;border-radius:9px}.customer-result span{min-width:0;overflow-wrap:anywhere}.manual-lines{display:grid;gap:7px}.manual-line{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:7px;align-items:end}.manual-hint{margin:0;color:#aec2df;font-size:.78rem}.manual-feedback{min-height:18px;margin:0;color:#b9e9ca;font-weight:700}
@@ -45,7 +46,7 @@
   <main>
     <div class="board-heading"><div><h1>Banco evasione ordini</h1><p class="lead">Controlla cosa preparare, aggiungi ordini e consulta lo storico da questa pagina.</p></div><div class="toplinks"><button id="showHistoryButton" type="button" aria-controls="orderHistory" style="min-height:54px;padding:12px 18px;border:1px solid #6ca6ec;border-radius:12px;background:#22436a;color:#fff;font-weight:800;cursor:pointer">Storico e riepilogo</button></div></div>
     <div class="view-toggle" role="group" aria-label="Vista evasione"><button id="summaryView" type="button" aria-pressed="true">Da preparare in totale</button><button id="ordersView" type="button" aria-pressed="false">Singoli ordini da evadere</button></div>
-    <div class="toolbar"><button id="previous" type="button" aria-label="Giorno o settimana precedente">←</button><label class="date-compact">Data<input id="date" type="date"></label><button id="next" type="button" aria-label="Giorno o settimana successiva">→</button><button id="today" class="today-button" type="button">Oggi</button><details class="filter-options"><summary>Opzioni di vista ▾</summary><div class="filter-content"><label>Intervallo<select id="period"><option value="giorno">Un giorno</option><option value="settimana">Una settimana</option></select></label><label>Raggruppa<select id="grouping"><option value="giorno">Per giorno</option><option value="fascia">Per orario di ritiro</option></select></label></div></details><button id="refresh" type="button" aria-label="Aggiorna ordini">↻</button></div>
+    <div class="toolbar"><button id="previous" type="button" aria-label="Giorno o settimana precedente">←</button><label class="date-compact">Data<input id="date" type="date"></label><button id="next" type="button" aria-label="Giorno o settimana successivo">→</button><button id="today" class="today-button" type="button">Oggi</button><details class="filter-options"><summary>Opzioni di vista ▾</summary><div class="filter-content"><label>Intervallo<select id="period"><option value="giorno">Un giorno</option><option value="settimana">Una settimana</option></select></label><label>Raggruppa<select id="grouping"><option value="giorno">Per giorno</option><option value="fascia">Per orario di ritiro</option></select></label><label>Categoria<select id="productCategory"><option value="">Tutte le categorie</option></select></label><label>Ordina prodotti<select id="productSort"><option value="menu">Ordine del menu</option><option value="categoria">Categoria A-Z</option><option value="nome">Nome A-Z</option><option value="quantita">Quantità decrescente</option></select></label></div></details><button id="refresh" type="button" aria-label="Aggiorna ordini">↻</button></div>
     <dialog class="manual-order" id="manualOrderPanel" aria-labelledby="manualOrderTitle">
       <div class="manual-order-head"><div><h2 id="manualOrderTitle">Aggiungi ordine</h2><p>Inserisci cliente, ritiro e articoli. L'ordine comparirà subito nel banco evasione.</p></div><button id="manualClose" class="manual-close" type="button" aria-label="Chiudi finestra ordine">×</button></div>
       <form id="manualOrderForm">
@@ -83,6 +84,7 @@
     const dateField=document.getElementById('date');
     const period=document.getElementById('period');
     const grouping=document.getElementById('grouping');
+    const productCategory=document.getElementById('productCategory'),productSort=document.getElementById('productSort');
     const groups=document.getElementById('groups');
     const status=document.getElementById('status');
     let lastOrders=[],displayMode='totali',quantityMode='total';
@@ -93,8 +95,11 @@
     function changeDate(direction){const [y,m,d]=dateField.value.split('-').map(Number);if(!y)return;dateField.value=new Date(Date.UTC(y,m-1,d+direction*(period.value==='settimana'?7:1))).toISOString().slice(0,10);load()}
     function groupKey(order){return order.data_richiesta+(grouping.value==='fascia'?'|'+(order.ora_richiesta||'Senza orario'):'')}
     function groupLabel(key){const [day,time]=key.split('|');return displayDate(day)+(time?' · '+(time==='Senza orario'?time:'Ore '+time):'')}
+    function visibleProducts(order){return order.prodotti.filter(product=>!productCategory.value||String(product.id_categoria??'none')===productCategory.value)}
+    function updateCategories(orders){const selected=productCategory.value;const categories=new Map();for(const order of orders)for(const product of order.prodotti)categories.set(String(product.id_categoria??'none'),product.categoria||'Senza categoria');productCategory.replaceChildren(new Option('Tutte le categorie',''));for(const [id,name] of [...categories].sort((a,b)=>a[1].localeCompare(b[1],'it')))productCategory.add(new Option(name,id));productCategory.value=categories.has(selected)?selected:''}
     function render(orders){
       lastOrders=orders;
+      orders=orders.filter(order=>!productCategory.value||visibleProducts(order).length);
       const openOrders=orders.filter(order=>order.stato!=='evaso');
       const doneOrders=orders.filter(order=>order.stato==='evaso');
       document.getElementById('totalCount').textContent=orders.length;
@@ -106,11 +111,11 @@
         const key=groupKey(order);
         if(!byGroup.has(key))byGroup.set(key,[]);
         byGroup.get(key).push(order);
-        if(order.stato!=='evaso')for(const product of order.prodotti)toPrepare+=Math.round(Number(product.quantita)*1000);
+        if(order.stato!=='evaso')for(const product of visibleProducts(order))toPrepare+=Math.round(Number(product.quantita)*1000);
       }
       document.getElementById('articleCount').textContent=quantityFormat.format(toPrepare/1000);
       groups.replaceChildren();
-      if(!orders.length){node(groups,'div','Nessun ordine nel periodo selezionato.','empty');return}
+      if(!orders.length){node(groups,'div',productCategory.value?'Nessun articolo nella categoria selezionata.':'Nessun ordine nel periodo selezionato.','empty');return}
       for(const [key,items] of [...byGroup].sort((a,b)=>a[0].localeCompare(b[0]))){
         const section=node(groups,'section',undefined,'group');
         const head=node(section,'div',undefined,'group-head');
@@ -125,16 +130,19 @@
         }
         const prepList=node(prep,'div',undefined,'prep-list');
         const totals=new Map();
-        for(const order of items)for(const product of order.prodotti){
+        for(const order of items)for(const product of visibleProducts(order)){
           const amount=Math.round(Number(product.quantita)*1000);
-          if(!totals.has(product.nome))totals.set(product.nome,{total:0,pending:0,done:0});
-          const row=totals.get(product.nome);row.total+=amount;row[order.stato==='evaso'?'done':'pending']+=amount;
+          const identity=String(product.id_prodotto??(product.categoria+'|'+product.nome));
+          if(!totals.has(identity))totals.set(identity,{name:product.nome,category:product.categoria||'Senza categoria',categoryOrder:product.ordine_categoria??999999,productOrder:product.ordine_prodotto??999999,total:0,pending:0,done:0});
+          const row=totals.get(identity);row.total+=amount;row[order.stato==='evaso'?'done':'pending']+=amount;
         }
-        for(const [name,amounts] of totals){
+        const sortedProducts=[...totals.values()].sort((a,b)=>productSort.value==='categoria'?a.category.localeCompare(b.category,'it')||a.name.localeCompare(b.name,'it'):productSort.value==='nome'?a.name.localeCompare(b.name,'it'):productSort.value==='quantita'?b[quantityMode]-a[quantityMode]||a.name.localeCompare(b.name,'it'):a.categoryOrder-b.categoryOrder||a.productOrder-b.productOrder||a.name.localeCompare(b.name,'it'));
+        for(const amounts of sortedProducts){
           const item=node(prepList,'div',undefined,'prep-item');
           const bigNumber=node(item,'span',quantityFormat.format(amounts[quantityMode]/1000),'prep-total-number');
           for(const mode of ['total','pending','done'])bigNumber.dataset[mode]=String(amounts[mode]/1000);
-          node(item,'span',name,'prep-name');
+          node(item,'span',amounts.name,'prep-name');
+          node(item,'small',amounts.category,'prep-category');
           const breakdown=node(item,'div',undefined,'prep-breakdown');
           for(const [label,value,style] of [['Evasi',amounts.done,'evaded'],['Da preparare',amounts.pending,'remaining'],['Totale',amounts.total,'all']]){
             const row=node(breakdown,'span',undefined,style);node(row,'span',label);node(row,'b',quantityFormat.format(value/1000));
@@ -146,7 +154,7 @@
           node(card,'h3','#'+order.id+' · '+order.nome);
           node(card,'div',(order.stato==='evaso'?'Evaso':order.stato==='in_lavorazione'?'In lavorazione':'Da evadere')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto')+(order.ora_richiesta?' · Ore '+order.ora_richiesta:' · Senza orario')+' · Inserito '+order.creato_il,'meta');
           const lines=node(card,'ul');
-          for(const product of order.prodotti)node(lines,'li',quantityFormat.format(Number(product.quantita))+' × '+product.nome);
+          for(const product of visibleProducts(order))node(lines,'li',quantityFormat.format(Number(product.quantita))+' × '+product.nome);
           if(order.riferimento)node(card,'p','Riferimento: '+order.riferimento);
           if(order.note)node(card,'p','Note: '+order.note);
           if(order.telefono){const phone=node(card,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
@@ -176,12 +184,13 @@
         if(current!==requestNumber)return;
         if(!response.ok)throw new Error(result.error||'Impossibile caricare gli ordini.');
         const fingerprint=JSON.stringify(result.ordini);
-        if(fingerprint!==lastFingerprint){lastFingerprint=fingerprint;render(result.ordini);if(silent&&historyPanel.open)loadHistory()}
+        if(fingerprint!==lastFingerprint){lastFingerprint=fingerprint;updateCategories(result.ordini);render(result.ordini);if(silent&&historyPanel.open)loadHistory()}
         status.textContent='Dal '+displayDate(result.da)+' al '+displayDate(result.a)+' · '+result.ordini.length+' ordini · aggiornamento automatico attivo';
       }catch(error){if(current===requestNumber)status.textContent=error.message+' · Nuovo tentativo automatico tra 5 secondi.'}
     }
     function selectQuantityMode(mode){
       quantityMode=mode;
+      if(productSort.value==='quantita'){render(lastOrders);return}
       for(const number of groups.querySelectorAll('.prep-total-number'))number.textContent=quantityFormat.format(Number(number.dataset[mode]));
       for(const button of groups.querySelectorAll('.quantity-switch button'))button.setAttribute('aria-pressed',String(button.dataset.quantityMode===mode));
     }
@@ -194,6 +203,7 @@
     document.getElementById('refresh').addEventListener('click',load);
     dateField.addEventListener('change',load);period.addEventListener('change',load);
     grouping.addEventListener('change',()=>render(lastOrders));
+    productCategory.addEventListener('change',()=>render(lastOrders));productSort.addEventListener('change',()=>render(lastOrders));
     const manualPanel=document.getElementById('manualOrderPanel');
     const addOrderButton=document.getElementById('addOrderButton');
     addOrderButton.addEventListener('click',()=>{
