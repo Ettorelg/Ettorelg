@@ -46,8 +46,32 @@ app.config.update(
 @app.before_request
 def keep_authenticated_session_active():
     """Mantiene l'accesso nell'app installata, senza rendere persistenti i flussi anonimi."""
-    if session.get("user_id"):
+    if session.get("user_id") or session.get("employee_id"):
         session.permanent = True
+
+
+@app.before_request
+def restrict_employee_access():
+    employee_id = session.get("employee_id")
+    if not employee_id:
+        return None
+    allowed = {"employee_orders", "api_ordini_evasione", "logout", "static", "pwa_manifest", "pwa_service_worker"}
+    if request.endpoint not in allowed or (request.endpoint == "api_ordini_evasione" and request.method != "GET"):
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "Accesso non consentito al dipendente."}), 403
+        return redirect(url_for("employee_orders"))
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT d.attivo, l.stato, l.data_scadenza FROM dipendenti_negozio d
+                           JOIN negozi n ON n.id=d.id_negozio
+                           LEFT JOIN licenze_utenti l ON l.id_utente=n.id_utente WHERE d.id=%s""", (employee_id,))
+            row = cur.fetchone()
+    finally:
+        conn.close()
+    if not row or not row[0] or not license_is_active(row[1], row[2]):
+        session.clear()
+        return redirect(url_for("login"))
 
 
 @app.get("/manifest.webmanifest")
@@ -838,6 +862,17 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS allergeni_auto TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS indirizzo TEXT NOT NULL DEFAULT ''")
+                cur.execute("""CREATE TABLE IF NOT EXISTS dipendenti_negozio (
+                    id BIGSERIAL PRIMARY KEY,
+                    id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                    nome VARCHAR(80) NOT NULL,
+                    email TEXT NOT NULL,
+                    password TEXT NOT NULL,
+                    ruolo VARCHAR(30) NOT NULL DEFAULT 'ordini_lettura' CHECK (ruolo='ordini_lettura'),
+                    attivo BOOLEAN NOT NULL DEFAULT TRUE,
+                    creato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS dipendenti_email_unica ON dipendenti_negozio (LOWER(email))")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS citta TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS cap TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS provincia TEXT NOT NULL DEFAULT ''")
@@ -1312,6 +1347,22 @@ def login():
     finally:
         conn.close()
 
+    if not row:
+        conn = psycopg2.connect(**build_db_config())
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT d.id,d.id_negozio,d.nome,d.password,d.attivo,l.stato,l.data_scadenza
+                               FROM dipendenti_negozio d JOIN negozi n ON n.id=d.id_negozio
+                               LEFT JOIN licenze_utenti l ON l.id_utente=n.id_utente
+                               WHERE LOWER(d.email)=LOWER(%s)""", (email,))
+                employee = cur.fetchone()
+        finally:
+            conn.close()
+        if employee and employee[4] and verify_password(password, employee[3]) and license_is_active(employee[5], employee[6]):
+            clear_login_failures(email)
+            session.clear()
+            session.update(employee_id=employee[0], employee_shop_id=employee[1], username=employee[2])
+            return redirect(url_for("employee_orders"))
     if not row or not verify_password(password, row[2]):
         record_login_failure(email)
         return render_template("login.html", error="Email o password errati.", google_enabled=google_enabled())
@@ -1325,6 +1376,7 @@ def login():
         session.update(pending_user_id=user_id, pending_username=username_db)
         return redirect(url_for("pagamento"))
 
+    session.clear()
     session.update(user_id=user_id, username=username_db, is_admin=bool(is_admin))
     if not is_admin:
         trigger_license_expiry_email(user_id)
@@ -3279,6 +3331,71 @@ def logout():
     session.clear()
     return redirect("/login")
 
+
+@app.get("/dipendenti/ordini")
+def employee_orders():
+    if not session.get("employee_id"):
+        return redirect(url_for("login"))
+    return render_template("employee_orders.html", username=session.get("username", "dipendente"))
+
+
+@app.route("/api/dipendenti", methods=["GET", "POST"])
+def api_dipendenti():
+    if not session.get("user_id") or session.get("is_admin"):
+        return jsonify({"error": "Accesso del titolare richiesto."}), 403
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        if request.method == "GET":
+            with conn.cursor() as cur:
+                cur.execute("SELECT id,nome,email,attivo FROM dipendenti_negozio WHERE id_negozio=%s ORDER BY nome,id", (shop_id,))
+                return jsonify({"dipendenti": [dict(zip(("id", "nome", "email", "attivo"), row)) for row in cur.fetchall()]})
+        data = request.get_json(silent=True) or {}
+        name = str(data.get("nome") or "").strip()
+        email = str(data.get("email") or "").strip().lower()
+        password = str(data.get("password") or "")
+        if not 2 <= len(name) <= 80 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or len(email) > 254 or len(password) < 12 or len(password) > 128:
+            return jsonify({"error": "Inserisci nome, email valida e password di almeno 12 caratteri."}), 400
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM utenti WHERE LOWER(email)=LOWER(%s)", (email,))
+                if cur.fetchone():
+                    return jsonify({"error": "Email già utilizzata da un account."}), 409
+                cur.execute("INSERT INTO dipendenti_negozio (id_negozio,nome,email,password) VALUES (%s,%s,%s,%s) RETURNING id", (shop_id, name, email, hash_password(password)))
+                employee_id = cur.fetchone()[0]
+        return jsonify({"ok": True, "id": employee_id}), 201
+    except psycopg2.IntegrityError:
+        return jsonify({"error": "Email già utilizzata da un dipendente."}), 409
+    finally:
+        conn.close()
+
+
+@app.patch("/api/dipendenti/<int:employee_id>")
+def api_aggiorna_dipendente(employee_id: int):
+    if not session.get("user_id") or session.get("is_admin"):
+        return jsonify({"error": "Accesso del titolare richiesto."}), 403
+    shop_id = get_user_shop_id(session["user_id"])
+    data = request.get_json(silent=True) or {}
+    active = data.get("attivo")
+    password = data.get("password")
+    if not isinstance(active, bool) and password is None:
+        return jsonify({"error": "Nessuna modifica valida."}), 400
+    if password is not None and (not isinstance(password, str) or not 12 <= len(password) <= 128):
+        return jsonify({"error": "La password deve avere almeno 12 caratteri."}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE dipendenti_negozio SET attivo=COALESCE(%s,attivo),password=COALESCE(%s,password)
+                               WHERE id=%s AND id_negozio=%s RETURNING id""", (active if isinstance(active, bool) else None, hash_password(password) if password is not None else None, employee_id, shop_id))
+                if not cur.fetchone():
+                    return jsonify({"error": "Dipendente non trovato."}), 404
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
 @app.get("/dashboard/scelta")
 def dashboard_choice():
     if "user_id" not in session:
@@ -4055,9 +4172,9 @@ def api_crea_ordine_menu(slug: str | None = None):
 
 @app.get("/api/ordini/evasione")
 def api_ordini_evasione():
-    if "user_id" not in session:
+    if "user_id" not in session and "employee_id" not in session:
         return jsonify({"error": "Accesso richiesto."}), 401
-    shop_id = get_user_shop_id(session["user_id"])
+    shop_id = session.get("employee_shop_id") if session.get("employee_id") else get_user_shop_id(session["user_id"])
     if not shop_id:
         return jsonify({"error": "Configura prima il negozio."}), 409
     period = request.args.get("periodo", "giorno")
