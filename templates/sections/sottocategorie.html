@@ -96,6 +96,7 @@
   let items = [];
 
   function showToast(msg){
+    window.showDashboardNotice?.(msg, /errore|non valid|impossibile|seleziona/i.test(msg));
     toast.textContent = msg;
     toast.classList.remove("hidden");
     setTimeout(() => toast.classList.add("hidden"), 2500);

@@ -115,6 +115,7 @@
     hoursMessage.textContent = response.ok
       ? "Orari settimanali salvati."
       : (data.detail || data.error || "Errore nel salvataggio degli orari.");
+    window.showDashboardNotice?.(hoursMessage.textContent, !response.ok);
   });
 
   loadHours();

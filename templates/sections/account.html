@@ -63,12 +63,13 @@
 <script>
 (()=>{
  const form=document.getElementById('accountForm'), msg=document.getElementById('accountMessage');
+ ['employeeMessage','privacyMessage','subscriptionMessage'].forEach(id=>window.observeDashboardMessage?.(document.getElementById(id)));
  const installButton=document.getElementById('installApp'),installHelp=document.getElementById('installAppHelp');
  const syncInstallButton=()=>{installButton.style.display=window.alphaMenuInstallPrompt?'inline-block':'none'};
  syncInstallButton();window.addEventListener('alphamenu-install-ready',syncInstallButton);
  installButton.addEventListener('click',async()=>{if(await window.installAlphaMenu?.()){installHelp.textContent='Alpha Menu è pronta nella schermata Home.';syncInstallButton()}});
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const show=(text,error=false)=>{msg.textContent=text;msg.className='account-message '+(error?'error':'ok')};
+ const show=(text,error=false)=>{msg.textContent=text;msg.className='account-message '+(error?'error':'ok');window.showDashboardNotice?.(text,error)};
  async function loadAccount(){
    try{
      const r=await fetch('/api/account'),d=await r.json();if(!r.ok)throw new Error(d.error||'Impossibile caricare l’account.');

@@ -56,6 +56,8 @@
       background:rgba(255,255,255,.03);box-shadow:var(--shadow);padding:16px;min-height: 320px}
     .loading{opacity:.65}
     .error{padding:10px;border:1px solid rgba(255,80,80,.4);background:rgba(255,80,80,.12);border-radius:12px}
+    .dashboard-notice{position:fixed;top:18px;left:50%;z-index:1200;transform:translateX(-50%);display:flex;align-items:center;gap:14px;width:min(560px,calc(100vw - 28px));padding:16px 18px;border:2px solid #72dfa0;border-radius:14px;background:#123d2b;color:#f4fff7;box-shadow:0 18px 50px rgba(0,0,0,.55);font-size:16px;font-weight:750}
+    .dashboard-notice.error{border-color:#ff8c8c;background:#57252b;color:#fff0f0}.dashboard-notice[hidden]{display:none}.dashboard-notice-text{flex:1}.dashboard-notice-close{flex:0 0 auto;border:0;background:transparent;color:inherit;font-size:24px;line-height:1;cursor:pointer}
 
     @media(max-width:760px){
       body{overflow-x:hidden}body.mobile-menu-open{overflow:hidden}.app{display:block;min-height:100vh}.sidebar,.sidebar.collapsed{position:sticky;top:0;z-index:20;width:100%;height:auto;max-height:none;overflow:visible;border-right:0;border-bottom:1px solid var(--border)}
@@ -68,10 +70,12 @@
       .sidebar .nav-item,.sidebar.collapsed .nav-item{justify-content:flex-start;flex:0 0 auto;min-height:48px;padding:9px 12px;gap:12px}.icon{width:30px;height:30px;border-radius:8px}.label,.sidebar.collapsed .label{display:block;max-width:none;font-size:15px}
       .main{width:100%;padding:9px}.topbar{padding:10px 11px;border-radius:12px;box-shadow:none}.topbar h1{font-size:15px}.topbar-actions{gap:6px}.pill{display:none}
       .content{margin-top:9px;padding:11px;min-height:260px;border-radius:12px;box-shadow:none;overflow:hidden}.content input:not([type=checkbox]):not([type=radio]):not([type=color]),.content select,.content textarea{max-width:100%;font-size:16px}.content button,.content .btn{min-height:42px;touch-action:manipulation}.content img{max-width:100%}
+      .dashboard-notice{top:68px;padding:13px 15px;font-size:15px}
     }
   </style>
 </head>
 <body>
+  <div class="dashboard-notice" id="dashboardNotice" role="status" aria-live="polite" hidden><span id="dashboardNoticeText" class="dashboard-notice-text"></span><button id="dashboardNoticeClose" class="dashboard-notice-close" type="button" aria-label="Chiudi avviso">×</button></div>
   <div class="app">
     <aside id="sidebar" class="sidebar">
       <div class="sb-top">
@@ -132,6 +136,32 @@
       return nativeFetch(input, options);
     };
     const sidebar = document.getElementById('sidebar');
+    const dashboardNotice = document.getElementById('dashboardNotice');
+    let dashboardNoticeTimer;
+    window.showDashboardNotice = (message, error = false) => {
+      if (!message) return;
+      clearTimeout(dashboardNoticeTimer);
+      document.getElementById('dashboardNoticeText').textContent = message;
+      dashboardNotice.classList.toggle('error', Boolean(error));
+      dashboardNotice.setAttribute('role', error ? 'alert' : 'status');
+      dashboardNotice.hidden = false;
+      dashboardNoticeTimer = setTimeout(() => { dashboardNotice.hidden = true; }, error ? 8000 : 5500);
+    };
+    window.observeDashboardMessage = element => {
+      if (!element) return;
+      let previous = element.textContent.trim();
+      new MutationObserver(() => {
+        const message = element.textContent.trim();
+        if (message && message !== previous) {
+          window.showDashboardNotice(message, /errore|non riuscit|impossibile|non valid|inserisci|seleziona/i.test(message));
+        }
+        previous = message;
+      }).observe(element, {childList:true, characterData:true, subtree:true});
+    };
+    document.getElementById('dashboardNoticeClose').addEventListener('click', () => {
+      clearTimeout(dashboardNoticeTimer);
+      dashboardNotice.hidden = true;
+    });
     const nav = document.getElementById('nav');
     const content = document.getElementById('content');
     const pageTitle = document.getElementById('pageTitle');

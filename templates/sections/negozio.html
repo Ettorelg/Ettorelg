@@ -65,6 +65,7 @@
 <script>
   const storeForm = document.getElementById("storeForm");
   const storeMessage = document.getElementById("storeMessage");
+  window.observeDashboardMessage?.(storeMessage);
   const storeFields = [...document.querySelectorAll("[data-store-field]")];
   const logoInput = document.getElementById("logo");
   const coverInput = document.getElementById("copertina");

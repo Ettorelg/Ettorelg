@@ -296,6 +296,7 @@
   let toastTimer;
   function showToast(msg, prominent = false){
     clearTimeout(toastTimer);
+    if (!prominent) window.showDashboardNotice?.(msg, /errore|non valid|impossibile|seleziona|nessun/i.test(msg));
     toast.textContent = msg;
     toast.classList.toggle("duplicate-success", prominent);
     toast.classList.remove("hidden");
