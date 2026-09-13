@@ -222,6 +222,12 @@ def test_public_order_confirmation_is_a_dialog_and_home_is_always_available():
     assert "orderSuccess.showModal();" in html
     assert "orderFeedback.scrollIntoView" not in html
     assert html.index('id="orderPickupField"') < html.index('id="orderGoogleInfo"') < html.index('name="nome"')
+
+
+def test_product_detail_price_is_below_content_and_right_aligned_on_mobile():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
+    assert ".product-dialog .product,.product-dialog .product.with-image{grid-template-columns:minmax(0,1fr)}" in html
+    assert ".product-dialog .product .price{grid-column:1/-1;grid-row:auto;justify-self:end" in html
     assert '{{ ui.book }}' not in html
 
 
