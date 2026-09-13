@@ -211,6 +211,17 @@ def test_public_menu_keeps_order_form_closed_until_products_are_selected():
     assert "orderAddButtons.forEach(button=>button.hidden=mode==='view')" in html
     assert "button.classList.toggle('selected',Boolean(selected))" in html
     assert "orderPanel.hidden=mode==='view'" not in html
+
+
+def test_public_order_confirmation_is_a_dialog_and_home_is_always_available():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
+    assert 'id="menuHome"' in html
+    assert "hideMenu.click();" in html
+    assert '<dialog class="order-success" id="orderSuccess"' in html
+    assert "orderPanel.close();" in html
+    assert "orderSuccess.showModal();" in html
+    assert "orderFeedback.scrollIntoView" not in html
+    assert html.index('id="orderPickupField"') < html.index('id="orderGoogleInfo"') < html.index('name="nome"')
     assert '{{ ui.book }}' not in html
 
 

@@ -10,6 +10,7 @@
     :root{--bg:{{ shop.colore_sfondo or '#f7f3ed' }};--card:#fff;--text:#211d19;--muted:#70675f;--accent:{{ shop.colore_accento or '#9d3e27' }};--line:#e8ded4;--shadow:0 14px 40px rgba(70,48,33,.12)}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;padding-top:38px;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
     .alpha-platform-bar{position:fixed;inset:0 0 auto;z-index:50;height:38px;display:flex;align-items:center;justify-content:center;border-bottom:1px solid rgba(15,42,79,.14);background:rgba(255,255,255,.97);box-shadow:0 3px 14px rgba(25,38,64,.08);backdrop-filter:blur(10px)}.alpha-platform-link{display:inline-flex;align-items:center;gap:9px;padding:0;border:0;background:transparent;color:#173d79;text-decoration:none;font:750 .76rem/1 Inter,system-ui;letter-spacing:.01em;cursor:pointer}.alpha-platform-link img{display:block;width:auto;height:25px;object-fit:contain}.alpha-platform-link span{padding-left:9px;border-left:1px solid #dbe3ef;color:#596b84;font-weight:650}
+    .menu-home{position:absolute;left:8px;top:3px;display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid #dbe3ef;border-radius:9px;background:#fff;color:#173d79;text-decoration:none;font-size:1.2rem;line-height:1}.menu-home:hover,.menu-home:focus-visible{background:#eef4fc;outline:2px solid #8bb7ef}
     .language-picker{position:absolute;top:10px;right:10px;z-index:4;margin:0;padding:2px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(20,13,9,.62);box-shadow:0 3px 12px rgba(0,0,0,.16);backdrop-filter:blur(7px)}.language-picker select{max-width:104px;border:0;border-radius:999px;padding:6px 22px 6px 8px;background:transparent;color:#fff;font-size:.72rem;font-weight:750;cursor:pointer;outline:none}.language-picker option{color:#211d19;background:#fff}
     .alpha-menu-promo{width:min(720px,calc(100% - 40px));margin:0 auto 26px;padding:15px 18px;border:1px solid color-mix(in srgb,var(--accent) 25%,var(--line));border-radius:15px;background:rgba(255,255,255,.72);text-align:center;color:var(--muted);font-size:.84rem}.alpha-menu-promo strong{display:block;margin-bottom:5px;color:var(--text)}.alpha-menu-promo button{padding:0;border:0;background:transparent;color:var(--accent);font:800 inherit;cursor:pointer}.alpha-menu-promo button:hover{text-decoration:underline}
     .hero{position:relative;min-height:310px;display:flex;align-items:flex-end;background:#382c25 center/cover no-repeat;overflow:hidden}
@@ -39,6 +40,7 @@
     .order-line input{width:80px;padding:6px;text-align:center}.order-panel form>p{grid-column:1/-1}.order-panel form>label:first-child{grid-column:1/-1}.order-contact-fields,.order-details{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.order-details textarea{height:41px;min-height:41px;resize:vertical}.order-panel[hidden],.order-panel [hidden],.order-add[hidden]{display:none!important}.order-mode-button{min-height:52px;background:#fff;color:var(--accent);border:2px solid var(--accent);box-shadow:none}.order-mode-button:hover{background:color-mix(in srgb,var(--accent) 10%,#fff)}
     .order-panel select{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font:inherit}
     .order-google{margin:13px 0 15px;padding:11px;border:1px solid var(--line);border-radius:13px;background:color-mix(in srgb,var(--accent) 4%,#fff);text-align:center}.google-signin{display:flex;align-items:center;justify-content:center;gap:12px;min-height:46px;padding:9px 15px;border:1px solid #d9dfe7;border-radius:10px;background:#fff;color:#21334c;text-decoration:none;font-size:.95rem;font-weight:800;box-shadow:0 3px 10px rgba(18,40,70,.08);transition:transform .15s ease,box-shadow .15s ease}.google-signin:hover,.google-signin:focus-visible{transform:translateY(-2px);box-shadow:0 7px 18px rgba(18,40,70,.16);outline:2px solid color-mix(in srgb,var(--accent) 35%,transparent)}.google-mark{font:900 1.25rem/1 system-ui;background:conic-gradient(#4285f4 0 100deg,#34a853 100deg 190deg,#fbbc05 190deg 270deg,#ea4335 270deg 360deg);background-clip:text;-webkit-background-clip:text;color:transparent}.google-or{display:block;margin-top:7px;color:var(--muted);font-size:.76rem}.google-connected{display:flex;align-items:center;justify-content:center;gap:10px;font-size:.86rem;font-weight:750}.google-connected small{display:block;color:var(--muted);font-weight:500;overflow-wrap:anywhere}#orderTotal{display:block;margin:12px 0 4px;padding:13px 16px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:11px;background:color-mix(in srgb,var(--accent) 8%,#fff);color:var(--accent);font-size:clamp(1.15rem,3vw,1.42rem);font-weight:900;line-height:1.2}
+    .order-panel form>.order-google{grid-column:1/-1;margin:0}.order-success{width:min(440px,calc(100vw - 32px));padding:30px 25px;border:1px solid color-mix(in srgb,var(--accent) 30%,#fff);border-radius:20px;background:#fff;color:var(--text);text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.3)}.order-success::backdrop{background:rgba(20,15,12,.7);backdrop-filter:blur(5px)}.order-success:not([open]){display:none}.order-success-icon{display:grid;place-items:center;width:66px;height:66px;margin:0 auto 14px;border-radius:50%;background:#e5f5e9;color:#16813c;font-size:2rem;font-weight:900}.order-success h2{margin:0 0 10px;font-size:1.5rem}.order-success p{margin:0 0 20px;color:var(--muted);line-height:1.5}.order-success button{width:100%;min-height:46px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:800 .95rem system-ui;cursor:pointer}
     body.has-active-cart main{padding-bottom:210px}.order-cart-preview{position:fixed;left:50%;bottom:12px;z-index:15;width:min(720px,calc(100vw - 24px));transform:translateX(-50%);padding:13px 15px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));border-radius:15px;background:#fff;box-shadow:0 10px 32px rgba(30,20,10,.18)}.order-cart-preview[hidden]{display:none}.order-cart-preview strong{display:block;margin-bottom:5px}.order-cart-preview ul{display:flex;gap:6px;flex-wrap:wrap;max-height:90px;overflow:auto;margin:0 0 10px;padding:0;list-style:none}.order-cart-preview li{padding:5px 8px;border-radius:8px;background:var(--bg);font-size:.78rem;font-weight:700}.order-cart-preview-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px}.order-cart-preview-bottom button{min-height:44px;padding:10px 15px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:850;cursor:pointer}
     @media(max-width:540px){.order-panel{padding:14px}.order-panel form{grid-template-columns:1fr}}
     .contact-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;max-width:720px;margin:18px auto 0;padding:13px 14px;border:1px solid var(--line);border-radius:15px;background:#fff;box-shadow:0 7px 22px rgba(70,48,33,.08)}.contact-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:11px 18px;border:1px solid color-mix(in srgb,var(--accent) 28%,#fff);border-radius:999px;background:#fff;color:var(--accent);font-size:.9rem;font-weight:850;text-decoration:none;transition:transform .16s ease,box-shadow .16s ease}.contact-action.primary{background:var(--accent);border-color:var(--accent);color:#fff}.contact-action.whatsapp{background:#25d366;border-color:#25d366;color:#082b15}.contact-action:hover,.contact-action:focus-visible{transform:translateY(-2px);box-shadow:0 8px 18px rgba(70,48,33,.16);outline:none}
@@ -49,7 +51,7 @@
     @page{size:A4 portrait;margin:7mm}
     @media print{
       html,body{padding:0!important;background:#fff!important;color:#111!important;font:7.5pt/1.15 Arial,sans-serif!important;-webkit-print-color-adjust:economy;print-color-adjust:economy}
-      .alpha-platform-bar,.alpha-promo-modal,.language-picker,.print-menu-button,.category-nav,.menu-tools,.intro,.hours,.view-actions,.legal-footer,.product-modal,.product-actions,.contact-actions,.order-panel,.order-cart-preview,.order-add{display:none!important}
+      .alpha-platform-bar,.alpha-promo-modal,.language-picker,.print-menu-button,.category-nav,.menu-tools,.intro,.hours,.view-actions,.legal-footer,.product-modal,.product-actions,.contact-actions,.order-panel,.order-success,.order-cart-preview,.order-add{display:none!important}
       .hero{min-height:0!important;margin:0 0 2mm;background:none!important;overflow:visible;border:0;border-bottom:2pt solid var(--accent)}
       .hero-inner{display:flex;width:auto;margin:0;padding:0 0 3mm;align-items:center;gap:4mm;color:#111}
       .brand-logo{display:grid!important;width:18mm;height:18mm;flex:0 0 18mm;border:.6pt solid #bbb;border-radius:3mm;background:#fff;box-shadow:none;color:var(--accent);font-size:15pt}
@@ -83,6 +85,7 @@
 </head>
 <body class="{% if shop.piano == 'base' %}plan-base{% endif %}">
   <div class="alpha-platform-bar">
+    <button class="menu-home" id="menuHome" type="button" aria-label="Torna alla homepage del locale" title="Torna alla homepage">⌂</button>
     <button class="alpha-platform-link" type="button" data-alpha-promo aria-label="Scopri Alpha Menu e provalo gratis per 14 giorni">
       <img src="{{ url_for('static', filename='alpha-menu-logo.png') }}" alt="Alpha Menu">
       <span>Menu digitale</span>
@@ -153,13 +156,13 @@
       <dialog class="order-panel" id="orderPanel" aria-labelledby="orderModeTitle">
         <div class="order-panel-head"><h2 id="orderModeTitle">Ordine <span id="orderCount">0 prodotti</span></h2><button class="order-panel-close" id="orderPanelClose" type="button" aria-label="Chiudi ordine">×</button></div>
         <p id="orderModeInfo"></p>
-        {% if google_enabled %}<div class="order-google" id="orderGoogleInfo" hidden>{% if customer_google %}<div class="google-connected"><span class="google-mark" aria-hidden="true">G</span><span>Accesso Google attivo<small>{{ customer_google.email }}</small></span></div>{% else %}<a class="google-signin" href="{{ url_for('auth_google_order', slug=shop.slug) }}"><span class="google-mark" aria-hidden="true">G</span><span>Accedi con Google</span></a><span class="google-or">oppure continua senza accesso</span>{% endif %}</div>{% endif %}
         <div id="orderLines" class="order-lines"><span>Il carrello è vuoto.</span></div>
         <strong id="orderTotal">Totale: € 0,00</strong>
         <form id="orderForm">
           <label data-takeaway-field hidden>Data di ritiro *<input name="data_richiesta" id="orderDate" type="date"></label>
           <p id="orderAvailability" role="status" hidden></p>
           <label id="orderPickupField" hidden>Fascia oraria di ritiro *<select name="ora_richiesta" id="orderPickupSlot"><option value="">Scegli un orario</option></select></label>
+          {% if google_enabled %}<div class="order-google" id="orderGoogleInfo" hidden>{% if customer_google %}<div class="google-connected"><span class="google-mark" aria-hidden="true">G</span><span>Accesso Google attivo<small>{{ customer_google.email }}</small></span></div>{% else %}<a class="google-signin" href="{{ url_for('auth_google_order', slug=shop.slug) }}"><span class="google-mark" aria-hidden="true">G</span><span>Accedi con Google</span></a><span class="google-or">oppure continua senza accesso</span>{% endif %}</div>{% endif %}
           <label data-takeaway-field hidden>Nome *<input name="nome" maxlength="120" minlength="2" autocomplete="name" value="{{ customer_google.name if customer_google else '' }}"></label>
           <div class="order-contact-fields" data-takeaway-field hidden><label>Telefono *<input name="telefono" type="tel" maxlength="40" minlength="6" autocomplete="tel"></label><label>Email (facoltativa)<input name="email" type="email" maxlength="254" autocomplete="email" value="{{ customer_google.email if customer_google else '' }}"></label></div>
           <div class="order-details" id="orderDetails"><label data-takeaway-field hidden>Riferimento ritiro (facoltativo)<input name="riferimento" maxlength="80" placeholder="Es. Banco"></label><label id="orderTableField" hidden>Numero o riferimento del tavolo *<input name="tavolo" maxlength="80" placeholder="Es. 4"></label><label>Note (facoltative)<textarea name="note" maxlength="500" rows="1"></textarea></label></div>
@@ -168,6 +171,12 @@
           <button id="orderSubmit" type="submit">Invia richiesta d'ordine</button>
           <p id="orderFeedback" role="status"></p>
         </form>
+      </dialog>
+      <dialog class="order-success" id="orderSuccess" aria-labelledby="orderSuccessTitle">
+        <div class="order-success-icon" aria-hidden="true">✓</div>
+        <h2 id="orderSuccessTitle">Ordine ricevuto!</h2>
+        <p id="orderSuccessMessage"></p>
+        <button id="orderSuccessClose" type="button">Torna al menu</button>
       </dialog>
       <aside class="order-cart-preview" id="orderCartPreview" aria-label="Prodotti selezionati" hidden><strong>Stai ordinando</strong><ul id="orderCartPreviewLines"></ul><div class="order-cart-preview-bottom"><b id="orderCartPreviewTotal">Totale: € 0,00</b><button id="orderCartOpen" type="button">Prenota un ordine</button></div></aside>
       {% endif %}
@@ -272,6 +281,8 @@
       const orderPickupField = document.getElementById('orderPickupField');
       const orderPickupSlot = document.getElementById('orderPickupSlot');
       const orderPanel = document.getElementById('orderPanel');
+      const orderSuccess = document.getElementById('orderSuccess');
+      const orderSuccessMessage = document.getElementById('orderSuccessMessage');
       const orderCartPreview = document.getElementById('orderCartPreview');
       const orderCartPreviewLines = document.getElementById('orderCartPreviewLines');
       const orderCartPreviewTotal = document.getElementById('orderCartPreviewTotal');
@@ -369,6 +380,7 @@
       }
       orderCartOpen.addEventListener('click',()=>{if(orderCart.size&&!orderPanel.open){orderPanel.showModal();(orderMode==='tavolo'?orderForm.elements.tavolo:orderDate).focus()}});
       document.getElementById('orderPanelClose').addEventListener('click',()=>orderPanel.close());
+      document.getElementById('orderSuccessClose').addEventListener('click',()=>orderSuccess.close());
       orderPanel.addEventListener('click',event=>{if(event.target===orderPanel)orderPanel.close()});
       const orderAddButtons=[];
       productCards.forEach(card => {
@@ -441,13 +453,18 @@
           });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || 'Invio non riuscito.');
+          const completedMode = orderMode;
           orderCart.clear();
           orderForm.reset();
           orderDate.value=todayRome;
           renderOrderCart();
-          if(orderMode==='asporto')checkOrderDate();
-          orderFeedback.textContent = orderMode==='tavolo'?'Ordine #'+result.ordine_id+' inviato al locale per il tuo tavolo.':'Richiesta #'+result.ordine_id+' inviata. Il locale potrà contattarti per confermarla; il pagamento non è stato effettuato.';
-          orderFeedback.scrollIntoView({behavior:'smooth',block:'center'});
+          orderFeedback.textContent = '';
+          orderPanel.close();
+          orderSuccessMessage.textContent = completedMode==='tavolo'
+            ? 'Ordine #'+result.ordine_id+' inviato al locale per il tuo tavolo.'
+            : 'Richiesta #'+result.ordine_id+' inviata. Il locale potrà contattarti per confermarla; il pagamento non è stato effettuato.';
+          orderSuccess.showModal();
+          if(completedMode==='asporto')checkOrderDate();
         } catch (error) {
           orderFeedback.textContent = error.message;
           orderSubmit.disabled = false;
@@ -538,6 +555,10 @@
       if (businessHours) businessHours.hidden = false;
       if (contactActions) contactActions.hidden = false;
       document.querySelector('.intro')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
+    document.getElementById('menuHome').addEventListener('click', () => {
+      hideMenu.click();
+      window.scrollTo({top:0,behavior:'smooth'});
     });
     if(location.hash==='#orderPanel' && orderTakeawayStart) openMenu('asporto');
   </script>
