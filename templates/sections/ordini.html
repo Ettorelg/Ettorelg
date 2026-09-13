@@ -7,6 +7,7 @@
   .orders-link{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;border-color:#6ea8fe;background:#1d3c65}.orders-link p{margin:5px 0 0}.orders-link a{display:inline-flex;align-items:center;min-height:45px}
   .orders-settings label{display:grid;gap:5px;color:#c6d3f2;font-size:.86rem}.orders-settings input:not([type=checkbox]),.orders-settings select{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
   .orders-settings .pickup-toggle{display:flex;align-items:center;gap:9px;margin:12px 0}.orders-settings .pickup-toggle input{width:19px;height:19px;accent-color:#6ea8fe}
+  .orders-help{margin:12px 0;padding:12px 14px;border-left:4px solid #6ea8fe;border-radius:9px;background:rgba(110,168,254,.1);color:#e1ebff;line-height:1.5}.orders-help strong{color:#fff}.orders-settings .orders-help{color:#e1ebff}
   .pickup-hours{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.pickup-hours[hidden]{display:none!important}.pickup-hours label{min-width:140px}
   .weekly-pickup{display:grid;gap:8px;width:100%}.weekly-pickup-row{display:grid;grid-template-columns:100px repeat(4,minmax(100px,1fr));gap:8px;align-items:end;padding:10px;border:1px solid rgba(255,255,255,.13);border-radius:9px}.weekly-pickup-row strong{align-self:center}.weekly-pickup-row label{min-width:0}.weekly-pickup-row input{width:100%}@media(max-width:700px){.weekly-pickup-row{grid-template-columns:repeat(2,minmax(0,1fr))}.weekly-pickup-row strong{grid-column:1/-1}}
   #ordersMessage{min-height:20px;color:#aee8bd}
@@ -19,19 +20,22 @@
   <div class="orders-activation"><div><strong>Ordini da asporto</strong><p id="ordersState">Caricamento…</p></div><button id="ordersToggle" type="button" disabled>Caricamento…</button></div>
   <div class="orders-activation"><div><strong>Ordini al tavolo</strong><p id="tableOrdersState">Il cliente indica il tavolo e invia l'ordine per subito, senza nome, telefono o data.</p></div><button id="tableOrdersToggle" type="button" disabled>Caricamento…</button></div>
   <div class="orders-settings">
-    <strong>Capacità giornaliera</strong>
-    <p>Numero massimo di ordini da asporto per la data richiesta. Non limita gli ordini al tavolo. Imposta 0 per non applicare un limite; gli ordini annullati liberano un posto.</p>
-    <label>Ordini massimi al giorno <input id="ordersLimit" type="number" min="0" max="10000" step="1" value="0"></label>
-    <button id="ordersSaveLimit" type="button">Salva limite</button>
+    <strong>1 · Quanti ordini da asporto accettare in un giorno?</strong>
+    <p>Questo limite riguarda la <strong>data di ritiro scelta dal cliente</strong>, non il giorno in cui invia l’ordine. Vale per tutti gli ordini da asporto di quella data, anche se scegli più fasce orarie. Non riguarda gli ordini al tavolo.</p>
+    <div class="orders-help"><strong>Esempio:</strong> imposti 20 ordini per sabato. Dopo il ventesimo ordine, sabato non sarà più prenotabile. Un ordine annullato libera un posto; uno già evaso resta conteggiato. Inserisci <strong>0</strong> se non vuoi un limite giornaliero.</div>
+    <label>Numero massimo di ordini da asporto per giorno <input id="ordersLimit" type="number" min="0" max="10000" step="1" value="0"></label>
+    <button id="ordersSaveLimit" type="button">Salva capacità giornaliera</button>
   </div>
   <div class="orders-settings">
-    <strong>Orario di ritiro per gli ordini da asporto</strong>
-    <p>Puoi richiedere solo il giorno oppure impostare fino a due intervalli per ogni giorno della settimana, ad esempio pranzo e cena. Le fasce dentro ciascun intervallo hanno la durata in minuti che scegli tu. Lascia vuoto un giorno senza ritiri. Puoi limitare gli ordini o gli articoli per fascia; 0 significa nessun limite. Eventuali minuti finali che non completano una fascia restano esclusi.</p>
-    <label class="pickup-toggle"><input id="pickupSlotsEnabled" type="checkbox"> Chiedi anche una fascia oraria</label>
+    <strong>2 · Il cliente deve scegliere anche un orario di ritiro?</strong>
+    <p>Se lasci disattivata questa opzione, il cliente sceglie <strong>solo il giorno</strong>: utile, per esempio, per un pastificio. Se la attivi, imposti quando si può ritirare e il cliente sceglie una fascia disponibile: utile per una pizzeria.</p>
+    <label class="pickup-toggle"><input id="pickupSlotsEnabled" type="checkbox"> Sì, fai scegliere giorno e fascia oraria</label>
     <div class="pickup-hours" id="pickupHours">
-      <label>Durata fascia (minuti) <input id="pickupMinutes" type="number" min="1" max="240" step="1" value="15"></label>
-      <label>Limite per fascia <input id="pickupCapacity" type="number" min="0" max="10000" step="0.001" value="0"></label>
-      <label>Limita <select id="pickupCriterion"><option value="ordini">Numero di ordini</option><option value="articoli">Quantità totale di articoli</option></select></label>
+      <div class="orders-help" style="width:100%;margin:0"><strong>Come funziona:</strong> per ogni giorno puoi indicare fino a due intervalli di ritiro, ad esempio 12:00–14:00 e 18:00–22:00. La durata divide ogni intervallo in fasce: 18:00–20:00 con durata 20 minuti offre 18:00, 18:20, 18:40 e così via. Lascia vuoto un giorno in cui non effettui ritiri.</div>
+      <label>Durata di ogni fascia (minuti) <input id="pickupMinutes" type="number" min="1" max="240" step="1" value="15"></label>
+      <label>Capacità massima per fascia <input id="pickupCapacity" type="number" min="0" max="10000" step="0.001" value="0"></label>
+      <label>La capacità conta <select id="pickupCriterion"><option value="ordini">Numero di ordini</option><option value="articoli">Quantità totale di articoli</option></select></label>
+      <div class="orders-help" style="width:100%;margin:0"><strong>Esempio:</strong> con capacità 4 e “Numero di ordini”, ogni fascia accetta al massimo 4 ordini. Con “Quantità totale di articoli”, accetta articoli fino alla quantità scelta; 1,5 kg contano come 1,5. Imposta <strong>0</strong> per non limitare le singole fasce. Il limite giornaliero, se presente, si applica comunque.</div>
       <div id="weeklyPickup" class="weekly-pickup" aria-label="Intervalli di ritiro per giorno"></div>
     </div>
     <button id="pickupSave" type="button">Salva modalità di ritiro</button>
@@ -59,7 +63,7 @@
       const row=document.createElement('div');row.className='weekly-pickup-row';row.dataset.day=String(day);
       const title=document.createElement('strong');title.textContent=name;row.append(title);
       for(let windowIndex=0;windowIndex<2;windowIndex++)for(const [field,labelText] of [['dalle','Dalle'],['alle','Alle']]){
-        const label=document.createElement('label');label.textContent=(windowIndex+1)+'ª fascia · '+labelText;
+        const label=document.createElement('label');label.textContent=(windowIndex+1)+'° intervallo · '+labelText;
         const input=document.createElement('input');input.type='time';input.step='60';input.dataset.window=String(windowIndex);input.dataset.field=field;
         input.value=schedule?.[day]?.[windowIndex]?.[field]||'';label.append(input);row.append(label);
       }
