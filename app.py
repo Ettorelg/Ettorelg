@@ -55,8 +55,8 @@ def restrict_employee_access():
     employee_id = session.get("employee_id")
     if not employee_id:
         return None
-    allowed = {"employee_orders", "api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti", "api_crea_ordine_menu", "api_aggiorna_ordine", "logout", "static", "pwa_manifest", "pwa_service_worker"}
-    if request.endpoint not in allowed or (request.endpoint in {"api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti"} and request.method != "GET") or (request.endpoint == "api_crea_ordine_menu" and request.path != "/api/ordini/manuale"):
+    allowed = {"employee_orders", "api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti", "api_disponibilita_ordini", "api_crea_ordine_menu", "api_aggiorna_ordine", "logout", "static", "pwa_manifest", "pwa_service_worker"}
+    if (request.endpoint == "api_disponibilita_ordini" and request.path != "/api/ordini/disponibilita") or request.endpoint not in allowed or (request.endpoint in {"api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti"} and request.method != "GET") or (request.endpoint == "api_crea_ordine_menu" and request.path != "/api/ordini/manuale"):
         if request.path.startswith("/api/"):
             return jsonify({"error": "Accesso non consentito al dipendente."}), 403
         return redirect(url_for("employee_orders"))
@@ -873,6 +873,33 @@ def init_db() -> None:
                     creato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )""")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS dipendenti_email_unica ON dipendenti_negozio (LOWER(email))")
+                cur.execute("""
+                    CREATE OR REPLACE FUNCTION check_shared_login_email() RETURNS trigger AS $check$
+                    BEGIN
+                        IF NEW.email IS NULL THEN
+                            RETURN NEW;
+                        END IF;
+                        IF TG_OP='UPDATE' THEN
+                            IF LOWER(NEW.email) IS NOT DISTINCT FROM LOWER(OLD.email) THEN
+                                RETURN NEW;
+                            END IF;
+                        END IF;
+                        PERFORM pg_advisory_xact_lock(hashtextextended(LOWER(NEW.email), 913));
+                        IF TG_TABLE_NAME='utenti' THEN
+                            IF EXISTS (SELECT 1 FROM dipendenti_negozio WHERE LOWER(email)=LOWER(NEW.email)) THEN
+                                RAISE EXCEPTION 'Email gia utilizzata' USING ERRCODE='23505';
+                            END IF;
+                        ELSE
+                            IF EXISTS (SELECT 1 FROM utenti WHERE LOWER(email)=LOWER(NEW.email)) THEN
+                                RAISE EXCEPTION 'Email gia utilizzata' USING ERRCODE='23505';
+                            END IF;
+                        END IF;
+                        RETURN NEW;
+                    END; $check$ LANGUAGE plpgsql;
+                """)
+                for login_table in ("utenti", "dipendenti_negozio"):
+                    cur.execute(f"DROP TRIGGER IF EXISTS shared_login_email ON {login_table}")
+                    cur.execute(f"CREATE TRIGGER shared_login_email BEFORE INSERT OR UPDATE OF email ON {login_table} FOR EACH ROW EXECUTE FUNCTION check_shared_login_email()")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS citta TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS cap TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS provincia TEXT NOT NULL DEFAULT ''")
@@ -1140,6 +1167,9 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS origine VARCHAR(20) NOT NULL DEFAULT 'cliente'")
                 cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS google_sub_cliente TEXT")
                 cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS email_cliente TEXT")
+                cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS chiave_richiesta TEXT")
+                cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS impronta_richiesta TEXT")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ordini_menu_chiave_unica ON ordini_menu (id_negozio, chiave_richiesta) WHERE chiave_richiesta IS NOT NULL")
                 cur.execute("CREATE INDEX IF NOT EXISTS ordini_menu_evasione ON ordini_menu (id_negozio, data_richiesta, ora_richiesta) WHERE stato IN ('da_evadere','in_lavorazione')")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS sito_web TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS instagram_url TEXT")
@@ -1348,7 +1378,8 @@ def login():
     finally:
         conn.close()
 
-    if not row:
+    owner_authenticated = bool(row and verify_password(password, row[2]))
+    if not owner_authenticated:
         conn = psycopg2.connect(**build_db_config())
         try:
             with conn.cursor() as cur:
@@ -1364,7 +1395,7 @@ def login():
             session.clear()
             session.update(employee_id=employee[0], employee_shop_id=employee[1], username=employee[2])
             return redirect(url_for("employee_orders"))
-    if not row or not verify_password(password, row[2]):
+    if not owner_authenticated:
         record_login_failure(email)
         return render_template("login.html", error="Email o password errati.", google_enabled=google_enabled())
 
@@ -1576,6 +1607,7 @@ def auth_google_order(slug: str):
     if not google_enabled():
         return redirect(url_for("public_menu", slug=slug))
     session["customer_order_slug"] = slug
+    session["customer_order_language"] = request.args.get("lang", "it")
     callback = url_for("auth_google_callback", _external=True, _scheme="https")
     return google.authorize_redirect(callback)
 
@@ -1595,7 +1627,7 @@ def auth_google_callback():
             "email": str(profile["email"]).strip().lower(),
             "name": str(profile.get("name") or "")[:120],
         }
-        return redirect(url_for("public_menu", slug=customer_slug) + "#orderPanel")
+        return redirect(url_for("public_menu", slug=customer_slug, lang=session.pop("customer_order_language", "it")) + "#orderPanel")
     email = (profile.get("email") or "").strip().lower()
     google_sub = profile.get("sub")
     if not email or not google_sub:
@@ -1661,6 +1693,8 @@ def auth_google_callback():
         if not is_admin:
             trigger_license_expiry_email(user_id)
         return redirect("/dashboard_admin" if is_admin else url_for("dashboard_choice"))
+    except psycopg2.IntegrityError:
+        return render_template("login.html", error="Email già utilizzata da un altro account o da un dipendente."), 409
     finally:
         conn.close()
 
@@ -1816,6 +1850,8 @@ def auth_apple_callback():
         if not is_admin:
             trigger_license_expiry_email(user_id)
         return redirect("/dashboard_admin" if is_admin else url_for("dashboard_choice"))
+    except psycopg2.IntegrityError:
+        return render_template("login.html", error="Email già utilizzata da un altro account o da un dipendente."), 409
     finally:
         conn.close()
 
@@ -3970,8 +4006,13 @@ def api_ordini_configurazione():
         conn.close()
 
 
+@app.get("/api/ordini/disponibilita")
 @app.get("/api/menu/<slug>/ordini/disponibilita")
-def api_disponibilita_ordini(slug: str):
+def api_disponibilita_ordini(slug: str | None = None):
+    manual = slug is None
+    if manual and "user_id" not in session and "employee_id" not in session:
+        return jsonify({"error": "Accesso richiesto."}), 401
+    shop_id = (session.get("employee_shop_id") if session.get("employee_id") else get_user_shop_id(session["user_id"])) if manual else None
     try:
         requested = date.fromisoformat(request.args.get("data", ""))
     except ValueError:
@@ -3988,9 +4029,9 @@ def api_disponibilita_ordini(slug: str):
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT id,ordini_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia,fasce_ritiro_settimanali FROM negozi WHERE slug=%s", (slug,))
+            cur.execute("SELECT id,ordini_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia,fasce_ritiro_settimanali FROM negozi WHERE " + ("id=%s" if manual else "slug=%s"), (shop_id if manual else slug,))
             shop = cur.fetchone()
-            if not shop or not shop[1]:
+            if not shop or (not manual and not shop[1]):
                 return jsonify({"error": "Gli ordini online non sono disponibili."}), 403
             cur.execute("SELECT COUNT(*) FROM ordini_menu WHERE id_negozio=%s AND data_richiesta=%s AND origine IN ('cliente','asporto','titolare') AND stato<>'annullato'", (shop[0], requested))
             used = cur.fetchone()[0]
@@ -4068,6 +4109,10 @@ def api_crea_ordine_menu(slug: str | None = None):
         if not shop_id_manual:
             return jsonify({"error": "Configura prima il negozio."}), 409
     data = request.get_json(silent=True) or {}
+    request_key = request.headers.get("Idempotency-Key", "")
+    if request_key and not re.fullmatch(r"[A-Za-z0-9_-]{20,100}", request_key):
+        return jsonify({"error": "Identificativo richiesta non valido."}), 400
+    request_fingerprint = hashlib.sha256(json.dumps({"data": data, "actor": session.get("employee_id") if session.get("employee_id") else session.get("user_id") if manual else None, "manual": manual}, sort_keys=True).encode()).hexdigest() if request_key else None
     save_customer = data.get("salva_cliente", False)
     if not isinstance(save_customer, bool):
         return jsonify({"error": "Scelta di salvataggio cliente non valida."}), 400
@@ -4130,6 +4175,13 @@ def api_crea_ordine_menu(slug: str | None = None):
                 if not shop or (not manual and not shop[1 if mode == "asporto" else 2]):
                     return jsonify({"error": "Questa modalità d'ordine non è disponibile per il locale."}), 403
                 shop_id = shop[0]
+                if request_key:
+                    cur.execute("SELECT id,totale,impronta_richiesta FROM ordini_menu WHERE id_negozio=%s AND chiave_richiesta=%s", (shop_id, request_key))
+                    existing = cur.fetchone()
+                    if existing:
+                        if existing[2] != request_fingerprint:
+                            return jsonify({"error": "La richiesta è già stata utilizzata per un ordine diverso."}), 409
+                        return jsonify({"ok": True, "ordine_id": existing[0], "totale": str(existing[1]), "messaggio": "Ordine ricevuto."}), 200
                 if mode == "asporto":
                     if shop[4]:
                         if not requested_time:
@@ -4200,6 +4252,8 @@ def api_crea_ordine_menu(slug: str | None = None):
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
                 """, (shop_id, name, phone, reference, notes, total, requested, requested_time or None, "titolare" if manual else mode, customer_google.get("sub") if customer_google else None, email or None))
                 order_id = cur.fetchone()[0]
+                if request_key:
+                    cur.execute("UPDATE ordini_menu SET chiave_richiesta=%s,impronta_richiesta=%s WHERE id=%s", (request_key, request_fingerprint, order_id))
                 for product_id, quantity in quantities.items():
                     row = products[product_id]
                     cur.execute("""
@@ -4216,7 +4270,7 @@ def api_crea_ordine_menu(slug: str | None = None):
                                                  email=CASE WHEN EXCLUDED.email<>'' THEN EXCLUDED.email ELSE clienti_ordini_salvati.email END,
                                                  aggiornato_il=NOW()""",
                                 (shop_id, name, phone, phone_key, email))
-        return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine registrato." if manual else ("Ordine al tavolo inviato." if mode == "tavolo" else "Ordine da asporto inviato. Il locale deve ancora confermarlo.")}), 201
+        return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine registrato." if manual else ("Ordine al tavolo inviato." if mode == "tavolo" else "Ordine ricevuto dal locale.")}), 201
     finally:
         conn.close()
 

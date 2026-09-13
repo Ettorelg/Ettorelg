@@ -1,6 +1,7 @@
 """Regole del nuovo ordine senza richiedere un database esterno."""
 import ast
 import copy
+import hashlib
 import json
 import re
 from datetime import date, datetime, timedelta
@@ -28,7 +29,7 @@ def order_function(db):
         "psycopg2": SimpleNamespace(connect=lambda **kwargs: db),
         "build_db_config": lambda: {},
         "get_user_shop_id": lambda user_id: 7,
-        "json": json,
+        "json": json, "hashlib": hashlib,
     }
     helper = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "pickup_windows_for_day"))
     exec(compile(ast.Module(body=[helper], type_ignores=[]), "app.py", "exec"), scope)
@@ -40,7 +41,7 @@ def availability_function(db):
     node = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "api_disponibilita_ordini"))
     node.decorator_list = []
     scope = {
-        "request": request, "jsonify": jsonify, "date": date, "datetime": datetime,
+        "request": request, "session": session, "get_user_shop_id": lambda _: 7, "jsonify": jsonify, "date": date, "datetime": datetime,
         "timedelta": timedelta, "ZoneInfo": ZoneInfo, "Decimal": Decimal,
         "psycopg2": SimpleNamespace(connect=lambda **kwargs: db),
         "build_db_config": lambda: {},
@@ -221,7 +222,7 @@ def test_public_order_confirmation_is_a_dialog_and_home_is_always_available():
     assert "orderPanel.close();" in html
     assert "orderSuccess.showModal();" in html
     assert "orderFeedback.scrollIntoView" not in html
-    assert "Ordine #'+result.ordine_id+' ricevuto dal locale." in html
+    assert "ricevuto dal locale. Nessun pagamento effettuato online." in html
     assert "potrà contattarti per confermarla" not in html
     assert html.index('id="orderPickupField"') < html.index('id="orderGoogleInfo"') < html.index('name="nome"')
 
@@ -244,7 +245,7 @@ def test_public_menu_view_mode_is_read_only_and_takeaway_mode_allows_ordering():
 
 def test_public_order_google_action_and_estimated_total_are_prominent():
     html = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
-    assert 'class="google-signin" href="{{ url_for(\'auth_google_order\', slug=shop.slug) }}"' in html
+    assert 'class="google-signin" href="{{ url_for(\'auth_google_order\', slug=shop.slug, lang=language) }}"' in html
     assert '<span>Accedi con Google</span>' in html
     assert 'id="orderGoogleInfo" hidden' in html
     assert 'id="orderTotal"' in html

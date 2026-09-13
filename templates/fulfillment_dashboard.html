@@ -80,7 +80,8 @@
     </dialog>
   </main>
   {% include '_legal_footer.html' %}
-  <script>
+  <script src="{{ url_for('static', filename='order-request.js') }}?v=1"></script>
+<script>
     const csrf={{ csrf_token()|tojson }};
     const dateField=document.getElementById('date');
     const period=document.getElementById('period');
@@ -232,25 +233,8 @@
     let manualProducts=[];
     let manualLineNumber=0;
     let manualSettingsLoaded=false;
-    function renderManualSlots(){
-      manualSlotField.hidden=!manualConfig.enabled;
-      manualSlot.required=manualConfig.enabled;
-      manualSlot.replaceChildren(new Option('Scegli una fascia',''));
-      if(!manualConfig.enabled||!manualDate.value)return;
-      const weekday=(new Date(manualDate.value+'T12:00:00Z').getUTCDay()+6)%7;
-      const windows=manualConfig.windows[weekday]||[];
-      const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date()).split(':').map(Number);
-      const currentMinute=parts[0]*60+parts[1];
-      for(const window of windows){
-        const start=Number(window.dalle.slice(0,2))*60+Number(window.dalle.slice(3));
-        const end=Number(window.alle.slice(0,2))*60+Number(window.alle.slice(3));
-        for(let minute=start;minute+manualConfig.minutes<=end;minute+=manualConfig.minutes){
-          if(manualDate.value===todayRome&&minute<=currentMinute)continue;
-          const label=value=>String(Math.floor(value/60)).padStart(2,'0')+':'+String(value%60).padStart(2,'0');
-          manualSlot.add(new Option(label(minute)+'–'+label(minute+manualConfig.minutes),label(minute)));
-        }
-      }
-    }
+    const manualAvailability=AlphaOrders.availability({form:manualForm,date:manualDate,slot:manualSlot,field:manualSlotField,message:manualFeedback,quantities:()=>[...manualLines.querySelectorAll('.manual-line input[type="number"]')].map(input=>input.value)});
+    function renderManualSlots(){return manualAvailability.refresh()}
     manualDate.addEventListener('change',renderManualSlots);
     function addManualLine({focus=false}={}){
       const row=node(manualLines,'div',undefined,'manual-line');
@@ -276,7 +260,8 @@
         if(!matches.length)node(results,'p','Nessun articolo trovato.','manual-hint');
       };
       search.addEventListener('input',()=>{delete row.dataset.productId;quantityLabel.firstChild.textContent='Quantità';renderResults()});
-      const remove=node(row,'button','×');remove.type='button';remove.setAttribute('aria-label','Rimuovi articolo');remove.addEventListener('click',()=>row.remove());
+      const remove=node(row,'button','×');remove.type='button';remove.setAttribute('aria-label','Rimuovi articolo');remove.addEventListener('click',()=>{row.remove();manualAvailability.schedule()});
+      manualAvailability.schedule();
       if(focus)search.focus();
     }
     document.getElementById('manualAddLine').addEventListener('click',()=>addManualLine({focus:true}));
@@ -331,7 +316,7 @@
       const payload={nome:fields.get('nome'),telefono:fields.get('telefono'),email:fields.get('email'),data_richiesta:selectedDate,ora_richiesta:fields.get('ora_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),salva_cliente:fields.has('salva_cliente'),prodotti:items};
       const submit=document.getElementById('manualSubmit');submit.disabled=true;manualFeedback.textContent='Registrazione in corso…';
       try{
-        const response=await fetch('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});
+        const response=await AlphaOrders.send('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});
         const result=await response.json();
         if(!response.ok)throw new Error(result.error||'Registrazione non riuscita.');
         manualFeedback.textContent='Ordine #'+result.ordine_id+' registrato'+(payload.salva_cliente?' e cliente salvato in rubrica.':'.');
