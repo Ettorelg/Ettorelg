@@ -412,7 +412,7 @@
         orderDate.value=todayRome;
         if(orderPanel.open)orderPanel.close();
         document.getElementById('orderModeTitle').firstChild.textContent='Ordine ';
-        document.getElementById('orderModeInfo').textContent=mode==='tavolo'?'Controlla gli articoli e indica il tavolo: l’ordine viene inviato subito al locale.':'Controlla gli articoli e scegli la data di ritiro. Il locale potrà contattarti per confermare la richiesta. Nessun pagamento online.';
+        document.getElementById('orderModeInfo').textContent=mode==='tavolo'?'Controlla gli articoli e indica il tavolo: l’ordine viene inviato subito al locale.':'Controlla gli articoli e scegli la data di ritiro. Nessun pagamento online.';
         document.querySelectorAll('[data-takeaway-field]').forEach(field=>field.hidden=mode!=='asporto');
         orderPickupField.hidden=mode!=='asporto'||!pickupSlotsRequired;
         orderPickupSlot.required=mode==='asporto'&&pickupSlotsRequired;
@@ -463,7 +463,7 @@
           orderPanel.close();
           orderSuccessMessage.textContent = completedMode==='tavolo'
             ? 'Ordine #'+result.ordine_id+' inviato al locale per il tuo tavolo.'
-            : 'Richiesta #'+result.ordine_id+' inviata. Il locale potrà contattarti per confermarla; il pagamento non è stato effettuato.';
+            : 'Ordine #'+result.ordine_id+' ricevuto dal locale. Nessun pagamento effettuato online.';
           orderSuccess.showModal();
           if(completedMode==='asporto')checkOrderDate();
         } catch (error) {

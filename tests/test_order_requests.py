@@ -221,6 +221,8 @@ def test_public_order_confirmation_is_a_dialog_and_home_is_always_available():
     assert "orderPanel.close();" in html
     assert "orderSuccess.showModal();" in html
     assert "orderFeedback.scrollIntoView" not in html
+    assert "Ordine #'+result.ordine_id+' ricevuto dal locale." in html
+    assert "potrà contattarti per confermarla" not in html
     assert html.index('id="orderPickupField"') < html.index('id="orderGoogleInfo"') < html.index('name="nome"')
 
 
