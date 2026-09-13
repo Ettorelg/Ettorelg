@@ -21,3 +21,27 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || url.origin !== self.location.origin || !APP_ASSETS.includes(url.pathname)) return;
   event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
 });
+
+self.addEventListener('push', event => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch (_) {}
+  const url = payload.url === '/dipendenti/ordini' ? '/dipendenti/ordini' : '/ordini/evasione';
+  event.waitUntil(self.registration.showNotification('Alpha Menu · Nuovo ordine', {
+    body: payload.body || 'Hai un nuovo ordine da evadere.',
+    icon: '/static/app-icon-192.png',
+    badge: '/static/app-icon-192.png',
+    tag: `alpha-menu-order-${payload.id || Date.now()}`,
+    data: {url}
+  }));
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/ordini/evasione';
+  event.waitUntil((async () => {
+    const pages = await self.clients.matchAll({type: 'window', includeUncontrolled: true});
+    const existing = pages.find(page => new URL(page.url).pathname === url);
+    if (existing) return existing.focus();
+    return self.clients.openWindow(url);
+  })());
+});

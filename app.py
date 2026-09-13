@@ -1,5 +1,6 @@
 import io
 import csv
+import base64
 import os
 import re
 import hmac
@@ -16,6 +17,8 @@ from zoneinfo import ZoneInfo
 from email.message import EmailMessage
 from urllib.parse import urlencode
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
 
 from werkzeug.utils import secure_filename
 import uuid
@@ -24,6 +27,9 @@ import psycopg2
 import qrcode
 import bcrypt
 import requests
+from cryptography.hazmat.primitives import serialization
+from py_vapid import Vapid
+from pywebpush import webpush, WebPushException
 from authlib.integrations.flask_client import OAuth
 from authlib.jose import jwt
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
@@ -32,6 +38,7 @@ from flask import Flask, render_template, request, redirect, session, send_from_
 from db_config import build_db_config
 
 app = Flask(__name__)
+PUSH_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="order-push")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
 app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024
 app.config.update(
@@ -55,7 +62,7 @@ def restrict_employee_access():
     employee_id = session.get("employee_id")
     if not employee_id:
         return None
-    allowed = {"employee_orders", "api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti", "api_disponibilita_ordini", "api_crea_ordine_menu", "api_aggiorna_ordine", "logout", "static", "pwa_manifest", "pwa_service_worker"}
+    allowed = {"employee_orders", "api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti", "api_disponibilita_ordini", "api_crea_ordine_menu", "api_aggiorna_ordine", "api_ordini_notifiche", "api_ordini_push_key", "api_ordini_push_subscription", "logout", "static", "pwa_manifest", "pwa_service_worker"}
     if (request.endpoint == "api_disponibilita_ordini" and request.path != "/api/ordini/disponibilita") or request.endpoint not in allowed or (request.endpoint in {"api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti"} and request.method != "GET") or (request.endpoint == "api_crea_ordine_menu" and request.path != "/api/ordini/manuale"):
         if request.path.startswith("/api/"):
             return jsonify({"error": "Accesso non consentito al dipendente."}), 403
@@ -1118,6 +1125,18 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS whatsapp TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS prenotazione_url TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ordini_attivi BOOLEAN NOT NULL DEFAULT FALSE")
+                cur.execute("""CREATE TABLE IF NOT EXISTS sottoscrizioni_push_ordini (
+                    id BIGSERIAL PRIMARY KEY,
+                    id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                    id_utente INTEGER,
+                    id_dipendente BIGINT REFERENCES dipendenti_negozio(id) ON DELETE CASCADE,
+                    endpoint TEXT NOT NULL UNIQUE,
+                    p256dh TEXT NOT NULL,
+                    auth TEXT NOT NULL,
+                    creato_il TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    CHECK ((id_utente IS NULL) <> (id_dipendente IS NULL))
+                )""")
+                cur.execute("CREATE INDEX IF NOT EXISTS sottoscrizioni_push_ordini_negozio ON sottoscrizioni_push_ordini(id_negozio)")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS ordini_tavolo_attivi BOOLEAN NOT NULL DEFAULT FALSE")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS limite_ordini_giorno INTEGER NOT NULL DEFAULT 0")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS fasce_ritiro_attive BOOLEAN NOT NULL DEFAULT FALSE")
@@ -4284,9 +4303,160 @@ def api_crea_ordine_menu(slug: str | None = None):
                                                  email=CASE WHEN EXCLUDED.email<>'' THEN EXCLUDED.email ELSE clienti_ordini_salvati.email END,
                                                  aggiornato_il=NOW()""",
                                 (shop_id, name, phone, phone_key, email))
+        push_executor = globals().get("PUSH_EXECUTOR")
+        if push_executor:
+            push_executor.submit(send_order_push, shop_id, order_id, mode)
         return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine registrato." if manual else ("Ordine al tavolo inviato." if mode == "tavolo" else "Ordine ricevuto dal locale.")}), 201
     finally:
         conn.close()
+
+
+def order_push_keys() -> dict:
+    """Una coppia VAPID persistente, condivisa da tutti i worker e i deploy."""
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT valore FROM impostazioni_app WHERE chiave='vapid_ordini'")
+                row = cur.fetchone()
+                if not row:
+                    vapid = Vapid()
+                    vapid.generate_keys()
+                    public_bytes = vapid.public_key.public_bytes(
+                        encoding=serialization.Encoding.X962,
+                        format=serialization.PublicFormat.UncompressedPoint,
+                    )
+                    keys = {
+                        "private": vapid.private_pem().decode("ascii"),
+                        "public": base64.urlsafe_b64encode(public_bytes).rstrip(b"=").decode("ascii"),
+                    }
+                    cur.execute("INSERT INTO impostazioni_app (chiave,valore) VALUES ('vapid_ordini',%s) ON CONFLICT (chiave) DO NOTHING", (json.dumps(keys),))
+                    cur.execute("SELECT valore FROM impostazioni_app WHERE chiave='vapid_ordini'")
+                    row = cur.fetchone()
+                return json.loads(row[0])
+    finally:
+        conn.close()
+
+
+def valid_push_endpoint(endpoint: str) -> bool:
+    if not isinstance(endpoint, str) or len(endpoint) > 2048:
+        return False
+    try:
+        parsed = urlparse(endpoint)
+        host = (parsed.hostname or "").lower()
+    except ValueError:
+        return False
+    allowed_hosts = (
+        host == "fcm.googleapis.com"
+        or host.endswith(".push.services.mozilla.com")
+        or host.endswith(".push.apple.com")
+        or host.endswith(".notify.windows.com")
+    )
+    return parsed.scheme == "https" and allowed_hosts and not parsed.username and not parsed.password and not parsed.fragment
+
+
+def order_notification_shop_id() -> int | None:
+    if session.get("employee_id"):
+        return session.get("employee_shop_id")
+    if session.get("user_id") and not session.get("is_admin"):
+        return get_user_shop_id(session["user_id"])
+    return None
+
+
+@app.get("/api/ordini/notifiche")
+def api_ordini_notifiche():
+    shop_id = order_notification_shop_id()
+    if not shop_id:
+        return jsonify({"error": "Accesso al locale richiesto."}), 403
+    cursor = request.args.get("dopo")
+    if cursor is not None and (not cursor.isdecimal() or len(cursor) > 18):
+        return jsonify({"error": "Riferimento non valido."}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            if cursor is None:
+                cur.execute("SELECT COALESCE(MAX(id),0) FROM ordini_menu WHERE id_negozio=%s", (shop_id,))
+                return jsonify({"ultimo_id": cur.fetchone()[0], "nuovi": []})
+            cur.execute("SELECT id,origine FROM ordini_menu WHERE id_negozio=%s AND id>%s ORDER BY id ASC LIMIT 50", (shop_id, int(cursor)))
+            orders = [{"id": row[0], "tipo": "tavolo" if row[1] == "tavolo" else "asporto"} for row in cur.fetchall()]
+            return jsonify({"ultimo_id": orders[-1]["id"] if orders else int(cursor), "nuovi": orders})
+    finally:
+        conn.close()
+
+
+@app.get("/api/ordini/notifiche/chiave")
+def api_ordini_push_key():
+    if not order_notification_shop_id():
+        return jsonify({"error": "Accesso al locale richiesto."}), 403
+    return jsonify({"chiave_pubblica": order_push_keys()["public"]})
+
+
+@app.route("/api/ordini/notifiche/sottoscrizione", methods=["POST", "DELETE"])
+def api_ordini_push_subscription():
+    shop_id = order_notification_shop_id()
+    if not shop_id:
+        return jsonify({"error": "Accesso al locale richiesto."}), 403
+    data = request.get_json(silent=True) or {}
+    endpoint = data.get("endpoint")
+    if not valid_push_endpoint(endpoint):
+        return jsonify({"error": "Dispositivo notifiche non supportato."}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if request.method == "DELETE":
+                    cur.execute("DELETE FROM sottoscrizioni_push_ordini WHERE endpoint=%s AND id_negozio=%s AND id_utente IS NOT DISTINCT FROM %s AND id_dipendente IS NOT DISTINCT FROM %s", (endpoint, shop_id, session.get("user_id"), session.get("employee_id")))
+                else:
+                    keys = data.get("keys") or {}
+                    p256dh, auth = keys.get("p256dh"), keys.get("auth")
+                    if not isinstance(p256dh, str) or not isinstance(auth, str) or not re.fullmatch(r"[A-Za-z0-9_-]{40,160}", p256dh) or not re.fullmatch(r"[A-Za-z0-9_-]{12,64}", auth):
+                        return jsonify({"error": "Chiavi del dispositivo non valide."}), 400
+                    cur.execute("""INSERT INTO sottoscrizioni_push_ordini (id_negozio,id_utente,id_dipendente,endpoint,p256dh,auth)
+                                   VALUES (%s,%s,%s,%s,%s,%s)
+                                   ON CONFLICT (endpoint) DO UPDATE SET id_negozio=EXCLUDED.id_negozio,id_utente=EXCLUDED.id_utente,
+                                       id_dipendente=EXCLUDED.id_dipendente,p256dh=EXCLUDED.p256dh,auth=EXCLUDED.auth""",
+                                (shop_id, session.get("user_id"), session.get("employee_id"), endpoint, p256dh, auth))
+        return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+def send_order_push(shop_id: int, order_id: int, mode: str) -> None:
+    try:
+        keys = order_push_keys()
+        vapid = Vapid.from_pem(keys["private"].encode("ascii"))
+        conn = psycopg2.connect(**build_db_config())
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT s.id,s.endpoint,s.p256dh,s.auth,s.id_dipendente
+                               FROM sottoscrizioni_push_ordini s
+                               LEFT JOIN dipendenti_negozio d ON d.id=s.id_dipendente
+                               WHERE s.id_negozio=%s AND (s.id_dipendente IS NULL OR d.attivo=TRUE)""", (shop_id,))
+                subscribers = cur.fetchall()
+        finally:
+            conn.close()
+        expired = []
+        for subscription_id, endpoint, p256dh, auth, employee_id in subscribers:
+            payload = json.dumps({"title": "Alpha Menu · Nuovo ordine", "body": "Nuovo ordine al tavolo da evadere." if mode == "tavolo" else "Nuovo ordine da asporto da evadere.", "url": "/dipendenti/ordini" if employee_id else "/ordini/evasione", "id": order_id})
+            try:
+                webpush(subscription_info={"endpoint": endpoint, "keys": {"p256dh": p256dh, "auth": auth}},
+                        data=payload, vapid_private_key=vapid,
+                        vapid_claims={"sub": "mailto:" + os.environ.get("PUSH_CONTACT_EMAIL", "alphasystemsrl@pec.it")}, timeout=8, ttl=3600)
+            except WebPushException as error:
+                if error.response is not None and error.response.status_code in (404, 410):
+                    expired.append(subscription_id)
+                else:
+                    app.logger.warning("Invio notifica ordine non riuscito: %s", type(error).__name__)
+        if expired:
+            conn = psycopg2.connect(**build_db_config())
+            try:
+                with conn:
+                    with conn.cursor() as cur:
+                        cur.execute("DELETE FROM sottoscrizioni_push_ordini WHERE id=ANY(%s) AND id_negozio=%s", (expired, shop_id))
+            finally:
+                conn.close()
+    except Exception:
+        app.logger.exception("Notifiche push ordine %s non inviate", order_id)
 
 
 @app.get("/api/ordini/evasione")
