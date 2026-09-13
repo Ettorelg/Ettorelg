@@ -59,6 +59,19 @@
 #groups .order-card li { margin: 3px 0; }
 #groups .order-card p { margin: 5px 0; font-size: .85rem; line-height: 1.35; white-space: pre-wrap; }
 #groups .order-card .meta { font-size: .77rem; line-height: 1.35; }
+#groups .order-card.compact-order { grid-column: 1 / -1; padding: 7px 10px; border-left-color: #8190a2; background: #263242; color: #aab7c7; }
+#groups .compact-order-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 13px; min-height: 32px; }
+#groups .compact-order-row > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: line-through; }
+#groups .compact-order-status { margin-left: auto; font-size: .78rem; font-weight: 750; text-decoration: line-through; }
+#groups .compact-order-details { font-size: .8rem; }
+#groups .compact-order-details summary { cursor: pointer; color: #c8d8ec; }
+#groups .compact-order-details[open] { flex-basis: 100%; order: 4; padding: 8px 0 4px; }
+#groups .compact-order-details[open] summary { margin-bottom: 6px; }
+#groups .compact-order-row .compact-reopen { min-height: 30px; padding: 3px 9px; border: 1px solid #799ac0; border-radius: 7px; background: #2b4b70; color: #fff; font: 750 .75rem system-ui, sans-serif; cursor: pointer; }
+#groups .compact-order-row .compact-reopen:disabled { opacity: .5; }
+.history-card.compact-history { padding: 8px 12px; background: #263242; border-color: #607086; color: #aab7c7; }
+.history-card.compact-history summary { cursor: pointer; font-size: .83rem; line-height: 1.3; text-decoration: line-through; }
+.history-card.compact-history .compact-history-content { padding: 8px 3px 3px; }
 #groups .actions { gap: 6px; margin-top: 9px; }
 #groups .actions button {
   min-height: 38px;

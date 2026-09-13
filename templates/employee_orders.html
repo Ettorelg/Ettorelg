@@ -28,6 +28,18 @@ function render(){
     if(displayMode==='ordini'){
       const grid=element(section,'div',undefined,'order-grid');
       for(const order of orders){
+        if(order.stato==='evaso'){
+          const card=element(grid,'article',undefined,'order-card done compact-order');
+          const row=element(card,'div',undefined,'compact-order-row');
+          element(row,'strong','#'+order.id+' · '+order.nome);
+          element(row,'span','Evaso','compact-order-status');
+          const details=element(row,'details',undefined,'compact-order-details');
+          element(details,'summary','Dettagli ordine');
+          element(details,'p',(order.ora_richiesta||'Solo giorno')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto'));
+          const list=element(details,'ul');for(const item of visibleProducts(order))element(list,'li',fmt(Number(item.quantita))+' × '+item.nome);
+          if(order.note)element(details,'p','Note: '+order.note);
+          continue;
+        }
         const card=element(grid,'article',undefined,'order-card'+(order.stato==='evaso'?' done':''));
         element(card,'h3','#'+order.id+' · '+order.nome+' · '+order.stato.replaceAll('_',' '));
         element(card,'p',(order.ora_richiesta||'Solo giorno')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto'));

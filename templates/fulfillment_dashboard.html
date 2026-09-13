@@ -156,6 +156,26 @@
         }
         const grid=node(section,'div',undefined,'order-grid');grid.hidden=displayMode!=='ordini';
         for(const order of [...items].sort((a,b)=>Number(a.stato==='evaso')-Number(b.stato==='evaso'))){
+          if(order.stato==='evaso'){
+            const card=node(grid,'article',undefined,'order-card done compact-order');
+            const row=node(card,'div',undefined,'compact-order-row');
+            node(row,'strong','#'+order.id+' · '+order.nome);
+            node(row,'span','Evaso','compact-order-status');
+            const details=node(row,'details',undefined,'compact-order-details');
+            node(details,'summary','Dettagli ordine');
+            node(details,'div',(order.origine==='tavolo'?'Al tavolo':'Da asporto')+(order.ora_richiesta?' · Ore '+order.ora_richiesta:'')+' · Inserito '+order.creato_il,'meta');
+            const lines=node(details,'ul');for(const product of visibleProducts(order))node(lines,'li',quantityFormat.format(Number(product.quantita))+' × '+product.nome);
+            if(order.riferimento)node(details,'p','Riferimento: '+order.riferimento);
+            if(order.note)node(details,'p','Note: '+order.note);
+            if(order.telefono){const phone=node(details,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
+            const reopen=node(row,'button','Riapri','compact-reopen');reopen.type='button';
+            reopen.addEventListener('click',async()=>{
+              reopen.disabled=true;
+              try{const response=await fetch('/api/ordini/'+order.id,{method:'PATCH',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({stato:'da_evadere'})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Aggiornamento non riuscito.');await load();if(historyPanel.open)await loadHistory()}
+              catch(error){status.textContent=error.message;reopen.disabled=false}
+            });
+            continue;
+          }
           const card=node(grid,'article',undefined,'order-card'+(order.stato==='in_lavorazione'?' working':order.stato==='evaso'?' done':''));
           node(card,'h3','#'+order.id+' · '+order.nome);
           node(card,'div',(order.stato==='evaso'?'Evaso':order.stato==='in_lavorazione'?'In lavorazione':'Da evadere')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto')+(order.ora_richiesta?' · Ore '+order.ora_richiesta:' · Senza orario')+' · Inserito '+order.creato_il,'meta');
@@ -364,15 +384,18 @@
         historyPrevious.disabled=historyPage<=1;historyNext.disabled=historyPage>=pages;
         if(!result.ordini.length)node(historyList,'div','Nessun ordine nel periodo selezionato.','empty');
         for(const order of result.ordini){
-          const card=node(historyList,'article',undefined,'history-card');
-          node(card,'h3','#'+order.id+' · '+order.nome+' · '+statusNames[order.stato]);
-          node(card,'p',(order.origine==='tavolo'?'Al tavolo':'Da asporto')+' · Per il '+displayDate(order.data_richiesta)+(order.ora_richiesta?' alle '+order.ora_richiesta:'')+' · Inserito '+order.creato_il);
-          const lines=node(card,'ul');for(const product of order.prodotti)node(lines,'li',quantityFormat.format(Number(product.quantita))+' × '+product.nome+' · € '+Number(product.totale).toFixed(2));
-          node(card,'strong','Totale € '+Number(order.totale).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}));
-          if(order.riferimento)node(card,'p','Riferimento: '+order.riferimento);
-          if(order.note)node(card,'p','Note: '+order.note);
-          if(order.telefono){const phone=node(card,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
-          const actions=node(card,'div',undefined,'history-actions');
+          const compact=order.stato==='evaso'||order.stato==='annullato';
+          const card=node(historyList,compact?'details':'article',undefined,'history-card'+(compact?' compact-history':''));
+          if(compact)node(card,'summary','#'+order.id+' · '+order.nome+' · '+statusNames[order.stato]+' · '+displayDate(order.data_richiesta)+' · € '+Number(order.totale).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}));
+          else node(card,'h3','#'+order.id+' · '+order.nome+' · '+statusNames[order.stato]);
+          const content=compact?node(card,'div',undefined,'compact-history-content'):card;
+          node(content,'p',(order.origine==='tavolo'?'Al tavolo':'Da asporto')+' · Per il '+displayDate(order.data_richiesta)+(order.ora_richiesta?' alle '+order.ora_richiesta:'')+' · Inserito '+order.creato_il);
+          const lines=node(content,'ul');for(const product of order.prodotti)node(lines,'li',quantityFormat.format(Number(product.quantita))+' × '+product.nome+' · € '+Number(product.totale).toFixed(2));
+          if(!compact)node(content,'strong','Totale € '+Number(order.totale).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}));
+          if(order.riferimento)node(content,'p','Riferimento: '+order.riferimento);
+          if(order.note)node(content,'p','Note: '+order.note);
+          if(order.telefono){const phone=node(content,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
+          const actions=node(content,'div',undefined,'history-actions');
           for(const [target,label] of [['da_evadere','Da evadere'],['in_lavorazione','In lavorazione'],['evaso','Segna evaso'],['annullato','Annulla']]){
             if(target===order.stato)continue;
             const button=node(actions,'button',label);button.type='button';
