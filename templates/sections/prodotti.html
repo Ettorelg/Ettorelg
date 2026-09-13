@@ -170,6 +170,11 @@
     <strong>Allergeni rilevati automaticamente</strong>
     <span id="detectedAllergens" class="muted">Inserisci gli ingredienti per effettuare il controllo.</span>
   </div>
+  <div class="field" style="margin-top:14px">
+    <label>Allergeni da aggiungere manualmente</label>
+    <div class="tag-options" id="allergeniManual" role="group" aria-label="Allergeni aggiunti manualmente"></div>
+    <div class="muted">Seleziona quelli presenti nella ricetta ma non rilevati. Verranno mostrati insieme agli allergeni automatici.</div>
+  </div>
 
   <div class="field">
     <label>Note</label>
@@ -316,6 +321,9 @@
     "Solfiti": ["solfiti", "solfato", "vino"], "Lupini": ["lupino"],
     "Molluschi": ["cozza", "vongola", "calamaro", "polpo", "ostrica"]
   };
+  f("allergeniManual").innerHTML = Object.keys(allergenKeywords).map(name =>
+    `<label class="tag-option"><input type="checkbox" value="${escapeAttr(name)}"> ${escapeHtml(name)}</label>`
+  ).join("");
 
   function renderDetectedAllergens(allergens){
     const target = f("detectedAllergens");
@@ -397,7 +405,7 @@
                 <div class="muted">${escapeHtml(p.descrizione || "")}</div>
                 ${p.note ? `<div class="muted">Nota: ${escapeHtml(p.note)}</div>` : ""}
                 <div>${(p.etichette || []).map(tag => '<span class="tag">' + escapeHtml(tag) + '</span>').join("")}</div>
-                <div>${(p.allergeni_auto || []).map(allergen => '<span class="tag" style="background:rgba(255,197,107,.16)">⚠ '+ escapeHtml(allergen) + '</span>').join("")}</div>
+                <div>${(p.allergeni || []).map(allergen => '<span class="tag" style="background:rgba(255,197,107,.16)">⚠ '+ escapeHtml(allergen) + '</span>').join("")}</div>
               </div>
             </div>
           </td>
@@ -435,6 +443,7 @@
       f("descrizione").value = "";
       f("note").value = "";
       renderDetectedAllergens([]);
+      f("allergeniManual").querySelectorAll("input").forEach(input => input.checked = false);
       f("etichette").querySelectorAll("input[type=checkbox]").forEach(input => input.checked = false);
       f("categoryError").textContent = "";
       f("id_categoria").classList.remove("invalid");
@@ -466,6 +475,8 @@
       f("descrizione").value = p.descrizione || "";
       f("note").value = p.note || "";
       renderDetectedAllergens(p.allergeni_auto || []);
+      const manualAllergens = new Set(p.allergeni_manual || []);
+      f("allergeniManual").querySelectorAll("input").forEach(input => input.checked = manualAllergens.has(input.value));
       const productLabels = new Set(p.etichette || []);
       f("etichette").querySelectorAll("input[type=checkbox]").forEach(input => input.checked = productLabels.has(input.value));
       f("categoryError").textContent = "";
@@ -857,6 +868,7 @@
     fd.append("id_categoria", f("id_categoria").value || "");
     fd.append("id_sottocategoria", f("id_sottocategoria").value || "");
     fd.append("etichette", selectedLabels().join(","));
+    f("allergeniManual").querySelectorAll("input:checked").forEach(input => fd.append("allergeni_manual", input.value));
   
     const fileInput = document.getElementById("immagine");
     if (fileInput && fileInput.files && fileInput.files[0]) {
