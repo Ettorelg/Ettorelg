@@ -30,6 +30,8 @@
   .right{white-space:nowrap}
   .thumb{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.12);object-fit:cover;background:rgba(255,255,255,.04)}
   .toast{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
+  .toast.duplicate-success{position:fixed;z-index:1000;top:20px;left:50%;transform:translateX(-50%);width:min(520px,calc(100vw - 28px));padding:17px 20px;border:2px solid #7de3a0;background:#123d2b;color:#f1fff5;box-shadow:0 16px 45px rgba(0,0,0,.5);font-size:17px;font-weight:750;text-align:center}
+  #table tr.duplicate-highlight{outline:3px solid #7de3a0;outline-offset:-3px;background:rgba(71,189,110,.18)}
   .hidden{display:none}
   .category-select{display:flex;gap:8px;align-items:stretch}
   .category-select select{flex:1;min-width:0}
@@ -80,7 +82,7 @@
 
 <div class="products-head"><div><span class="eyebrow">Catalogo del menu</span><h2>Prodotti inseriti</h2><p class="muted">Consulta, cerca e modifica i prodotti già presenti nel menu.</p></div><div class="products-head-actions"><button class="btn primary" type="button" id="newProductBtn">＋ Nuovo prodotto</button><button class="btn" type="button" onclick="loadSection('allergeni')" title="Apri la gestione allergeni">⚠️ Gestisci allergeni</button><button class="btn compact" type="button" id="importCsvBtn" title="Importa prodotti da un file CSV">⬆ Importa CSV</button><button class="btn compact" type="button" id="importDocumentBtn" title="Importa prodotti da PDF o fotografia">📄 Importa PDF/Foto</button><input id="csvImport" class="hidden" type="file" accept=".csv,text/csv" aria-label="Seleziona file CSV da importare"></div></div>
 
-<div class="toast hidden" id="toast"></div>
+<div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
 
 <div class="modal hidden" id="documentImportModal" role="dialog" aria-modal="true" aria-labelledby="documentImportTitle">
   <div class="modal-card import-card">
@@ -286,10 +288,13 @@
 
   const f = (id) => document.getElementById(id);
 
-  function showToast(msg){
+  let toastTimer;
+  function showToast(msg, prominent = false){
+    clearTimeout(toastTimer);
     toast.textContent = msg;
+    toast.classList.toggle("duplicate-success", prominent);
     toast.classList.remove("hidden");
-    setTimeout(() => toast.classList.add("hidden"), 2500);
+    toastTimer = setTimeout(() => { toast.classList.add("hidden"); toast.classList.remove("duplicate-success"); }, prominent ? 6000 : 2500);
   }
 
   function toNumberOrNull(v){
@@ -383,7 +388,7 @@
       const thumb = p.immagine_url ? `<img class="thumb" src="${escapeAttr(p.immagine_url)}" alt="">` : `<div class="thumb"></div>`;
 
       return `
-        <tr>
+        <tr data-product-id="${p.id}">
           <td>
             <div style="display:flex; gap:10px; align-items:flex-start">
               ${thumb}
@@ -496,9 +501,23 @@
 
     window.duplicateProduct = async function(id){
       const res = await fetch(`/api/prodotti/${id}/duplica`, {method:"POST"});
-      if(!res.ok){ showToast("Errore duplicazione prodotto"); return; }
+      if(!res.ok){ const error = await res.json().catch(() => ({})); showToast(error.error || "Errore duplicazione prodotto"); return; }
+      const result = await res.json();
       await loadProducts();
-      showToast("Prodotto duplicato.");
+      const original = products.find(product => product.id === id);
+      const copied = products.find(product => product.id === result.id);
+      const search = f("searchProducts");
+      if (search && search.value && copied && !copied.nome.toLowerCase().includes(search.value.trim().toLowerCase())) {
+        search.value = "";
+        renderTable();
+      }
+      const row = tbody.querySelector(`tr[data-product-id="${result.id}"]`);
+      if (row) {
+        row.classList.add("duplicate-highlight");
+        row.scrollIntoView({behavior:"smooth", block:"center"});
+        setTimeout(() => row.classList.remove("duplicate-highlight"), 6000);
+      }
+      showToast(`✓ “${copied?.nome || original?.nome || 'Prodotto'}” duplicato e inserito subito sotto l’originale.`, true);
     }
 
     window.deleteProduct = async function(id){

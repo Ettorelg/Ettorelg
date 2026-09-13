@@ -5000,16 +5000,21 @@ def api_prodotto_duplica(prodotto_id: int):
     try:
         with conn:
             with conn.cursor() as cur:
+                # Blocca l'ordine del catalogo mentre inseriamo la copia.
+                cur.execute("SELECT id FROM prodotti WHERE id_negozio=%s ORDER BY ordine ASC, id DESC FOR UPDATE", (shop_id,))
+                ordered_ids = [row[0] for row in cur.fetchall()]
+                if prodotto_id not in ordered_ids:
+                    return jsonify({"error": "prodotto non trovato"}), 404
                 cur.execute("""
                     INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, ordine, etichette, allergeni_auto, unita_prezzo)
                     SELECT id_negozio, id_categoria, id_sottocategoria, LEFT(nome || ' COPIA', 100), descrizione, note,
                            prezzo_euro, disponibile, COALESCE((SELECT MAX(ordine) + 10 FROM prodotti WHERE id_negozio=%s), 10), etichette, allergeni_auto, unita_prezzo
                     FROM prodotti WHERE id=%s AND id_negozio=%s RETURNING id
                 """, (shop_id, prodotto_id, shop_id))
-                row = cur.fetchone()
-                if not row:
-                    return jsonify({"error": "prodotto non trovato"}), 404
-                new_id = row[0]
+                new_id = cur.fetchone()[0]
+                ordered_ids.insert(ordered_ids.index(prodotto_id) + 1, new_id)
+                for position, product_id in enumerate(ordered_ids, start=1):
+                    cur.execute("UPDATE prodotti SET ordine=%s WHERE id=%s AND id_negozio=%s", (position * 10, product_id, shop_id))
                 cur.execute("""
                     INSERT INTO immagini_prodotti (id_prodotto, url, principale, ordine)
                     SELECT %s, url, principale, ordine FROM immagini_prodotti WHERE id_prodotto=%s
