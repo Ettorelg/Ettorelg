@@ -87,3 +87,7 @@
 #groups .actions .cancel { background: #693542; border-color: #c57c8a; }
 #groups .actions button:disabled { opacity: .55; cursor: default; }
 @media (max-width: 600px) { #groups .actions button { min-height: 44px; } }
+#groups [hidden], .order-search[hidden] { display: none !important; }
+.order-search { display: flex; align-items: center; gap: 9px; width: fit-content; max-width: 100%; margin: 10px 0 2px; color: #c8d9ef; font: 750 .82rem system-ui, sans-serif; }
+.order-search input { width: min(280px, 54vw); min-height: 38px; box-sizing: border-box; padding: 7px 11px; border: 1px solid #6e90b6; border-radius: 9px; background: #142842; color: #fff; font: 400 .9rem system-ui, sans-serif; }
+.order-search input::placeholder { color: #b8c8dc; }

@@ -9,7 +9,7 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <link rel="icon" href="{{ url_for('static', filename='alpha-menu-favicon.png') }}" type="image/png">
   <title>Evasione ordini · Alpha Menu</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='fulfillment-cards.css') }}?v=2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='fulfillment-cards.css') }}?v=3">
   <link rel="stylesheet" href="{{ url_for('static', filename='order-notifications.css') }}?v=1">
   <style>
     *{box-sizing:border-box}[hidden]{display:none!important}
@@ -51,6 +51,7 @@
   <main>
     <div class="board-heading"><div><h1>Banco evasione ordini</h1><p class="lead">Controlla cosa preparare, aggiungi ordini e consulta lo storico da questa pagina.</p></div><div class="toplinks"><button id="showHistoryButton" type="button" aria-controls="orderHistory" style="min-height:54px;padding:12px 18px;border:1px solid #6ca6ec;border-radius:12px;background:#22436a;color:#fff;font-weight:800;cursor:pointer">Storico e riepilogo</button></div></div>
     <div class="view-toggle" role="group" aria-label="Vista evasione"><button id="summaryView" type="button" aria-pressed="true">Da preparare in totale</button><button id="ordersView" type="button" aria-pressed="false">Singoli ordini da evadere</button></div>
+    <label class="order-search" id="orderSearchWrap" hidden>🔎 Cerca ordine<input id="orderSearch" type="search" placeholder="Nome o telefono" autocomplete="off" aria-label="Cerca ordini per nome o telefono"></label>
     <div class="toolbar"><button id="previous" type="button" aria-label="Giorno o settimana precedente">←</button><label class="date-compact">Data<input id="date" type="date"></label><button id="next" type="button" aria-label="Giorno o settimana successivo">→</button><button id="today" class="today-button" type="button">Oggi</button><details class="filter-options"><summary>Opzioni di vista ▾</summary><div class="filter-content"><label>Intervallo<select id="period"><option value="giorno">Un giorno</option><option value="settimana">Una settimana</option></select></label><label>Raggruppa<select id="grouping"><option value="giorno">Per giorno</option><option value="fascia">Per orario di ritiro</option></select></label><label>Categoria<select id="productCategory"><option value="">Tutte le categorie</option></select></label><label>Ordina prodotti<select id="productSort"><option value="menu">Ordine del menu</option><option value="categoria">Categoria A-Z</option><option value="nome">Nome A-Z</option><option value="quantita">Quantità decrescente</option></select></label></div></details><button id="refresh" type="button" aria-label="Aggiorna ordini">↻</button></div>
     <dialog class="manual-order" id="manualOrderPanel" aria-labelledby="manualOrderTitle">
       <div class="manual-order-head"><div><h2 id="manualOrderTitle">Aggiungi ordine</h2><p>Inserisci cliente, ritiro e articoli. L'ordine comparirà subito nel banco evasione.</p></div><button id="manualClose" class="manual-close" type="button" aria-label="Chiudi finestra ordine">×</button></div>
@@ -90,7 +91,7 @@
     const dateField=document.getElementById('date');
     const period=document.getElementById('period');
     const grouping=document.getElementById('grouping');
-    const productCategory=document.getElementById('productCategory'),productSort=document.getElementById('productSort');
+    const productCategory=document.getElementById('productCategory'),productSort=document.getElementById('productSort'),orderSearch=document.getElementById('orderSearch');
     const groups=document.getElementById('groups');
     const status=document.getElementById('status');
     let lastOrders=[],displayMode='totali',quantityMode='total';
@@ -106,6 +107,9 @@
     function render(orders){
       lastOrders=orders;
       orders=orders.filter(order=>!productCategory.value||visibleProducts(order).length);
+      const search=orderSearch.value.trim().toLocaleLowerCase('it-IT');
+      const digits=search.replace(/\D/g,'');
+      if(displayMode==='ordini'&&search)orders=orders.filter(order=>(order.nome||'').toLocaleLowerCase('it-IT').includes(search)||(digits&&(order.telefono||'').replace(/\D/g,'').includes(digits)));
       const openOrders=orders.filter(order=>order.stato!=='evaso');
       const doneOrders=orders.filter(order=>order.stato==='evaso');
       document.getElementById('totalCount').textContent=orders.length;
@@ -121,7 +125,7 @@
       }
       document.getElementById('articleCount').textContent=quantityFormat.format(toPrepare/1000);
       groups.replaceChildren();
-      if(!orders.length){node(groups,'div',productCategory.value?'Nessun articolo nella categoria selezionata.':'Nessun ordine nel periodo selezionato.','empty');return}
+      if(!orders.length){node(groups,'div',search&&displayMode==='ordini'?'Nessun ordine trovato per nome o telefono.':productCategory.value?'Nessun articolo nella categoria selezionata.':'Nessun ordine nel periodo selezionato.','empty');return}
       for(const [key,items] of [...byGroup].sort((a,b)=>a[0].localeCompare(b[0]))){
         const section=node(groups,'section',undefined,'group');
         const head=node(section,'div',undefined,'group-head');
@@ -220,7 +224,7 @@
       for(const number of groups.querySelectorAll('.prep-total-number'))number.textContent=quantityFormat.format(Number(number.dataset[mode]));
       for(const button of groups.querySelectorAll('.quantity-switch button'))button.setAttribute('aria-pressed',String(button.dataset.quantityMode===mode));
     }
-    function selectDisplayMode(mode){displayMode=mode;document.getElementById('summaryView').setAttribute('aria-pressed',String(mode==='totali'));document.getElementById('ordersView').setAttribute('aria-pressed',String(mode==='ordini'));render(lastOrders)}
+    function selectDisplayMode(mode){displayMode=mode;document.getElementById('summaryView').setAttribute('aria-pressed',String(mode==='totali'));document.getElementById('ordersView').setAttribute('aria-pressed',String(mode==='ordini'));document.getElementById('orderSearchWrap').hidden=mode!=='ordini';render(lastOrders)}
     document.getElementById('summaryView').addEventListener('click',()=>selectDisplayMode('totali'));
     document.getElementById('ordersView').addEventListener('click',()=>selectDisplayMode('ordini'));
     document.getElementById('previous').addEventListener('click',()=>changeDate(-1));
@@ -230,6 +234,7 @@
     dateField.addEventListener('change',load);period.addEventListener('change',load);
     grouping.addEventListener('change',()=>render(lastOrders));
     productCategory.addEventListener('change',()=>render(lastOrders));productSort.addEventListener('change',()=>render(lastOrders));
+    orderSearch.addEventListener('input',()=>render(lastOrders));
     const manualPanel=document.getElementById('manualOrderPanel');
     const addOrderButton=document.getElementById('addOrderButton');
     addOrderButton.addEventListener('click',()=>{
