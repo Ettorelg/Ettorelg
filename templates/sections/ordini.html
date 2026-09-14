@@ -40,6 +40,13 @@
     </div>
     <button id="pickupSave" type="button">Salva modalità di ritiro</button>
   </div>
+  <div class="orders-settings">
+    <strong>3 · Stampante ricevute 80 mm</strong>
+    <p>Indica l’IP locale della tua stampante ESC/POS, per esempio 192.168.1.50. Imposta un IP fisso o una prenotazione DHCP nel router.</p>
+    <label>Indirizzo IP stampante <input id="printerIp" inputmode="decimal" autocomplete="off" placeholder="192.168.1.50" maxlength="45"></label>
+    <div class="orders-help"><strong>Stampa attuale:</strong> nel banco evasione premi “Stampa” sul singolo ordine e scegli la stampante nella finestra del dispositivo. L’IP viene conservato per il futuro collegamento diretto, ma il browser non lo usa ancora: non è attiva la stampa automatica via rete.</div>
+    <button id="printerSave" type="button">Salva IP stampante</button>
+  </div>
   <p id="ordersMessage" role="status"></p>
 </section>
 <script>
@@ -56,6 +63,7 @@
   const pickupMinutes=document.getElementById('pickupMinutes');
   const pickupCapacity=document.getElementById('pickupCapacity');
   const pickupCriterion=document.getElementById('pickupCriterion');
+  const printerIp=document.getElementById('printerIp');
   const weekdayNames=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
   function renderWeeklyPickup(schedule){
     weeklyPickup.replaceChildren();
@@ -82,6 +90,7 @@
     pickupMinutes.value=String(data.minuti_fascia_ritiro||15);
     pickupCapacity.value=String(data.limite_fascia_ritiro||0);
     pickupCriterion.value=data.criterio_limite_fascia||'ordini';
+    printerIp.value=data.stampante_ip||'';
     pickupHours.hidden=!data.fasce_ritiro_attive;
     orderState.textContent=ordersActive?'Attivi: il cliente può scegliere una data per l’asporto.':'Disattivati: il menu resta consultabile.';
     orderToggle.textContent=ordersActive?'Disattiva asporto':'Attiva asporto';orderToggle.classList.toggle('off',ordersActive);orderToggle.disabled=false;
@@ -95,6 +104,7 @@
   }
   orderToggle.addEventListener('click',async()=>{orderToggle.disabled=true;try{await saveOrdersConfig({asporto_attivi:!ordersActive},'Impostazione asporto salvata.')}catch(error){orderMessage.textContent=error.message;orderToggle.disabled=false}});
   tableOrdersToggle.addEventListener('click',async()=>{tableOrdersToggle.disabled=true;try{await saveOrdersConfig({tavolo_attivi:!tableOrdersActive},'Impostazione tavoli salvata.')}catch(error){orderMessage.textContent=error.message;tableOrdersToggle.disabled=false}});
+  document.getElementById('printerSave').addEventListener('click',async()=>{const button=document.getElementById('printerSave');button.disabled=true;try{await saveOrdersConfig({stampante_ip:printerIp.value.trim()},'Indirizzo IP stampante salvato. Per stampare scegli la stampante dalla finestra del dispositivo.')}catch(error){orderMessage.textContent=error.message}finally{button.disabled=false}});
   document.getElementById('ordersSaveLimit').addEventListener('click',async()=>{
     const limit=Number(ordersLimit.value);if(!Number.isInteger(limit)||limit<0||limit>10000){orderMessage.textContent='Inserisci un limite da 0 a 10000.';return}
     try{await saveOrdersConfig({limite_giornaliero:limit},'Limite giornaliero salvato.')}catch(error){orderMessage.textContent=error.message}
