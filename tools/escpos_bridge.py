@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 5
+BRIDGE_VERSION = 6
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
@@ -124,11 +124,17 @@ def print_targets(order, printers, default_ip):
     return {}
 
 
-def print_jobs(order, printers, default_ip, summary_ip):
-    targets = print_targets(order, printers, default_ip)
+def print_jobs(order, printers, default_ip, summary_ip, mode="all"):
+    if mode not in ("all", "summary"):
+        raise ValueError("Modalità di stampa non valida.")
     summary_ip = summary_ip or ""
     if summary_ip and not valid_printer_ip(summary_ip):
         raise ValueError("IP stampante di riepilogo non valido.")
+    if mode == "summary":
+        if not summary_ip:
+            raise ValueError("Configura una stampante di riepilogo prima di stamparlo.")
+        return [(summary_ip, None, "riepilogo")]
+    targets = print_targets(order, printers, default_ip)
     jobs = [(ip, large_ids, "categoria") for ip, large_ids in targets.items()]
     if summary_ip:
         jobs.append((summary_ip, None, "riepilogo"))
@@ -185,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("Dimensione ordine non valida.")
             data = json.loads(self.rfile.read(size))
             order = data.get("order")
-            jobs = print_jobs(order, data.get("printers", []), data.get("printer_ip"), data.get("summary_ip"))
+            jobs = print_jobs(order, data.get("printers", []), data.get("printer_ip"), data.get("summary_ip"), data.get("mode", "all"))
             automatic = data.get("automatic") is True
         except (ValueError, TypeError, UnicodeError) as exc:
             return self._reply(400, str(exc))

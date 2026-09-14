@@ -75,6 +75,24 @@ def test_same_ip_can_print_category_and_separate_summary_ticket():
         ("192.168.1.10", {"1"}, "categoria"), ("192.168.1.10", None, "riepilogo")]
 
 
+def test_manual_summary_mode_sends_only_the_summary_printer():
+    order = {"id": 17, "prodotti": [{"id_categoria": 1, "nome": "Pizza", "quantita": 1}]}
+    printers = [{"id_categoria": 1, "ip": "192.168.1.10"}]
+    assert bridge.print_jobs(order, printers, "", "192.168.1.20", "summary") == [
+        ("192.168.1.20", None, "riepilogo")]
+    assert bridge.print_jobs(order, printers, "", "192.168.1.20", "all") == [
+        ("192.168.1.10", {"1"}, "categoria"), ("192.168.1.20", None, "riepilogo")]
+
+
+def test_manual_summary_mode_requires_summary_printer():
+    import pytest
+    order = {"id": 18, "prodotti": []}
+    with pytest.raises(ValueError, match="Configura una stampante di riepilogo"):
+        bridge.print_jobs(order, [], "192.168.1.10", "", "summary")
+    with pytest.raises(ValueError, match="Modalità di stampa non valida"):
+        bridge.print_jobs(order, [], "", "", "unexpected")
+
+
 def test_prices_only_appear_as_final_total_on_summary():
     order = {"id": 14, "prodotti": [
         {"id_categoria": 1, "nome": "Pizza", "quantita": 2.0, "totale": 20},
