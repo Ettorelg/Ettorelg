@@ -44,9 +44,11 @@
     <strong>3 · Stampante ricevute 80 mm</strong>
     <p>Indica l’IP della stampante generale, per esempio 192.168.1.50. Se assegni stampanti alle categorie nella sezione Categorie, gli ordini vengono inviati solo alle stampanti delle categorie presenti; questa stampante generale rimane come soluzione per i locali che non usano l’instradamento per categoria. Usa IP fissi o prenotazioni DHCP nel router.</p>
     <label>Indirizzo IP stampante <input id="printerIp" inputmode="decimal" autocomplete="off" placeholder="192.168.1.50" maxlength="45"></label>
+    <label style="margin-top:12px">IP stampante di riepilogo (opzionale) <input id="summaryPrinterIp" inputmode="decimal" autocomplete="off" placeholder="192.168.1.60" maxlength="45"></label>
+    <p>Se configurata, stampa l’ordine completo su questa stampante in aggiunta alle ricevute delle categorie. Lascia vuoto per disattivarla. Se usi lo stesso IP di un’altra stampante, usciranno due ricevute sullo stesso dispositivo.</p>
     <div class="orders-help"><strong>Stampa diretta da PC:</strong> scarica e avvia il programma locale sul PC collegato alla stessa rete delle stampanti. Deve restare aperto mentre usi il banco ordini. Il tasto “ESC/POS” stampa subito un ordine. Per i nuovi ordini, premi <strong>“Attiva stampa automatica”</strong> nel banco evasione. Su ogni stampante coinvolta, i prodotti della categoria assegnata sono grandi e gli altri piccoli; le stampanti di categorie assenti non stampano. Funziona finché banco e programma locale restano aperti. Attiva la stampa automatica su un solo PC per locale.</div>
     <p><a href="{{ url_for('scarica_programma_stampa') }}" download>Scarica programma di stampa per PC (versione aggiornata)</a> · Per avviarlo da PowerShell: <code>python "$env:USERPROFILE\Downloads\escpos_bridge.py"</code>. Richiede Python installato sul PC. Dopo un aggiornamento, sostituisci il file precedente e riavvia il programma.</p>
-    <button id="printerSave" type="button">Salva IP stampante</button>
+    <button id="printerSave" type="button">Salva stampanti</button>
   </div>
   <p id="ordersMessage" role="status"></p>
 </section>
@@ -65,6 +67,7 @@
   const pickupCapacity=document.getElementById('pickupCapacity');
   const pickupCriterion=document.getElementById('pickupCriterion');
   const printerIp=document.getElementById('printerIp');
+  const summaryPrinterIp=document.getElementById('summaryPrinterIp');
   const weekdayNames=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
   function renderWeeklyPickup(schedule){
     weeklyPickup.replaceChildren();
@@ -92,6 +95,7 @@
     pickupCapacity.value=String(data.limite_fascia_ritiro||0);
     pickupCriterion.value=data.criterio_limite_fascia||'ordini';
     printerIp.value=data.stampante_ip||'';
+    summaryPrinterIp.value=data.stampante_riepilogo_ip||'';
     pickupHours.hidden=!data.fasce_ritiro_attive;
     orderState.textContent=ordersActive?'Attivi: il cliente può scegliere una data per l’asporto.':'Disattivati: il menu resta consultabile.';
     orderToggle.textContent=ordersActive?'Disattiva asporto':'Attiva asporto';orderToggle.classList.toggle('off',ordersActive);orderToggle.disabled=false;
@@ -105,7 +109,7 @@
   }
   orderToggle.addEventListener('click',async()=>{orderToggle.disabled=true;try{await saveOrdersConfig({asporto_attivi:!ordersActive},'Impostazione asporto salvata.')}catch(error){orderMessage.textContent=error.message;orderToggle.disabled=false}});
   tableOrdersToggle.addEventListener('click',async()=>{tableOrdersToggle.disabled=true;try{await saveOrdersConfig({tavolo_attivi:!tableOrdersActive},'Impostazione tavoli salvata.')}catch(error){orderMessage.textContent=error.message;tableOrdersToggle.disabled=false}});
-  document.getElementById('printerSave').addEventListener('click',async()=>{const button=document.getElementById('printerSave');button.disabled=true;try{await saveOrdersConfig({stampante_ip:printerIp.value.trim()},'Indirizzo IP stampante salvato. Avvia il programma locale sul PC, poi usa ESC/POS nel banco ordini.')}catch(error){orderMessage.textContent=error.message}finally{button.disabled=false}});
+  document.getElementById('printerSave').addEventListener('click',async()=>{const button=document.getElementById('printerSave');button.disabled=true;try{await saveOrdersConfig({stampante_ip:printerIp.value.trim(),stampante_riepilogo_ip:summaryPrinterIp.value.trim()},'Stampanti salvate. Riavvia il programma locale aggiornato sul PC.')}catch(error){orderMessage.textContent=error.message}finally{button.disabled=false}});
   document.getElementById('ordersSaveLimit').addEventListener('click',async()=>{
     const limit=Number(ordersLimit.value);if(!Number.isInteger(limit)||limit<0||limit>10000){orderMessage.textContent='Inserisci un limite da 0 a 10000.';return}
     try{await saveOrdersConfig({limite_giornaliero:limit},'Limite giornaliero salvato.')}catch(error){orderMessage.textContent=error.message}

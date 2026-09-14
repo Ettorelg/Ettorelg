@@ -55,3 +55,20 @@ def test_unmatched_category_printer_receives_nothing():
     printers = [{"id_categoria": 1, "ip": "192.168.1.10"}]
     assert bridge.print_targets(order, printers, "192.168.1.10") == {}
     assert bridge.print_targets(order, [], "192.168.1.10") == {"192.168.1.10": None}
+
+
+def test_summary_printer_adds_full_order_receipt_even_when_no_category_matches():
+    order = {"id": 12, "prodotti": [{"id_categoria": 2, "nome": "Birra", "quantita": 1}]}
+    printers = [{"id_categoria": 1, "ip": "192.168.1.10"}]
+    jobs = bridge.print_jobs(order, printers, "", "192.168.1.60")
+    assert jobs == [("192.168.1.60", None, "riepilogo")]
+    payload = bridge.receipt(order, jobs[0][1], summary=True)
+    assert b"\x1d!\x11RIEPILOGO" in payload
+    assert b"\x1d!\x111 x Birra" in payload
+
+
+def test_same_ip_can_print_category_and_separate_summary_ticket():
+    order = {"id": 13, "prodotti": [{"id_categoria": 1, "nome": "Pizza", "quantita": 1}]}
+    printers = [{"id_categoria": 1, "ip": "192.168.1.10"}]
+    assert bridge.print_jobs(order, printers, "", "192.168.1.10") == [
+        ("192.168.1.10", {"1"}, "categoria"), ("192.168.1.10", None, "riepilogo")]

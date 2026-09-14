@@ -1149,6 +1149,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS limite_fascia_ritiro NUMERIC(10,3) NOT NULL DEFAULT 0")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS criterio_limite_fascia VARCHAR(10) NOT NULL DEFAULT 'ordini'")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS stampante_ip VARCHAR(45) NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS stampante_riepilogo_ip VARCHAR(45) NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS unita_prezzo VARCHAR(6) NOT NULL DEFAULT 'pezzo' CHECK (unita_prezzo IN ('pezzo','kg'))")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS ordini_menu (
@@ -3992,6 +3993,7 @@ def api_ordini_configurazione():
                         return jsonify({"error": "Solo il titolare può modificare le impostazioni ordini."}), 403
                     payload = request.get_json(silent=True) or {}
                     printer_ip = payload.get("stampante_ip")
+                    summary_ip = payload.get("stampante_riepilogo_ip")
                     if printer_ip is not None:
                         if not isinstance(printer_ip, str):
                             return jsonify({"error": "Indirizzo IP stampante non valido."}), 400
@@ -4003,6 +4005,11 @@ def api_ordini_configurazione():
                                 return jsonify({"error": "Inserisci un indirizzo IPv4 valido."}), 400
                             if not any(address in network for network in (ipaddress.IPv4Network("10.0.0.0/8"), ipaddress.IPv4Network("172.16.0.0/12"), ipaddress.IPv4Network("192.168.0.0/16"))):
                                 return jsonify({"error": "La stampante deve avere un indirizzo IP della rete locale."}), 400
+                    if summary_ip is not None:
+                        try:
+                            summary_ip = local_printer_ip(summary_ip)
+                        except ValueError as exc:
+                            return jsonify({"error": str(exc)}), 400
                     enabled = payload.get("asporto_attivi", payload.get("attivi"))
                     table_enabled = payload.get("tavolo_attivi")
                     limit = payload.get("limite_giornaliero")
@@ -4041,19 +4048,21 @@ def api_ordini_configurazione():
                             end_minutes = int(pickup_end[:2]) * 60 + int(pickup_end[3:])
                             if end_minutes <= start_minutes or end_minutes - start_minutes < pickup_minutes:
                                 return jsonify({"error": "L'intervallo deve contenere almeno una fascia completa."}), 400
-                    if enabled is None and table_enabled is None and limit is None and not pickup_changed and printer_ip is None:
+                    if enabled is None and table_enabled is None and limit is None and not pickup_changed and printer_ip is None and summary_ip is None:
                         return jsonify({"error": "Nessuna impostazione indicata."}), 400
                     cur.execute("UPDATE negozi SET ordini_attivi=COALESCE(%s,ordini_attivi),ordini_tavolo_attivi=COALESCE(%s,ordini_tavolo_attivi),limite_ordini_giorno=COALESCE(%s,limite_ordini_giorno) WHERE id=%s", (enabled, table_enabled, limit, shop_id))
                     if printer_ip is not None:
                         cur.execute("UPDATE negozi SET stampante_ip=%s WHERE id=%s", (printer_ip, shop_id))
+                    if summary_ip is not None:
+                        cur.execute("UPDATE negozi SET stampante_riepilogo_ip=%s WHERE id=%s", (summary_ip, shop_id))
                     if pickup_changed:
                         legacy_start = pickup_start if pickup_enabled and not schedule_supplied else None
                         legacy_end = pickup_end if pickup_enabled and not schedule_supplied else None
                         cur.execute("UPDATE negozi SET fasce_ritiro_attive=%s,ritiro_dalle=%s,ritiro_alle=%s,minuti_fascia_ritiro=%s,limite_fascia_ritiro=%s,criterio_limite_fascia=%s,fasce_ritiro_settimanali=COALESCE(%s::jsonb,fasce_ritiro_settimanali) WHERE id=%s", (pickup_enabled, legacy_start, legacy_end, pickup_minutes, pickup_capacity, pickup_criterion, json.dumps(schedule) if schedule_supplied else None, shop_id))
-                cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia,fasce_ritiro_settimanali,stampante_ip FROM negozi WHERE id=%s", (shop_id,))
+                cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia,fasce_ritiro_settimanali,stampante_ip,stampante_riepilogo_ip FROM negozi WHERE id=%s", (shop_id,))
                 row = cur.fetchone()
                 legacy_windows = [[{"dalle": row[4], "alle": row[5]}] if row[4] and row[5] else [] for _ in range(7)]
-                return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2], "fasce_ritiro_attive": bool(row[3]), "ritiro_dalle": row[4], "ritiro_alle": row[5], "minuti_fascia_ritiro": row[6], "limite_fascia_ritiro": str(row[7]), "criterio_limite_fascia": row[8], "fasce_settimanali": row[9] if row[9] is not None else legacy_windows, "stampante_ip": row[10], "shop_id": shop_id})
+                return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2], "fasce_ritiro_attive": bool(row[3]), "ritiro_dalle": row[4], "ritiro_alle": row[5], "minuti_fascia_ritiro": row[6], "limite_fascia_ritiro": str(row[7]), "criterio_limite_fascia": row[8], "fasce_settimanali": row[9] if row[9] is not None else legacy_windows, "stampante_ip": row[10], "stampante_riepilogo_ip": row[11], "shop_id": shop_id})
     finally:
         conn.close()
 
@@ -4457,11 +4466,11 @@ def api_stampanti_categorie():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT stampante_ip FROM negozi WHERE id=%s", (shop_id,))
+            cur.execute("SELECT stampante_ip,stampante_riepilogo_ip FROM negozi WHERE id=%s", (shop_id,))
             row = cur.fetchone()
             cur.execute("SELECT id,nome,stampante_ip FROM categorie WHERE id_negozio=%s AND stampante_ip<>'' ORDER BY id", (shop_id,))
             categories = [{"id_categoria": item[0], "nome": item[1], "ip": item[2]} for item in cur.fetchall()]
-        return jsonify({"stampante_ip": row[0] if row else "", "categorie": categories})
+        return jsonify({"stampante_ip": row[0] if row else "", "stampante_riepilogo_ip": row[1] if row else "", "categorie": categories})
     finally:
         conn.close()
 

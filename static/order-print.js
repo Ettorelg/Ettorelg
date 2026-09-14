@@ -17,13 +17,13 @@ window.AlphaOrderPrint = (() => {
       if (!routesResponse.ok || !orderResponse.ok) throw new Error('Impossibile leggere le stampanti o l’ordine.');
       const routes = await routesResponse.json();
       const currentOrder = (await orderResponse.json()).ordine;
-      if (!routes.stampante_ip && !(routes.categorie || []).length) throw new Error('Imposta l’IP generale o assegna una stampante alle categorie.');
+      if (!routes.stampante_ip && !routes.stampante_riepilogo_ip && !(routes.categorie || []).length) throw new Error('Imposta una stampante generale, di riepilogo o per categoria.');
       const healthResponse = await fetch('http://127.0.0.1:17891/health', {signal: AbortSignal.timeout(5000)});
       const health = await healthResponse.json();
-      if (!healthResponse.ok || health.version !== 2) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per usare le stampanti per categoria.');
+      if (!healthResponse.ok || health.version !== 3) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per usare la stampante di riepilogo.');
       const response = await fetch('http://127.0.0.1:17891/print', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({printer_ip: routes.stampante_ip, printers: routes.categorie, order: currentOrder, automatic}),
+        body: JSON.stringify({printer_ip: routes.stampante_ip, summary_ip: routes.stampante_riepilogo_ip, printers: routes.categorie, order: currentOrder, automatic}),
         signal: AbortSignal.timeout(30000)
       });
       const result = await response.json();

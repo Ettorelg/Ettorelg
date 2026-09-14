@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 2
+BRIDGE_VERSION = 3
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
@@ -33,7 +33,7 @@ def clean(value, limit=300):
     return "".join(ch if ch.isprintable() else " " for ch in text).strip()
 
 
-def receipt(order, large_category_ids=None):
+def receipt(order, large_category_ids=None, summary=False):
     if not isinstance(order, dict) or not isinstance(order.get("prodotti"), list):
         raise ValueError("Dati ordine non validi.")
     output = bytearray(b"\x1b@\x1bt\x02")
@@ -44,6 +44,8 @@ def receipt(order, large_category_ids=None):
             output.extend(b"\x1d!\x11" if large else b"\x1d!\x00")
             output.extend((part + "\n").encode("cp850", "replace"))
 
+    if summary:
+        line("RIEPILOGO", True)
     line("ORDINE #" + clean(order.get("id"), 30), True)
     line("AL TAVOLO" if order.get("origine") == "tavolo" else "DA ASPORTO")
     line("Data: " + clean(order.get("data_richiesta"), 30), True)
@@ -103,6 +105,17 @@ def print_targets(order, printers, default_ip):
     return {}
 
 
+def print_jobs(order, printers, default_ip, summary_ip):
+    targets = print_targets(order, printers, default_ip)
+    summary_ip = summary_ip or ""
+    if summary_ip and not valid_printer_ip(summary_ip):
+        raise ValueError("IP stampante di riepilogo non valido.")
+    jobs = [(ip, large_ids, "categoria") for ip, large_ids in targets.items()]
+    if summary_ip:
+        jobs.append((summary_ip, None, "riepilogo"))
+    return jobs
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         # The bridge may keep running after its launching terminal closes.
@@ -153,20 +166,20 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("Dimensione ordine non valida.")
             data = json.loads(self.rfile.read(size))
             order = data.get("order")
-            targets = print_targets(order, data.get("printers", []), data.get("printer_ip"))
+            jobs = print_jobs(order, data.get("printers", []), data.get("printer_ip"), data.get("summary_ip"))
             automatic = data.get("automatic") is True
         except (ValueError, TypeError, UnicodeError) as exc:
             return self._reply(400, str(exc))
-        if not targets:
+        if not jobs:
             return self._reply(200, "Nessuna categoria dell’ordine ha una stampante assegnata; nessuna stampa inviata.", 0)
         failures = []
         with PRINT_LOCK:
-            for printer_ip, large_ids in targets.items():
-                job = (printer_ip, clean(order.get("id"), 30), clean(order.get("creato_il"), 40))
+            for printer_ip, large_ids, role in jobs:
+                job = (printer_ip, role, clean(order.get("id"), 30), clean(order.get("creato_il"), 40))
                 if automatic and job in PRINTED_JOBS:
                     continue
                 try:
-                    payload = receipt(order, large_ids)
+                    payload = receipt(order, large_ids, summary=(role == "riepilogo"))
                     with socket.create_connection((printer_ip, 9100), timeout=4) as printer:
                         printer.sendall(payload)
                 except OSError as exc:
@@ -176,7 +189,7 @@ class Handler(BaseHTTPRequestHandler):
                     PRINTED_JOBS.add(job)
         if failures:
             return self._reply(502, "Stampante non raggiungibile: " + "; ".join(failures))
-        self._reply(200, "Ordine inviato a " + str(len(targets)) + " stampante/i.", len(targets))
+        self._reply(200, "Inviate " + str(len(jobs)) + " ricevute.", len(jobs))
 
 
 if __name__ == "__main__":
