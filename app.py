@@ -1150,6 +1150,18 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS criterio_limite_fascia VARCHAR(10) NOT NULL DEFAULT 'ordini'")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS stampante_ip VARCHAR(45) NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS stampante_riepilogo_ip VARCHAR(45) NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS modulo_pizzeria_attivo BOOLEAN NOT NULL DEFAULT FALSE")
+                cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_formati (
+                    id BIGSERIAL PRIMARY KEY,
+                    id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                    id_prodotto INTEGER NOT NULL REFERENCES prodotti(id) ON DELETE CASCADE,
+                    nome VARCHAR(80) NOT NULL,
+                    prezzo NUMERIC(10,2) NOT NULL CHECK (prezzo >= 0 AND prezzo <= 10000),
+                    disponibile BOOLEAN NOT NULL DEFAULT TRUE,
+                    posizione INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE (id_prodotto, nome)
+                )""")
+                cur.execute("CREATE INDEX IF NOT EXISTS pizzeria_formati_negozio ON pizzeria_formati(id_negozio, id_prodotto)")
                 cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_delivery_config (
                     id_negozio INTEGER PRIMARY KEY REFERENCES negozi(id) ON DELETE CASCADE,
                     attivo BOOLEAN NOT NULL DEFAULT FALSE,
@@ -3523,6 +3535,7 @@ def dashboard_user_section(section: str):
         "attivita",
         "menu_online",
         "ordini",
+        "pizzeria",
         "prodotti",
         "categorie",
         "sottocategorie",
@@ -3548,7 +3561,7 @@ def dashboard_user_section(section: str):
 
     shop_required_sections = {
         "prodotti", "categorie", "sottocategorie", "allergeni",
-        "menu_online", "ordini", "qrcode", "anteprima", "lingue", "statistiche",
+        "menu_online", "ordini", "pizzeria", "qrcode", "anteprima", "lingue", "statistiche",
     }
     if section in shop_required_sections and not get_user_shop_id(session["user_id"]):
         return (
@@ -4122,6 +4135,84 @@ def normalize_delivery_config(payload):
         })
     return {"tempo_preparazione_minuti": minutes, "minuti_per_km": per_km,
             "raggio_massimo_km": radius, "zone": normalized}
+
+
+def normalize_pizzeria_formats(payload):
+    if not isinstance(payload, dict) or type(payload.get("id_prodotto")) is not int or payload["id_prodotto"] <= 0:
+        raise ValueError("Scegli un prodotto valido.")
+    formats = payload.get("formati")
+    if not isinstance(formats, list) or not 1 <= len(formats) <= 12:
+        raise ValueError("Imposta da 1 a 12 formati per prodotto.")
+    normalized = []
+    names = set()
+    for item in formats:
+        if not isinstance(item, dict) or not isinstance(item.get("nome"), str):
+            raise ValueError("Formato non valido.")
+        name = item["nome"].strip()
+        if not 1 <= len(name) <= 80 or name.casefold() in names:
+            raise ValueError("Ogni formato deve avere un nome univoco.")
+        names.add(name.casefold())
+        try:
+            price = Decimal(str(item.get("prezzo")).replace(",", "."))
+        except (ValueError, ArithmeticError):
+            raise ValueError("Prezzo del formato non valido.")
+        if not price.is_finite() or not 0 <= price <= 10000 or price != price.quantize(Decimal("0.01")):
+            raise ValueError("Prezzo del formato non valido.")
+        available = item.get("disponibile", True)
+        if not isinstance(available, bool):
+            raise ValueError("Disponibilità del formato non valida.")
+        normalized.append({"nome": name, "prezzo": f"{price:.2f}", "disponibile": available})
+    return payload["id_prodotto"], normalized
+
+
+@app.route("/api/pizzeria/formati", methods=["GET", "PUT"])
+def api_pizzeria_formati():
+    if "user_id" not in session or session.get("employee_id"):
+        return jsonify({"error": "Accesso del titolare richiesto."}), 403
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    if request.method == "PUT":
+        try:
+            product_id, formats = normalize_pizzeria_formats(request.get_json(silent=True))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if request.method == "PUT":
+                    cur.execute("SELECT unita_prezzo FROM prodotti WHERE id=%s AND id_negozio=%s FOR UPDATE", (product_id, shop_id))
+                    product = cur.fetchone()
+                    if not product:
+                        return jsonify({"error": "Prodotto non trovato nel tuo negozio."}), 404
+                    if product[0] != "pezzo":
+                        return jsonify({"error": "I formati pizza sono disponibili solo per prodotti a pezzo."}), 400
+                    cur.execute("DELETE FROM pizzeria_formati WHERE id_negozio=%s AND id_prodotto=%s", (shop_id, product_id))
+                    for position, item in enumerate(formats):
+                        cur.execute("""INSERT INTO pizzeria_formati
+                            (id_negozio,id_prodotto,nome,prezzo,disponibile,posizione)
+                            VALUES (%s,%s,%s,%s,%s,%s)""",
+                            (shop_id, product_id, item["nome"], item["prezzo"], item["disponibile"], position))
+                cur.execute("SELECT modulo_pizzeria_attivo FROM negozi WHERE id=%s", (shop_id,))
+                module_row = cur.fetchone()
+                cur.execute("""SELECT p.id,p.nome,p.prezzo_euro,p.unita_prezzo,
+                    f.nome,f.prezzo,f.disponibile
+                    FROM prodotti p LEFT JOIN pizzeria_formati f
+                      ON f.id_prodotto=p.id AND f.id_negozio=p.id_negozio
+                    WHERE p.id_negozio=%s ORDER BY p.nome COLLATE \"C\",p.id,f.posizione,f.id""", (shop_id,))
+                rows = cur.fetchall()
+        products = {}
+        for row in rows:
+            product = products.setdefault(row[0], {"id": row[0], "nome": row[1],
+                "prezzo_base": str(row[2]), "unita_prezzo": row[3], "formati": []})
+            if row[4] is not None:
+                product["formati"].append({"nome": row[4], "prezzo": str(row[5]), "disponibile": bool(row[6])})
+        return jsonify({"attivo": bool(module_row[0]) if module_row else False,
+                        "configurazione_pronta": True, "ordinazione_varianti_attiva": False,
+                        "prodotti": list(products.values())})
+    finally:
+        conn.close()
 
 
 @app.route("/api/pizzeria/delivery/configurazione", methods=["GET", "PUT"])
