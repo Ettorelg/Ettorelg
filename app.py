@@ -4052,7 +4052,7 @@ def api_ordini_configurazione():
                 cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia,fasce_ritiro_settimanali,stampante_ip FROM negozi WHERE id=%s", (shop_id,))
                 row = cur.fetchone()
                 legacy_windows = [[{"dalle": row[4], "alle": row[5]}] if row[4] and row[5] else [] for _ in range(7)]
-                return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2], "fasce_ritiro_attive": bool(row[3]), "ritiro_dalle": row[4], "ritiro_alle": row[5], "minuti_fascia_ritiro": row[6], "limite_fascia_ritiro": str(row[7]), "criterio_limite_fascia": row[8], "fasce_settimanali": row[9] if row[9] is not None else legacy_windows, "stampante_ip": row[10]})
+                return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2], "fasce_ritiro_attive": bool(row[3]), "ritiro_dalle": row[4], "ritiro_alle": row[5], "minuti_fascia_ritiro": row[6], "limite_fascia_ritiro": str(row[7]), "criterio_limite_fascia": row[8], "fasce_settimanali": row[9] if row[9] is not None else legacy_windows, "stampante_ip": row[10], "shop_id": shop_id})
     finally:
         conn.close()
 
@@ -4405,6 +4405,42 @@ def api_ordini_notifiche():
             cur.execute("SELECT id,origine FROM ordini_menu WHERE id_negozio=%s AND id>%s ORDER BY id ASC LIMIT 50", (shop_id, int(cursor)))
             orders = [{"id": row[0], "tipo": "tavolo" if row[1] == "tavolo" else "asporto"} for row in cur.fetchall()]
             return jsonify({"ultimo_id": orders[-1]["id"] if orders else int(cursor), "nuovi": orders})
+    finally:
+        conn.close()
+
+
+@app.get("/api/ordini/<int:order_id>/stampa")
+def api_ordine_per_stampa(order_id: int):
+    shop_id = order_notification_shop_id()
+    if not shop_id:
+        return jsonify({"error": "Accesso al locale richiesto."}), 403
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT o.id, COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date),
+                       TO_CHAR(o.ora_richiesta,'HH24:MI'),o.nome_cliente,o.telefono_cliente,
+                       o.riferimento,o.note,o.totale,o.origine,
+                       TO_CHAR(o.creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
+                       r.nome_prodotto,r.quantita,r.totale_riga
+                FROM ordini_menu o
+                LEFT JOIN righe_ordini_menu r ON r.id_ordine=o.id
+                WHERE o.id_negozio=%s AND o.id=%s
+                ORDER BY r.id
+            """, (shop_id, order_id))
+            rows = cur.fetchall()
+        if not rows:
+            return jsonify({"error": "Ordine non trovato."}), 404
+        first = rows[0]
+        return jsonify({"ordine": {
+            "id": first[0], "data_richiesta": first[1].isoformat(), "ora_richiesta": first[2],
+            "nome": first[3], "telefono": first[4], "riferimento": first[5],
+            "note": first[6], "totale": str(first[7]), "origine": first[8],
+            "creato_il": first[9], "prodotti": [
+                {"nome": row[10], "quantita": str(row[11]), "totale": str(row[12])}
+                for row in rows if row[10] is not None
+            ]
+        }})
     finally:
         conn.close()
 

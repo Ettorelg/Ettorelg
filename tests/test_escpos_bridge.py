@@ -24,5 +24,9 @@ def test_receipt_contains_order_and_escpos_cut_without_control_injection():
     assert payload.startswith(b"\x1b@\x1bt\x02")
     assert payload.endswith(b"\x1dV\x00")
     assert b"ORDINE #42" in payload and b"AL TAVOLO" in payload
+    assert b"\x1d!\x11Data: 2026-09-14" in payload
+    assert b"\x1d!\x11Ora: 20:00" in payload
+    assert b"\x1d!\x11Cliente: Mario" in payload
+    assert b"\x1d!\x112 x Pizza" in payload
     assert b"Pizza [0m" in payload
     assert payload.count(b"\x1b") == 2
