@@ -47,7 +47,7 @@ window.AlphaOrderPrint = (() => {
       if (!mode) return false;
       const healthResponse = await fetch('http://127.0.0.1:17891/health', {signal: AbortSignal.timeout(5000)});
       const health = await healthResponse.json();
-      if (!healthResponse.ok || health.version !== 6) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per scegliere dove stampare gli ordini.');
+      if (!healthResponse.ok || health.version !== 7) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per usare il nuovo formato degli scontrini.');
       const response = await fetch('http://127.0.0.1:17891/print', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({printer_ip: routes.stampante_ip, summary_ip: routes.stampante_riepilogo_ip, printers: routes.categorie, order: currentOrder, automatic, mode}),

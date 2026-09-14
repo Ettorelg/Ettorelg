@@ -25,12 +25,14 @@ def test_receipt_contains_order_and_escpos_cut_without_control_injection():
     assert payload.endswith(b"\x1dV\x00")
     assert b"ORDINE #42" in payload and b"AL TAVOLO" in payload
     assert b"\x1ba\x01\x1d!\x11ORDINE #42\n\x1ba\x00" in payload
-    assert b"\x1d!\x11Data: 2026-09-14" in payload
+    assert b"\x1d!\x01Data: 2026-09-14" in payload
     assert b"\x1d!\x11Ora: 20:00" in payload
     assert b"\x1d!\x11Cliente: Mario" in payload
     assert b"\x1d!\x112 x Pizza" in payload
     assert b"Pizza [0m" in payload
     assert payload.count(b"\x1b") == 4
+    assert b"Promemoria ordine" not in payload
+    assert payload.endswith(b"\x1d!\x00\n" * 4 + b"\x1dV\x00")
 
 
 def test_mixed_category_order_routes_once_per_matching_printer():
@@ -47,7 +49,7 @@ def test_mixed_category_order_routes_once_per_matching_printer():
     assert targets == {"192.168.1.10": {"1", "3"}, "192.168.1.20": {"2"}}
     pizza_receipt = bridge.receipt(order, targets["192.168.1.10"])
     assert b"\x1d!\x111 x Pizza" in pizza_receipt
-    assert b"\x1d!\x001 x Birra" in pizza_receipt
+    assert b"\x1d!\x101 x Birra" in pizza_receipt
     assert b"\x1d!\x111 x Dolce" in pizza_receipt
 
 
@@ -64,8 +66,8 @@ def test_summary_printer_adds_full_order_receipt_even_when_no_category_matches()
     jobs = bridge.print_jobs(order, printers, "", "192.168.1.60")
     assert jobs == [("192.168.1.60", None, "riepilogo")]
     payload = bridge.receipt(order, jobs[0][1], summary=True)
-    assert b"\x1d!\x11RIEPILOGO" in payload
-    assert b"\x1d!\x001 x Birra" in payload
+    assert b"\x1ba\x01\x1d!\x11RIEPILOGO\n\x1ba\x00" in payload
+    assert b"\x1d!\x101 x Birra" in payload
 
 
 def test_same_ip_can_print_category_and_separate_summary_ticket():
@@ -118,8 +120,8 @@ def test_category_products_print_first_and_other_products_follow_small():
     payload = bridge.receipt(order, {"1"})
     assert payload.index(b"2 x Pizza") < payload.index(b"1 x Birra") < payload.index(b"1 x Dolce")
     assert b"\x1d!\x112 x Pizza" in payload
-    assert b"\x1d!\x001 x Birra" in payload
-    assert b"\x1d!\x001 x Dolce" in payload
+    assert b"\x1d!\x101 x Birra" in payload
+    assert b"\x1d!\x101 x Dolce" in payload
 
 
 def test_weighted_products_always_print_three_decimal_places():

@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 6
+BRIDGE_VERSION = 7
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
@@ -49,21 +49,24 @@ def receipt(order, large_category_ids=None, summary=False):
         raise ValueError("Dati ordine non validi.")
     output = bytearray(b"\x1b@\x1bt\x02")
 
-    def line(value, large=False, centered=False):
-        width = 21 if large else 42
+    def line(value, large=False, centered=False, double_width=False, double_height=False):
+        wide = large or double_width
+        tall = large or double_height
+        width = 21 if wide else 42
+        size = (1 if wide else 0) | (0x10 if tall else 0)
         if centered:
             output.extend(b"\x1ba\x01")
         for part in textwrap.wrap(clean(value, 500), width=width, break_long_words=True) or [""]:
-            output.extend(b"\x1d!\x11" if large else b"\x1d!\x00")
+            output.extend(b"\x1d!" + bytes([size]))
             output.extend((part + "\n").encode("cp850", "replace"))
         if centered:
             output.extend(b"\x1ba\x00")
 
     if summary:
-        line("RIEPILOGO", True)
+        line("RIEPILOGO", True, centered=True)
     line("ORDINE #" + clean(order.get("id"), 30), True, centered=True)
     line("AL TAVOLO" if order.get("origine") == "tavolo" else "DA ASPORTO")
-    line("Data: " + clean(order.get("data_richiesta"), 30), True)
+    line("Data: " + clean(order.get("data_richiesta"), 30), double_width=True)
     line("Ora: " + clean(order.get("ora_richiesta"), 20), True)
     line("-" * 42)
     for field, label in (("nome", "Cliente"), ("riferimento", "Riferimento/tavolo"),
@@ -82,16 +85,14 @@ def receipt(order, large_category_ids=None, summary=False):
         is_weight = product.get("unita_prezzo") == "kg" or name.lower().endswith(" (kg)")
         item = format_quantity(product.get("quantita"), is_weight) + " x " + name
         is_large = not summary and (large_category_ids is None or str(product.get("id_categoria")) in large_category_ids)
-        line(item, is_large)
+        line(item, is_large, double_height=True)
     line("-" * 42)
     if order.get("note"):
         line("NOTE: " + clean(order["note"], 500))
     if summary and order.get("totale") is not None:
         line("TOTALE: EUR " + clean(order["totale"], 20), True)
-    line("")
-    line("Promemoria ordine - non fiscale")
-    line("")
-    line("")
+    for _ in range(4):
+        line("")
     # Initialize, choose PC850, print text, feed and cut. EUR is used because
     # ESC/POS code pages differ between printer models.
     return bytes(output) + b"\x1dV\x00"
