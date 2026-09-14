@@ -24,12 +24,13 @@ def test_receipt_contains_order_and_escpos_cut_without_control_injection():
     assert payload.startswith(b"\x1b@\x1bt\x02")
     assert payload.endswith(b"\x1dV\x00")
     assert b"ORDINE #42" in payload and b"AL TAVOLO" in payload
+    assert b"\x1ba\x01\x1d!\x11ORDINE #42\n\x1ba\x00" in payload
     assert b"\x1d!\x11Data: 2026-09-14" in payload
     assert b"\x1d!\x11Ora: 20:00" in payload
     assert b"\x1d!\x11Cliente: Mario" in payload
     assert b"\x1d!\x112 x Pizza" in payload
     assert b"Pizza [0m" in payload
-    assert payload.count(b"\x1b") == 2
+    assert payload.count(b"\x1b") == 4
 
 
 def test_mixed_category_order_routes_once_per_matching_printer():
@@ -64,7 +65,7 @@ def test_summary_printer_adds_full_order_receipt_even_when_no_category_matches()
     assert jobs == [("192.168.1.60", None, "riepilogo")]
     payload = bridge.receipt(order, jobs[0][1], summary=True)
     assert b"\x1d!\x11RIEPILOGO" in payload
-    assert b"\x1d!\x111 x Birra" in payload
+    assert b"\x1d!\x001 x Birra" in payload
 
 
 def test_same_ip_can_print_category_and_separate_summary_ticket():
@@ -87,3 +88,29 @@ def test_prices_only_appear_as_final_total_on_summary():
     assert b"EUR 20" not in summary and b"EUR 12" not in summary
     assert summary.count(b"EUR") == 1
     assert b"TOTALE: EUR 32" in summary
+    assert b"\x1d!\x11TOTALE: EUR 32" in summary
+
+
+def test_category_products_print_first_and_other_products_follow_small():
+    order = {"id": 15, "prodotti": [
+        {"id_categoria": 2, "nome": "Birra", "quantita": 1},
+        {"id_categoria": 1, "nome": "Pizza", "quantita": 2},
+        {"id_categoria": 3, "nome": "Dolce", "quantita": 1},
+    ]}
+    payload = bridge.receipt(order, {"1"})
+    assert payload.index(b"2 x Pizza") < payload.index(b"1 x Birra") < payload.index(b"1 x Dolce")
+    assert b"\x1d!\x112 x Pizza" in payload
+    assert b"\x1d!\x001 x Birra" in payload
+    assert b"\x1d!\x001 x Dolce" in payload
+
+
+def test_weighted_products_always_print_three_decimal_places():
+    order = {"id": 16, "prodotti": [
+        {"nome": "Salame (kg)", "quantita": "1.000"},
+        {"nome": "Formaggio", "unita_prezzo": "kg", "quantita": "0.125"},
+        {"nome": "Pane", "unita_prezzo": "pezzo", "quantita": "2.000"},
+    ]}
+    payload = bridge.receipt(order, summary=True)
+    assert b"1,000 x Salame (kg)" in payload
+    assert b"0,125 x Formaggio" in payload
+    assert b"2 x Pane" in payload

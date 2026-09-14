@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 4
+BRIDGE_VERSION = 5
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
@@ -34,12 +34,12 @@ def clean(value, limit=300):
     return "".join(ch if ch.isprintable() else " " for ch in text).strip()
 
 
-def format_quantity(value):
+def format_quantity(value, weight=False):
     try:
         number = Decimal(str(value).replace(",", "."))
         if not number.is_finite():
             raise InvalidOperation
-        return format(number.normalize(), "f").replace(".", ",")
+        return (format(number, ".3f") if weight else format(number.normalize(), "f")).replace(".", ",")
     except (InvalidOperation, ValueError):
         return clean(value, 15)
 
@@ -49,15 +49,19 @@ def receipt(order, large_category_ids=None, summary=False):
         raise ValueError("Dati ordine non validi.")
     output = bytearray(b"\x1b@\x1bt\x02")
 
-    def line(value, large=False):
+    def line(value, large=False, centered=False):
         width = 21 if large else 42
+        if centered:
+            output.extend(b"\x1ba\x01")
         for part in textwrap.wrap(clean(value, 500), width=width, break_long_words=True) or [""]:
             output.extend(b"\x1d!\x11" if large else b"\x1d!\x00")
             output.extend((part + "\n").encode("cp850", "replace"))
+        if centered:
+            output.extend(b"\x1ba\x00")
 
     if summary:
         line("RIEPILOGO", True)
-    line("ORDINE #" + clean(order.get("id"), 30), True)
+    line("ORDINE #" + clean(order.get("id"), 30), True, centered=True)
     line("AL TAVOLO" if order.get("origine") == "tavolo" else "DA ASPORTO")
     line("Data: " + clean(order.get("data_richiesta"), 30), True)
     line("Ora: " + clean(order.get("ora_richiesta"), 20), True)
@@ -67,17 +71,23 @@ def receipt(order, large_category_ids=None, summary=False):
         if order.get(field):
             line(label + ": " + clean(order[field]), field == "nome")
     line("-" * 42)
-    for product in order["prodotti"][:100]:
+    products = order["prodotti"][:100]
+    if large_category_ids is not None and not summary:
+        products = sorted(products, key=lambda product: (
+            not isinstance(product, dict) or str(product.get("id_categoria")) not in large_category_ids))
+    for product in products:
         if not isinstance(product, dict):
             continue
-        item = format_quantity(product.get("quantita")) + " x " + clean(product.get("nome"), 200)
-        is_large = large_category_ids is None or str(product.get("id_categoria")) in large_category_ids
+        name = clean(product.get("nome"), 200)
+        is_weight = product.get("unita_prezzo") == "kg" or name.lower().endswith(" (kg)")
+        item = format_quantity(product.get("quantita"), is_weight) + " x " + name
+        is_large = not summary and (large_category_ids is None or str(product.get("id_categoria")) in large_category_ids)
         line(item, is_large)
     line("-" * 42)
     if order.get("note"):
         line("NOTE: " + clean(order["note"], 500))
     if summary and order.get("totale") is not None:
-        line("TOTALE: EUR " + clean(order["totale"], 20))
+        line("TOTALE: EUR " + clean(order["totale"], 20), True)
     line("")
     line("Promemoria ordine - non fiscale")
     line("")

@@ -4432,7 +4432,7 @@ def api_ordine_per_stampa(order_id: int):
                        TO_CHAR(o.ora_richiesta,'HH24:MI'),o.nome_cliente,o.telefono_cliente,
                        o.riferimento,o.note,o.totale,o.origine,
                        TO_CHAR(o.creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
-                       r.nome_prodotto,r.quantita,r.totale_riga,p.id_categoria,c.nome
+                       r.nome_prodotto,r.quantita,r.totale_riga,p.id_categoria,c.nome,p.unita_prezzo
                 FROM ordini_menu o
                 LEFT JOIN righe_ordini_menu r ON r.id_ordine=o.id
                 LEFT JOIN prodotti p ON p.id=r.id_prodotto AND p.id_negozio=o.id_negozio
@@ -4450,7 +4450,7 @@ def api_ordine_per_stampa(order_id: int):
             "note": first[6], "totale": str(first[7]), "origine": first[8],
             "creato_il": first[9], "prodotti": [
                 {"nome": row[10], "quantita": str(row[11]), "totale": str(row[12]),
-                 "id_categoria": row[13], "categoria": row[14] or ""}
+                 "id_categoria": row[13], "categoria": row[14] or "", "unita_prezzo": row[15] or ""}
                 for row in rows if row[10] is not None
             ]
         }})

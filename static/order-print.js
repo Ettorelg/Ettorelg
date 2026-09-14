@@ -11,7 +11,7 @@ window.AlphaOrderPrint = (() => {
       if (!routes.stampante_ip && !routes.stampante_riepilogo_ip && !(routes.categorie || []).length) throw new Error('Imposta una stampante generale, di riepilogo o per categoria.');
       const healthResponse = await fetch('http://127.0.0.1:17891/health', {signal: AbortSignal.timeout(5000)});
       const health = await healthResponse.json();
-      if (!healthResponse.ok || health.version !== 4) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per usare il nuovo formato degli ordini.');
+      if (!healthResponse.ok || health.version !== 5) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per usare il nuovo formato degli ordini.');
       const response = await fetch('http://127.0.0.1:17891/print', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({printer_ip: routes.stampante_ip, summary_ip: routes.stampante_riepilogo_ip, printers: routes.categorie, order: currentOrder, automatic}),
