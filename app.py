@@ -1167,10 +1167,13 @@ def init_db() -> None:
                     id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
                     id_pizza INTEGER NOT NULL REFERENCES prodotti(id) ON DELETE CASCADE,
                     tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('calzone','panino')),
+                    formato VARCHAR(80) NOT NULL DEFAULT 'Singola',
                     prezzo_override NUMERIC(10,2) CHECK (prezzo_override IS NULL OR (prezzo_override >= 0 AND prezzo_override <= 10000)),
-                    disponibile BOOLEAN NOT NULL DEFAULT TRUE,
-                    UNIQUE (id_negozio,id_pizza,tipo)
+                    disponibile BOOLEAN NOT NULL DEFAULT TRUE
                 )""")
+                cur.execute("ALTER TABLE pizzeria_derivati ADD COLUMN IF NOT EXISTS formato VARCHAR(80) NOT NULL DEFAULT 'Singola'")
+                cur.execute("ALTER TABLE pizzeria_derivati DROP CONSTRAINT IF EXISTS pizzeria_derivati_id_negozio_id_pizza_tipo_key")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS pizzeria_derivati_unici ON pizzeria_derivati(id_negozio,id_pizza,tipo,formato)")
                 cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_varianti_config (
                     id_negozio INTEGER PRIMARY KEY REFERENCES negozi(id) ON DELETE CASCADE,
                     frazioni JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -4292,7 +4295,7 @@ def normalize_pizzeria_preparation(payload, available_formats):
     return normalized_doughs, normalized_stocks
 
 
-def normalize_pizzeria_derivatives(payload, pizza_ids):
+def normalize_pizzeria_derivatives(payload, pizza_formats):
     if not isinstance(payload, dict) or not isinstance(payload.get("derivati"), list) or len(payload["derivati"]) > 100:
         raise ValueError("Configurazione calzoni e panini non valida.")
     normalized = []
@@ -4300,10 +4303,13 @@ def normalize_pizzeria_derivatives(payload, pizza_ids):
     for item in payload["derivati"]:
         if not isinstance(item, dict):
             raise ValueError("Calzone o panino non valido.")
-        pizza_id, kind = item.get("id_pizza"), item.get("tipo")
-        if type(pizza_id) is not int or pizza_id not in pizza_ids or kind not in ("calzone", "panino") or (pizza_id, kind) in seen:
-            raise ValueError("Scegli una pizza con formato Singola e un tipo univoco.")
-        seen.add((pizza_id, kind))
+        pizza_id, kind, format_name = item.get("id_pizza"), item.get("tipo"), item.get("formato", "Singola")
+        if type(pizza_id) is not int or pizza_id not in pizza_formats or kind not in ("calzone", "panino") or not isinstance(format_name, str):
+            raise ValueError("Scegli una pizza, un tipo e un formato validi.")
+        canonical_format = pizza_formats[pizza_id].get(format_name.strip().casefold())
+        if not canonical_format or (pizza_id, kind, canonical_format.casefold()) in seen:
+            raise ValueError("Il formato non è disponibile per la pizza o è già configurato.")
+        seen.add((pizza_id, kind, canonical_format.casefold()))
         override = item.get("prezzo_override")
         if override in (None, ""):
             price = None
@@ -4318,8 +4324,9 @@ def normalize_pizzeria_derivatives(payload, pizza_ids):
         available = item.get("disponibile", True)
         if not isinstance(available, bool):
             raise ValueError("Disponibilità non valida.")
-        normalized.append({"id_pizza": pizza_id, "tipo": kind, "prezzo_override": price,
-                           "disponibile": available, "panette_per_unita": 1})
+        normalized.append({"id_pizza": pizza_id, "tipo": kind, "formato": canonical_format,
+                           "prezzo_override": price, "disponibile": available,
+                           "panette_per_unita": 1 if canonical_format.casefold() == "singola" else None})
     return normalized
 
 
@@ -4334,30 +4341,36 @@ def api_pizzeria_derivati():
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute("""SELECT p.id,p.nome,f.prezzo,f.disponibile
+                cur.execute("""SELECT p.id,p.nome,f.nome,f.prezzo,f.disponibile
                     FROM pizzeria_formati f JOIN prodotti p ON p.id=f.id_prodotto AND p.id_negozio=f.id_negozio
-                    WHERE f.id_negozio=%s AND LOWER(f.nome)='singola' ORDER BY p.nome,p.id""", (shop_id,))
-                pizzas = [{"id": row[0], "nome": row[1], "prezzo_singola": str(row[2]),
-                           "singola_disponibile": bool(row[3])} for row in cur.fetchall()]
+                    WHERE f.id_negozio=%s ORDER BY p.nome,p.id,f.posizione""", (shop_id,))
+                pizza_map = {}
+                for product_id, name, format_name, price, available in cur.fetchall():
+                    pizza = pizza_map.setdefault(product_id, {"id": product_id, "nome": name, "formati": []})
+                    pizza["formati"].append({"nome": format_name, "prezzo": str(price), "disponibile": bool(available)})
+                pizzas = list(pizza_map.values())
                 if request.method == "PUT":
                     try:
-                        derivatives = normalize_pizzeria_derivatives(request.get_json(silent=True), {item["id"] for item in pizzas})
+                        derivatives = normalize_pizzeria_derivatives(request.get_json(silent=True),
+                            {item["id"]: {fmt["nome"].casefold(): fmt["nome"] for fmt in item["formati"] if fmt["disponibile"]} for item in pizzas})
                     except ValueError as exc:
                         return jsonify({"error": str(exc)}), 400
                     cur.execute("DELETE FROM pizzeria_derivati WHERE id_negozio=%s", (shop_id,))
                     for item in derivatives:
                         cur.execute("""INSERT INTO pizzeria_derivati
-                            (id_negozio,id_pizza,tipo,prezzo_override,disponibile) VALUES (%s,%s,%s,%s,%s)""",
-                            (shop_id, item["id_pizza"], item["tipo"], item["prezzo_override"], item["disponibile"]))
-                cur.execute("""SELECT id_pizza,tipo,prezzo_override,disponibile FROM pizzeria_derivati
-                    WHERE id_negozio=%s ORDER BY tipo,id_pizza""", (shop_id,))
+                            (id_negozio,id_pizza,tipo,formato,prezzo_override,disponibile) VALUES (%s,%s,%s,%s,%s,%s)""",
+                            (shop_id, item["id_pizza"], item["tipo"], item["formato"], item["prezzo_override"], item["disponibile"]))
+                cur.execute("""SELECT id_pizza,tipo,formato,prezzo_override,disponibile FROM pizzeria_derivati
+                    WHERE id_negozio=%s ORDER BY tipo,id_pizza,formato""", (shop_id,))
                 rows = cur.fetchall()
-        prices = {pizza["id"]: pizza["prezzo_singola"] for pizza in pizzas}
+        prices = {(pizza["id"], fmt["nome"].casefold()): fmt["prezzo"] for pizza in pizzas for fmt in pizza["formati"]}
         return jsonify({"attivo": False, "pizze": pizzas,
-                        "derivati": [{"id_pizza": row[0], "tipo": row[1],
-                                      "prezzo_override": str(row[2]) if row[2] is not None else None,
-                                      "prezzo_effettivo": str(row[2]) if row[2] is not None else prices.get(row[0]),
-                                      "disponibile": bool(row[3]), "panette_per_unita": 1} for row in rows if row[0] in prices]})
+                        "derivati": [{"id_pizza": row[0], "tipo": row[1], "formato": row[2],
+                                      "prezzo_override": str(row[3]) if row[3] is not None else None,
+                                      "prezzo_effettivo": str(row[3]) if row[3] is not None else prices.get((row[0], row[2].casefold())),
+                                      "disponibile": bool(row[4]),
+                                      "panette_per_unita": 1 if row[2].casefold() == "singola" else None}
+                                     for row in rows if (row[0], row[2].casefold()) in prices]})
     finally:
         conn.close()
 
@@ -4365,19 +4378,21 @@ def api_pizzeria_derivati():
 def normalize_pizzeria_variants(payload, category_ids, product_categories, format_names):
     if not isinstance(payload, dict) or not isinstance(payload.get("frazioni"), list) or not isinstance(payload.get("aggiunte"), list):
         raise ValueError("Configurazione varianti non valida.")
-    if len(payload["frazioni"]) > len(category_ids) or len(payload["aggiunte"]) > 100:
+    if len(payload["frazioni"]) > len(format_names) or len(payload["aggiunte"]) > 100:
         raise ValueError("Troppe regole o aggiunte configurate.")
     fractions = []
-    seen_categories = set()
+    seen_formats = set()
     for item in payload["frazioni"]:
-        if not isinstance(item, dict) or type(item.get("id_categoria")) is not int or item["id_categoria"] not in category_ids:
-            raise ValueError("Categoria delle frazioni non valida.")
-        category_id = item["id_categoria"]
+        if not isinstance(item, dict) or not isinstance(item.get("formato"), str):
+            raise ValueError("Formato delle frazioni non valido.")
+        format_name = format_names.get(item["formato"].strip().casefold())
+        if not format_name:
+            raise ValueError("Formato delle frazioni non configurato.")
         allowed = item.get("tagli")
-        if category_id in seen_categories or not isinstance(allowed, list) or len(allowed) > 3 or any(type(n) is not int or n not in (2, 3, 4) for n in allowed) or len(set(allowed)) != len(allowed):
+        if format_name.casefold() in seen_formats or not isinstance(allowed, list) or len(allowed) > 3 or any(type(n) is not int or n not in (2, 3, 4) for n in allowed) or len(set(allowed)) != len(allowed):
             raise ValueError("Scegli tagli univoci tra metà, terzi e quarti.")
-        seen_categories.add(category_id)
-        fractions.append({"id_categoria": category_id, "tagli": sorted(allowed)})
+        seen_formats.add(format_name.casefold())
+        fractions.append({"formato": format_name, "tagli": sorted(allowed)})
     additions = []
     for item in payload["aggiunte"]:
         if not isinstance(item, dict) or not isinstance(item.get("nome"), str):
@@ -4440,7 +4455,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
     quantity = payload.get("quantita", 1)
     if type(quantity) is not int or not 1 <= quantity <= 100:
         raise ValueError("Quantità non valida.")
-    format_name = "Singola" if kind in ("calzone", "panino") else payload.get("formato")
+    format_name = payload.get("formato", "Singola" if kind in ("calzone", "panino") else None)
     if not isinstance(format_name, str) or not format_name.strip():
         raise ValueError("Scegli un formato valido.")
 
@@ -4474,25 +4489,20 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
         portions = payload.get("porzioni")
         if not isinstance(portions, list) or len(portions) not in (2, 3, 4):
             raise ValueError("La pizza mista richiede 2, 3 o 4 gusti.")
-        category_id = None
         priced_portions = []
         for part in portions:
             if not isinstance(part, dict):
                 raise ValueError("Porzione non valida.")
             pizza, selected_format = pizza_and_format(part.get("id_pizza"))
-            if category_id is None:
-                category_id = pizza["id_categoria"]
-            if pizza["id_categoria"] != category_id:
-                raise ValueError("I gusti della pizza mista devono appartenere alla stessa categoria.")
             priced_portions.append({"formato": format_name, "prezzo_gusto": selected_format["prezzo"],
                                     "aggiunte": [str(topping_total(part.get("aggiunte", []), pizza))]})
-        if len(portions) not in fractions.get(category_id, []):
-            raise ValueError("Questo taglio non è abilitato per la categoria.")
+        if len(portions) not in fractions.get(format_name.casefold(), []):
+            raise ValueError("Questo taglio non è abilitato per il formato.")
         unit = calculate_pizzeria_mixed_price(format_name, priced_portions)
     else:
         pizza, selected_format = pizza_and_format(payload.get("id_pizza"))
         if kind in ("calzone", "panino"):
-            derivative = derivatives.get((pizza["id"], kind))
+            derivative = derivatives.get((pizza["id"], kind, format_name.casefold()))
             if not derivative or not derivative["disponibile"]:
                 raise ValueError("Calzone o panino non configurato.")
             base = derivative["prezzo_override"] if derivative["prezzo_override"] is not None else selected_format["prezzo"]
@@ -4529,11 +4539,12 @@ def api_pizzeria_preventivo():
                 pizza["formati"][fmt.casefold()] = {"prezzo": str(price), "disponibile": bool(available)}
             cur.execute("SELECT frazioni,aggiunte FROM pizzeria_varianti_config WHERE id_negozio=%s", (shop_id,))
             row = cur.fetchone()
-            fractions = {item["id_categoria"]: item["tagli"] for item in row[0]} if row else {}
+            fractions = {item["formato"].casefold(): item["tagli"] for item in row[0]
+                         if isinstance(item, dict) and isinstance(item.get("formato"), str)} if row else {}
             additions = row[1] if row else []
-            cur.execute("SELECT id_pizza,tipo,prezzo_override,disponibile FROM pizzeria_derivati WHERE id_negozio=%s", (shop_id,))
-            derivatives = {(r[0], r[1]): {"prezzo_override": str(r[2]) if r[2] is not None else None,
-                                         "disponibile": bool(r[3])} for r in cur.fetchall()}
+            cur.execute("SELECT id_pizza,tipo,formato,prezzo_override,disponibile FROM pizzeria_derivati WHERE id_negozio=%s", (shop_id,))
+            derivatives = {(r[0], r[1], r[2].casefold()): {"prezzo_override": str(r[3]) if r[3] is not None else None,
+                                         "disponibile": bool(r[4])} for r in cur.fetchall()}
             cur.execute("SELECT impasti FROM pizzeria_preparazione_config WHERE id_negozio=%s", (shop_id,))
             row = cur.fetchone()
             dough_list = row[0] if row else [{"nome": "Classico", "supplemento": "0.00", "disponibile": True}]

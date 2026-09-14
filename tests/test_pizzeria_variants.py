@@ -53,7 +53,7 @@ def functions(db):
 
 
 def payload():
-    return {"frazioni": [{"id_categoria": 2, "tagli": [2, 3, 4]}],
+    return {"frazioni": [{"formato": "Gigante", "tagli": [2, 3, 4]}],
             "aggiunte": [{"nome": "Mozzarella extra", "id_categoria": 2, "id_prodotto": None,
                            "prezzi": {"Singola": "1,50", "Gigante": "3.00"}, "disponibile": True}]}
 
@@ -62,6 +62,7 @@ def test_valid_rules_have_normalized_prices():
     fractions, additions = functions(Connection())["normalize_pizzeria_variants"](
         payload(), {2}, {10: 2}, {"singola": "Singola", "gigante": "Gigante"})
     assert fractions[0]["tagli"] == [2, 3, 4]
+    assert fractions[0]["formato"] == "Gigante"
     assert additions[0]["prezzi"] == {"Singola": "1.50", "Gigante": "3.00"}
 
 
@@ -84,7 +85,8 @@ def test_mixed_price_rejects_different_format():
 
 
 @pytest.mark.parametrize("change", [
-    lambda p: p["frazioni"][0].update(id_categoria=999),
+    lambda p: p["frazioni"][0].update(formato="Altro"),
+    lambda p: p["frazioni"].append({"formato": "Gigante", "tagli": [2]}),
     lambda p: p["frazioni"][0].update(tagli=[2, 2]),
     lambda p: p["frazioni"][0].update(tagli=[5]),
     lambda p: p["aggiunte"][0].update(id_prodotto=10),

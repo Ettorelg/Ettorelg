@@ -1,4 +1,4 @@
-"""Calzones and sandwiches inherit the single-pizza price unless overridden."""
+"""Calzones and sandwiches inherit the selected pizza format price unless overridden."""
 import ast
 import copy
 from decimal import Decimal
@@ -25,9 +25,11 @@ class Cursor:
         if "INSERT INTO pizzeria_derivati" in query: self.saved.append(params)
     def fetchall(self):
         if "FROM pizzeria_formati" in self.query:
-            return [(10, "Margherita", Decimal("8.00"), True)]
+            return [(10, "Margherita", "Singola", Decimal("8.00"), True),
+                    (10, "Margherita", "Doppia", Decimal("15.00"), True),
+                    (10, "Margherita", "Familiare", Decimal("22.00"), True)]
         if "FROM pizzeria_derivati" in self.query:
-            return [(item[1], item[2], Decimal(item[3]) if item[3] is not None else None, item[4])
+            return [(item[1], item[2], item[3], Decimal(item[4]) if item[4] is not None else None, item[5])
                     for item in self.saved]
         return []
 
@@ -53,16 +55,19 @@ def functions(db):
 
 
 def item(**changes):
-    result = {"id_pizza": 10, "tipo": "calzone", "prezzo_override": None, "disponibile": True}
+    result = {"id_pizza": 10, "tipo": "calzone", "formato": "Singola", "prezzo_override": None, "disponibile": True}
     result.update(changes)
     return result
 
 
 def test_default_and_override_are_normalized():
     normalize = functions(Connection())["normalize_pizzeria_derivatives"]
-    assert normalize({"derivati": [item()]}, {10})[0]["prezzo_override"] is None
-    assert normalize({"derivati": [item(prezzo_override="9,50")]}, {10})[0]["prezzo_override"] == "9.50"
-    assert normalize({"derivati": [item()]}, {10})[0]["panette_per_unita"] == 1
+    formats = {10: {"singola": "Singola", "doppia": "Doppia", "familiare": "Familiare"}}
+    assert normalize({"derivati": [item()]}, formats)[0]["prezzo_override"] is None
+    assert normalize({"derivati": [item(prezzo_override="9,50")]}, formats)[0]["prezzo_override"] == "9.50"
+    assert normalize({"derivati": [item()]}, formats)[0]["panette_per_unita"] == 1
+    assert normalize({"derivati": [item(formato="Doppia")]}, formats)[0]["panette_per_unita"] is None
+    assert len(normalize({"derivati": [item(), item(formato="Doppia"), item(formato="Familiare")]}, formats)) == 3
 
 
 @pytest.mark.parametrize("items", [
@@ -71,21 +76,26 @@ def test_default_and_override_are_normalized():
     [item(prezzo_override="9.999")],
     [item(prezzo_override="NaN")],
     [item(), item()],
+    [item(formato="Non disponibile")],
 ])
 def test_invalid_or_cross_shop_derivatives_rejected(items):
     with pytest.raises(ValueError):
-        functions(Connection())["normalize_pizzeria_derivatives"]({"derivati": items}, {10})
+        functions(Connection())["normalize_pizzeria_derivatives"]({"derivati": items}, {10: {"singola": "Singola", "doppia": "Doppia"}})
 
 
 def test_save_is_owner_scoped_and_does_not_activate():
     db = Connection()
-    with FLASK.test_request_context("/api/pizzeria/derivati", method="PUT", json={"derivati": [item()]}):
+    with FLASK.test_request_context("/api/pizzeria/derivati", method="PUT", json={"derivati": [item(), item(formato="Doppia"), item(formato="Familiare", tipo="panino")]}):
         session["user_id"] = 3
         response = functions(db)["api_pizzeria_derivati"]()
     result = response.get_json()
     assert result["attivo"] is False
     assert result["derivati"][0]["prezzo_effettivo"] == "8.00"
+    assert result["derivati"][0]["formato"] == "Singola"
     assert result["derivati"][0]["panette_per_unita"] == 1
+    assert {row["formato"]: row["prezzo_effettivo"] for row in result["derivati"]} == {
+        "Singola": "8.00", "Doppia": "15.00", "Familiare": "22.00"}
+    assert result["derivati"][1]["panette_per_unita"] is None
     assert all(params[0] == 7 for _, params in db.cur.statements)
     assert all("UPDATE negozi" not in query and "UPDATE ordini" not in query
                for query, _ in db.cur.statements)

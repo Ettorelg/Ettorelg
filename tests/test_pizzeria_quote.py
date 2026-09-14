@@ -58,10 +58,11 @@ def settings():
         11: {"id": 11, "id_categoria": 2, "formati": {"gigante": {"prezzo": "26.00", "disponibile": True}}},
         12: {"id": 12, "id_categoria": 3, "formati": {"gigante": {"prezzo": "22.00", "disponibile": True}}},
     }
-    fractions = {2: [2, 3]}
+    fractions = {"gigante": [2, 3]}
     additions = [{"id_categoria": 2, "id_prodotto": None, "prezzi": {"Singola": "1.50", "Gigante": "3.00"}, "disponibile": True}]
-    derivatives = {(10, "calzone"): {"prezzo_override": None, "disponibile": True},
-                   (10, "panino"): {"prezzo_override": "9.50", "disponibile": True}}
+    derivatives = {(10, "calzone", "singola"): {"prezzo_override": None, "disponibile": True},
+                   (10, "panino", "singola"): {"prezzo_override": "9.50", "disponibile": True},
+                   (10, "calzone", "gigante"): {"prezzo_override": None, "disponibile": True}}
     doughs = {"classico": {"supplemento": "0.00", "disponibile": True},
               "integrale": {"supplemento": "2.00", "disponibile": True}}
     return pizzas, fractions, additions, derivatives, doughs
@@ -79,13 +80,20 @@ def test_mixed_pizza_averages_tastes_and_fractional_topping():
     assert result["prezzo_unitario"] == "24.50"  # (20+3+26)/2
 
 
+def test_mixed_tastes_use_format_rule_even_across_categories():
+    result = quote({"tipo": "mista", "formato": "Gigante", "porzioni": [
+        {"id_pizza": 10}, {"id_pizza": 12}]}, *settings())
+    assert result["prezzo_unitario"] == "21.00"
+
+
 def test_derivative_inherits_or_overrides_single_price():
     assert quote({"tipo": "calzone", "id_pizza": 10}, *settings())["totale"] == "8.00"
     assert quote({"tipo": "panino", "id_pizza": 10}, *settings())["totale"] == "9.50"
+    assert quote({"tipo": "calzone", "id_pizza": 10, "formato": "Gigante"}, *settings())["totale"] == "20.00"
 
 
 @pytest.mark.parametrize("payload", [
-    {"tipo": "mista", "formato": "Gigante", "porzioni": [{"id_pizza": 10}, {"id_pizza": 12}]},
+    {"tipo": "mista", "formato": "Singola", "porzioni": [{"id_pizza": 10}, {"id_pizza": 11}]},
     {"tipo": "pizza", "id_pizza": 10, "formato": "Singola", "aggiunte": [0, 0]},
     {"tipo": "pizza", "id_pizza": 10, "formato": "Gigante", "impasto": "Integrale"},
     {"tipo": "pizza", "id_pizza": 99, "formato": "Singola"},

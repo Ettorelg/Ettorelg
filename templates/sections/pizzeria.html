@@ -35,15 +35,15 @@
   </div>
   <div class="pizza-card">
     <strong>Pizze miste e aggiunte · bozza</strong>
-    <p>Abilita metà, terzi e quarti per categoria. Il prezzo della pizza mista sarà la media dei gusti; ogni aggiunta si applicherà solo alla sua frazione (per esempio 3 € su un terzo = 1 €). Per ora salvi soltanto le regole: il cliente non può ancora ordinare pizze miste.</p>
-    <h3>Tagli per categoria</h3><div id="pizzaFractions" class="pizza-formats"></div>
+    <p>Abilita metà, terzi e quarti per formato, indipendentemente dalla categoria. Il prezzo della pizza mista sarà la media dei gusti; ogni aggiunta si applicherà solo alla sua frazione (per esempio 3 € su un terzo = 1 €). Per ora salvi soltanto le regole: il cliente non può ancora ordinare pizze miste.</p>
+    <h3>Tagli per formato</h3><div id="pizzaFractions" class="pizza-formats"></div>
     <h3>Aggiunte</h3><div id="pizzaAdditions" class="pizza-formats"></div>
     <div class="pizza-actions"><button id="pizzaAddAddition" type="button">+ Aggiungi opzione</button><button id="pizzaSaveVariants" type="button">Salva pizze miste e aggiunte</button></div>
     <p id="pizzaVariantMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card">
     <strong>Calzoni e panini con gusto pizza · bozza</strong>
-    <p>Scegli una pizza con formato Singola. Il calzone o panino usa automaticamente il prezzo della Singola, oppure puoi indicare un prezzo personalizzato. È prevista una panetta Singola per pezzo. La scorta non viene ancora scalata.</p>
+    <p>Scegli il gusto e uno dei suoi formati disponibili, anche Doppia o Familiare. Il prezzo segue quello della pizza dello stesso formato, oppure puoi indicarne uno personalizzato. Per Singola è prevista una panetta; il consumo dei formati maggiori sarà configurato prima dell'attivazione. La scorta non viene ancora scalata.</p>
     <div id="pizzaDerivatives" class="pizza-formats"></div>
     <div class="pizza-actions"><button id="pizzaAddDerivative" type="button">+ Aggiungi calzone o panino</button><button id="pizzaSaveDerivatives" type="button">Salva calzoni e panini</button></div>
     <p id="pizzaDerivativeMessage" class="pizza-message" role="status"></p>
@@ -156,11 +156,11 @@
   const fractionBox=document.getElementById('pizzaFractions'),additionBox=document.getElementById('pizzaAdditions');
   const variantMessage=document.getElementById('pizzaVariantMessage');
   let variantCategories=[],variantProducts=[],variantFormats=[];
-  function addFraction(category,selected=[]){
+  function addFraction(formatName,selected=[]){
     const row=document.createElement('div');row.className='pizza-format';
-    const name=document.createElement('strong');name.textContent=category.nome;row.append(name);
+    const name=document.createElement('strong');name.textContent=formatName;row.append(name);
     [2,3,4].forEach(n=>{const [label,input]=check(n===2?'Metà':n===3?'Terzi':'Quarti',selected.includes(n));input.dataset.cut=String(n);row.append(label)});
-    row.dataset.category=String(category.id);fractionBox.append(row);
+    row.dataset.format=formatName;fractionBox.append(row);
   }
   function addAddition(item={nome:'',id_categoria:null,id_prodotto:null,prezzi:{},disponibile:true}){
     if(additionBox.children.length>=100){variantMessage.textContent='Massimo 100 aggiunte.';return}
@@ -181,14 +181,14 @@
     try{const response=await fetch('/api/pizzeria/varianti',{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');
       variantCategories=data.categorie;variantProducts=data.prodotti;variantFormats=data.formati;quoteAdditions=data.aggiunte;
       fractionBox.replaceChildren();additionBox.replaceChildren();
-      variantCategories.forEach(cat=>addFraction(cat,(data.frazioni.find(rule=>rule.id_categoria===cat.id)||{}).tagli||[]));
+      variantFormats.forEach(formatName=>addFraction(formatName,(data.frazioni.find(rule=>rule.formato===formatName)||{}).tagli||[]));
       data.aggiunte.forEach(addAddition);document.getElementById('pizzaAddAddition').disabled=!variantFormats.length;renderQuote();
     }catch(error){variantMessage.textContent=error.message}
   }
   document.getElementById('pizzaAddAddition').onclick=()=>addAddition();
   document.getElementById('pizzaSaveVariants').onclick=async()=>{
     const button=document.getElementById('pizzaSaveVariants');
-    const frazioni=[...fractionBox.children].map(row=>({id_categoria:Number(row.dataset.category),tagli:[...row.querySelectorAll('input:checked')].map(input=>Number(input.dataset.cut))}));
+    const frazioni=[...fractionBox.children].map(row=>({formato:row.dataset.format,tagli:[...row.querySelectorAll('input:checked')].map(input=>Number(input.dataset.cut))}));
     const aggiunte=[...additionBox.children].map(row=>{
       const destination=row.querySelector('select').value;
       const prezzi={};row.querySelectorAll('input[data-format]').forEach(input=>{if(input.value!=='')prezzi[input.dataset.format]=input.value});
@@ -202,26 +202,28 @@
 
   const derivativeBox=document.getElementById('pizzaDerivatives');
   const derivativeMessage=document.getElementById('pizzaDerivativeMessage');
-  let singlePizzas=[],savedDerivatives=[],quoteAdditions=[];
-  function addDerivative(item={id_pizza:null,tipo:'calzone',prezzo_override:null,disponibile:true}){
+  let derivativePizzas=[],savedDerivatives=[],quoteAdditions=[];
+  function addDerivative(item={id_pizza:null,tipo:'calzone',formato:'Singola',prezzo_override:null,disponibile:true}){
     if(derivativeBox.children.length>=100){derivativeMessage.textContent='Massimo 100 calzoni e panini.';return}
     const row=document.createElement('div');row.className='pizza-format';
     const typeLabel=document.createElement('label');typeLabel.textContent='Preparazione';const kind=document.createElement('select');kind.add(new Option('Calzone','calzone'));kind.add(new Option('Panino','panino'));kind.value=item.tipo;typeLabel.append(kind);
-    const pizzaLabel=document.createElement('label');pizzaLabel.textContent='Gusto pizza';const pizza=document.createElement('select');pizza.add(new Option('Scegli gusto',''));singlePizzas.forEach(product=>pizza.add(new Option(product.nome+' · € '+product.prezzo_singola,product.id)));pizza.value=item.id_pizza?String(item.id_pizza):'';pizzaLabel.append(pizza);
-    const [priceLabel,price]=field('Prezzo diverso € (vuoto = pizza)',item.prezzo_override??'','number');price.min='0';price.max='10000';price.step='0.01';price.placeholder='Prezzo della Singola';
+    const pizzaLabel=document.createElement('label');pizzaLabel.textContent='Gusto pizza';const pizza=document.createElement('select');pizza.add(new Option('Scegli gusto',''));derivativePizzas.forEach(product=>pizza.add(new Option(product.nome,product.id)));pizza.value=item.id_pizza?String(item.id_pizza):'';pizzaLabel.append(pizza);
+    const formatLabel=document.createElement('label');formatLabel.textContent='Formato';const format=document.createElement('select');format.className='derivative-format';formatLabel.append(format);
+    const updateFormats=()=>{const product=derivativePizzas.find(p=>String(p.id)===pizza.value);const old=format.value;format.replaceChildren(new Option('Scegli formato',''));(product?.formati||[]).filter(f=>f.disponibile).forEach(f=>format.add(new Option(f.nome+' · € '+f.prezzo,f.nome)));format.value=(product?.formati||[]).some(f=>f.nome===old)?old:(item.formato||'')};pizza.onchange=updateFormats;updateFormats();
+    const [priceLabel,price]=field('Prezzo diverso € (vuoto = pizza)',item.prezzo_override??'','number');price.min='0';price.max='10000';price.step='0.01';price.placeholder='Prezzo del formato';
     const [availableLabel]=check('Disponibile',item.disponibile!==false);
     const remove=document.createElement('button');remove.type='button';remove.textContent='Rimuovi';remove.onclick=()=>row.remove();
-    row.append(typeLabel,pizzaLabel,priceLabel,availableLabel,remove);derivativeBox.append(row);
+    row.append(typeLabel,pizzaLabel,formatLabel,priceLabel,availableLabel,remove);derivativeBox.append(row);
   }
   async function loadDerivatives(){
     try{const response=await fetch('/api/pizzeria/derivati',{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');
-      singlePizzas=data.pizze;savedDerivatives=data.derivati;derivativeBox.replaceChildren();data.derivati.forEach(addDerivative);document.getElementById('pizzaAddDerivative').disabled=!singlePizzas.length;renderQuote();
+      derivativePizzas=data.pizze;savedDerivatives=data.derivati;derivativeBox.replaceChildren();data.derivati.forEach(addDerivative);document.getElementById('pizzaAddDerivative').disabled=!derivativePizzas.length;renderQuote();
     }catch(error){derivativeMessage.textContent=error.message}
   }
   document.getElementById('pizzaAddDerivative').onclick=()=>addDerivative();
   document.getElementById('pizzaSaveDerivatives').onclick=async()=>{
     const button=document.getElementById('pizzaSaveDerivatives');
-    const derivati=[...derivativeBox.children].map(row=>({tipo:row.querySelectorAll('select')[0].value,id_pizza:Number(row.querySelectorAll('select')[1].value),prezzo_override:row.querySelector('input[type=number]').value||null,disponibile:row.querySelector('input[type=checkbox]').checked}));
+    const derivati=[...derivativeBox.children].map(row=>({tipo:row.querySelectorAll('select')[0].value,id_pizza:Number(row.querySelectorAll('select')[1].value),formato:row.querySelector('.derivative-format').value,prezzo_override:row.querySelector('input[type=number]').value||null,disponibile:row.querySelector('input[type=checkbox]').checked}));
     button.disabled=true;derivativeMessage.textContent='Salvataggio…';
     try{const response=await fetch('/api/pizzeria/derivati',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({derivati})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Salvataggio non riuscito.');await loadDerivatives();derivativeMessage.textContent='Calzoni e panini salvati in bozza; non sono ancora ordinabili.'}
     catch(error){derivativeMessage.textContent=error.message}finally{button.disabled=false}
@@ -235,7 +237,7 @@
   function renderQuote(){
     if(!quoteType)return;
     const kind=quoteType.value,mixed=kind==='mista',derivative=kind==='calzone'||kind==='panino';
-    document.getElementById('pizzaQuoteFormatLabel').hidden=derivative;
+    document.getElementById('pizzaQuoteFormatLabel').hidden=false;
     document.getElementById('pizzaQuoteCutLabel').hidden=!mixed;
     document.getElementById('pizzaQuoteDoughLabel').hidden=kind!=='pizza';
     const oldFormat=quoteFormat.value;fillSelect(quoteFormat,variantFormats.map(name=>({label:name,value:name})),'Scegli formato');quoteFormat.value=variantFormats.includes(oldFormat)?oldFormat:variantFormats[0]||'';
@@ -246,11 +248,11 @@
       const row=document.createElement('div');row.className='pizza-format';
       const pizzaLabel=document.createElement('label');pizzaLabel.textContent=mixed?'Gusto '+(i+1):'Gusto pizza';
       const pizzaSelect=document.createElement('select');pizzaSelect.className='quote-pizza';
-      const choices=derivative?singlePizzas.filter(p=>savedDerivatives.some(d=>d.tipo===kind&&d.id_pizza===p.id&&d.disponibile)):products.filter(p=>p.formati.some(f=>f.nome===quoteFormat.value&&f.disponibile));
+      const choices=derivative?derivativePizzas.filter(p=>savedDerivatives.some(d=>d.tipo===kind&&d.id_pizza===p.id&&d.formato===quoteFormat.value&&d.disponibile)):products.filter(p=>p.formati.some(f=>f.nome===quoteFormat.value&&f.disponibile));
       fillSelect(pizzaSelect,choices.map(p=>({label:p.nome,value:String(p.id)})),'Scegli gusto');pizzaLabel.append(pizzaSelect);
       const toppingLabel=document.createElement('label');toppingLabel.textContent='Una aggiunta (facoltativa)';
       const toppingSelect=document.createElement('select');toppingSelect.className='quote-topping';
-      const updateToppings=()=>{const chosen=variantProducts.find(p=>String(p.id)===pizzaSelect.value);const format=derivative?'Singola':quoteFormat.value;
+      const updateToppings=()=>{const chosen=variantProducts.find(p=>String(p.id)===pizzaSelect.value);const format=quoteFormat.value;
         fillSelect(toppingSelect,quoteAdditions.flatMap((a,index)=>a.disponibile&&chosen&&(a.id_prodotto===chosen.id||a.id_categoria===chosen.id_categoria)&&a.prezzi[format]!=null?[{label:a.nome+' · € '+a.prezzi[format],value:String(index)}]:[]),'Nessuna')};
       pizzaSelect.onchange=updateToppings;updateToppings();toppingLabel.append(toppingSelect);
       row.append(pizzaLabel,toppingLabel);quoteParts.append(row);
