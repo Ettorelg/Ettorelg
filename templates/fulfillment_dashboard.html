@@ -86,7 +86,7 @@
   </main>
   {% include '_legal_footer.html' %}
   <script src="{{ url_for('static', filename='order-request.js') }}?v=1"></script>
-  <script src="{{ url_for('static', filename='order-print.js') }}?v=6"></script>
+  <script src="{{ url_for('static', filename='order-print.js') }}?v=7"></script>
   <script src="{{ url_for('static', filename='order-auto-print.js') }}?v=3"></script>
 <script>
     const csrf={{ csrf_token()|tojson }};
@@ -174,8 +174,7 @@
             if(order.riferimento)node(details,'p','Riferimento: '+order.riferimento);
             if(order.note)node(details,'p','Note: '+order.note);
             if(order.telefono){const phone=node(details,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
-            const printDone=node(details,'button','🖨 ESC/POS');printDone.type='button';printDone.addEventListener('click',()=>AlphaOrderPrint.direct(order));
-            const browserDone=node(details,'button','Stampa dal browser');browserDone.type='button';browserDone.addEventListener('click',()=>AlphaOrderPrint.print(order));
+            const printDone=node(details,'button','🖨️');printDone.type='button';printDone.title='Stampa ordine';printDone.setAttribute('aria-label','Stampa ordine #'+order.id);printDone.addEventListener('click',()=>AlphaOrderPrint.direct(order));
             const reopen=node(row,'button','Riapri','compact-reopen');reopen.type='button';
             reopen.addEventListener('click',async()=>{
               reopen.disabled=true;
@@ -186,16 +185,15 @@
           }
           const card=node(grid,'article',undefined,'order-card'+(order.stato==='in_lavorazione'?' working':order.stato==='evaso'?' done':''));
           node(card,'h3','#'+order.id+' · '+order.nome);
-          node(card,'div',(order.stato==='evaso'?'Evaso':order.stato==='in_lavorazione'?'In lavorazione':'Da evadere')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto')+(order.ora_richiesta?' · Ore '+order.ora_richiesta:' · Senza orario')+' · Inserito '+order.creato_il,'meta');
+          node(card,'div',(order.stato==='evaso'?'Evaso':order.stato==='in_lavorazione'?'Pronto':'Da evadere')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto')+(order.ora_richiesta?' · Ore '+order.ora_richiesta:' · Senza orario')+' · Inserito '+order.creato_il,'meta');
           const lines=node(card,'ul');
           for(const product of visibleProducts(order))node(lines,'li',quantityFormat.format(Number(product.quantita))+' × '+product.nome);
           if(order.riferimento)node(card,'p','Riferimento: '+order.riferimento);
           if(order.note)node(card,'p','Note: '+order.note);
           if(order.telefono){const phone=node(card,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
           const actions=node(card,'div',undefined,'actions');
-          const printButton=node(actions,'button','🖨 ESC/POS');printButton.type='button';printButton.addEventListener('click',()=>AlphaOrderPrint.direct(order));
-          const browserButton=node(actions,'button','Stampa dal browser');browserButton.type='button';browserButton.addEventListener('click',()=>AlphaOrderPrint.print(order));
-          const choices=order.stato==='evaso'?[['da_evadere','Riapri ordine','']]:[['in_lavorazione','In lavorazione',''],['evaso','Segna evaso','finish'],['annullato','Annulla','cancel']];
+          const printButton=node(actions,'button','🖨️');printButton.type='button';printButton.title='Stampa ordine';printButton.setAttribute('aria-label','Stampa ordine #'+order.id);printButton.addEventListener('click',()=>AlphaOrderPrint.direct(order));
+          const choices=order.stato==='evaso'?[['da_evadere','Riapri ordine','']]:[['in_lavorazione','Pronto',''],['evaso','Segna evaso','finish'],['annullato','Annulla','cancel']];
           for(const [target,label,style] of choices){
             if(target===order.stato)continue;
             const button=node(actions,'button',label,style);button.type='button';
@@ -376,7 +374,7 @@
     const historyNext=document.getElementById('historyNext');
     historyDate.value=todayRome;
     let historyPage=1,historyRequest=0;
-    const statusNames={da_evadere:'Da evadere',in_lavorazione:'In lavorazione',evaso:'Evasi',annullato:'Annullati'};
+    const statusNames={da_evadere:'Da evadere',in_lavorazione:'Pronto',evaso:'Evasi',annullato:'Annullati'};
     async function loadHistory(){
       const current=++historyRequest;
       historyStatus.textContent='Caricamento storico…';
@@ -407,9 +405,8 @@
           if(order.note)node(content,'p','Note: '+order.note);
           if(order.telefono){const phone=node(content,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
           const actions=node(content,'div',undefined,'history-actions');
-          const printHistory=node(actions,'button','🖨 ESC/POS');printHistory.type='button';printHistory.addEventListener('click',()=>AlphaOrderPrint.direct(order));
-          const browserHistory=node(actions,'button','Stampa dal browser');browserHistory.type='button';browserHistory.addEventListener('click',()=>AlphaOrderPrint.print(order));
-          for(const [target,label] of [['da_evadere','Da evadere'],['in_lavorazione','In lavorazione'],['evaso','Segna evaso'],['annullato','Annulla']]){
+          const printHistory=node(actions,'button','🖨️');printHistory.type='button';printHistory.title='Stampa ordine';printHistory.setAttribute('aria-label','Stampa ordine #'+order.id);printHistory.addEventListener('click',()=>AlphaOrderPrint.direct(order));
+          for(const [target,label] of [['da_evadere','Da evadere'],['in_lavorazione','Pronto'],['evaso','Segna evaso'],['annullato','Annulla']]){
             if(target===order.stato)continue;
             const button=node(actions,'button',label);button.type='button';
             button.addEventListener('click',async()=>{
