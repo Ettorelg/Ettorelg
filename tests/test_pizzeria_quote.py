@@ -1,6 +1,7 @@
 """A pizzeria draft quote trusts server-side settings, not browser prices."""
 import ast
 import copy
+import re
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,8 +13,8 @@ from flask import Flask, jsonify, request, session
 TREE = ast.parse((Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8"))
 NODES = [copy.deepcopy(next(node for node in TREE.body if isinstance(node, ast.FunctionDef)
                             and node.name == name))
-         for name in ("calculate_pizzeria_multigusto_price", "quote_pizzeria_draft")]
-scope = {"Decimal": Decimal, "ROUND_HALF_UP": ROUND_HALF_UP}
+         for name in ("calculate_pizzeria_multigusto_price", "quote_pizzeria_draft", "derive_pizzeria_removable_ingredients")]
+scope = {"Decimal": Decimal, "ROUND_HALF_UP": ROUND_HALF_UP, "re": re}
 exec(compile(ast.Module(body=NODES, type_ignores=[]), "app.py", "exec"), scope)
 quote = scope["quote_pizzeria_draft"]
 FLASK = Flask(__name__)
@@ -26,7 +27,7 @@ class Cursor:
     def __exit__(self, *_): return False
     def execute(self, query, params): self.query = query; self.statements.append((query, params))
     def fetchall(self):
-        if "FROM pizzeria_formati" in self.query: return [(10, 2, "Margherita", "Singola", Decimal("8.00"), True)]
+        if "FROM pizzeria_formati" in self.query: return [(10, 2, "Margherita", "Singola", Decimal("8.00"), True, "farina, pomodoro, mozzarella")]
         if "FROM pizzeria_derivati" in self.query: return []
         return []
     def fetchone(self):
@@ -169,6 +170,16 @@ def test_owner_quote_is_read_only_and_scoped_to_shop():
     assert response.get_json()["solo_anteprima"] is True
     assert all(params == (7,) for _, params in db.cur.statements)
     assert all(query.lstrip().upper().startswith("SELECT") for query, _ in db.cur.statements)
+
+
+def test_owner_quote_removes_ingredient_from_live_product_description():
+    db = Connection()
+    with FLASK.test_request_context("/api/pizzeria/preventivo", method="POST", json={
+        "tipo": "pizza", "id_pizza": 10, "formato": "Singola", "senza": [1]}):
+        session["user_id"] = 3
+        response = endpoint(db)()
+    assert response.get_json()["totale"] == "8.00"
+    assert response.get_json()["ingredienti_tolti_per_gusto"] == [["mozzarella"]]
 
 
 def test_employee_cannot_quote_owner_draft():

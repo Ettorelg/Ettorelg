@@ -26,13 +26,8 @@
     <p id="pizzaMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card">
-    <strong>Ingredienti rimovibili · bozza</strong>
-    <p>Conferma quali ingredienti possono essere tolti da ogni pizza, uno per riga. Togliere un ingrediente non abbassa il prezzo. L'elenco non modifica la descrizione o gli allergeni del prodotto originale: in caso di allergie il cliente deve comunque verificare con il locale.</p>
-    <label>Pizza <select id="pizzaIngredientProduct"><option value="">Caricamento pizze…</option></select></label>
-    <label>Ingredienti che il cliente può togliere <textarea id="pizzaIngredientList" rows="5" placeholder="Mozzarella&#10;Pomodoro&#10;Basilico"></textarea></label>
-    <p id="pizzaIngredientHint" class="muted"></p>
-    <div class="pizza-actions"><button id="pizzaSaveIngredients" type="button">Salva ingredienti rimovibili</button></div>
-    <p id="pizzaIngredientMessage" class="pizza-message" role="status"></p>
+    <strong>Ingredienti rimovibili · automatici</strong>
+    <p>Le opzioni «senza» vengono lette dal campo Ingredienti di ogni prodotto, separate da virgola, punto e virgola o a capo. Farina e semola sono escluse. Per modificarle, aggiorna il prodotto nella sezione Prodotti. Togliere ingredienti non abbassa il prezzo e non garantisce l'assenza di allergeni: in caso di allergie occorre verificare con il locale.</p>
   </div>
   <div class="pizza-card">
     <strong>Impasti e panette · bozza</strong>
@@ -242,23 +237,12 @@
   };
   loadDerivatives();
 
-  const ingredientSelect=document.getElementById('pizzaIngredientProduct'),ingredientList=document.getElementById('pizzaIngredientList');
-  const ingredientHint=document.getElementById('pizzaIngredientHint'),ingredientMessage=document.getElementById('pizzaIngredientMessage');
   let ingredientPizzas=[];
-  function showIngredients(){const pizza=ingredientPizzas.find(p=>String(p.id)===ingredientSelect.value);ingredientList.value=(pizza?.ingredienti_rimovibili||[]).join('\n');ingredientHint.textContent=pizza?.descrizione_attuale?'Ingredienti descritti nel prodotto: '+pizza.descrizione_attuale:'';document.getElementById('pizzaSaveIngredients').disabled=!pizza}
   async function loadIngredients(){
-    try{const selected=ingredientSelect.value;const response=await fetch('/api/pizzeria/ingredienti',{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');
-      ingredientPizzas=data.pizze;ingredientSelect.replaceChildren(new Option('Scegli una pizza',''));ingredientPizzas.forEach(p=>ingredientSelect.add(new Option(p.nome,p.id)));ingredientSelect.value=ingredientPizzas.some(p=>String(p.id)===selected)?selected:'';showIngredients();renderQuote();
-    }catch(error){ingredientMessage.textContent=error.message}
+    try{const response=await fetch('/api/pizzeria/ingredienti',{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');
+      ingredientPizzas=data.pizze;renderQuote();
+    }catch(error){console.error('Ingredienti Pizzeria non caricati:',error)}
   }
-  ingredientSelect.onchange=showIngredients;
-  document.getElementById('pizzaSaveIngredients').onclick=async()=>{
-    const button=document.getElementById('pizzaSaveIngredients');const id=Number(ingredientSelect.value);
-    if(!id)return;const ingredienti=ingredientList.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    button.disabled=true;ingredientMessage.textContent='Salvataggio…';
-    try{const response=await fetch('/api/pizzeria/ingredienti',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_prodotto:id,ingredienti})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Salvataggio non riuscito.');await loadIngredients();ingredientMessage.textContent='Ingredienti rimovibili salvati in bozza; nessuno sconto viene applicato.'}
-    catch(error){ingredientMessage.textContent=error.message}finally{button.disabled=false}
-  };
   loadIngredients();
 
   const quoteType=document.getElementById('pizzaQuoteType'),quoteFormat=document.getElementById('pizzaQuoteFormat');

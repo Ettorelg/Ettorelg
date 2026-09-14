@@ -4301,57 +4301,39 @@ def normalize_pizzeria_preparation(payload, available_formats):
     return normalized_doughs, normalized_stocks
 
 
-def normalize_pizzeria_ingredients(payload):
-    if not isinstance(payload, dict) or type(payload.get("id_prodotto")) is not int or payload["id_prodotto"] <= 0:
-        raise ValueError("Scegli una pizza valida.")
-    items = payload.get("ingredienti")
-    if not isinstance(items, list) or len(items) > 40:
-        raise ValueError("Imposta al massimo 40 ingredienti rimovibili.")
-    normalized, seen = [], set()
-    for item in items:
-        if not isinstance(item, str):
-            raise ValueError("Ingrediente non valido.")
-        name = item.strip()
-        if not 1 <= len(name) <= 80 or name.casefold() in seen:
-            raise ValueError("Ogni ingrediente deve avere un nome univoco.")
-        seen.add(name.casefold())
-        normalized.append(name)
-    return payload["id_prodotto"], normalized
+def derive_pizzeria_removable_ingredients(description):
+    """Use the product's Ingredients field; flour and semolina are not removable."""
+    if not isinstance(description, str):
+        return []
+    ingredients, seen = [], set()
+    for item in re.split(r"[,;\n\r]+", description):
+        name = item.strip().strip(". ")
+        key = name.casefold()
+        if not name or len(name) > 80 or key in seen or re.search(r"\b(?:farina|semola)\b", name, re.I):
+            continue
+        seen.add(key)
+        ingredients.append(name)
+        if len(ingredients) == 40:
+            break
+    return ingredients
 
 
-@app.route("/api/pizzeria/ingredienti", methods=["GET", "PUT"])
+@app.get("/api/pizzeria/ingredienti")
 def api_pizzeria_ingredienti():
     if "user_id" not in session or session.get("employee_id"):
         return jsonify({"error": "Accesso del titolare richiesto."}), 403
     shop_id = get_user_shop_id(session["user_id"])
     if not shop_id:
         return jsonify({"error": "Configura prima il negozio."}), 409
-    if request.method == "PUT":
-        try:
-            product_id, ingredients = normalize_pizzeria_ingredients(request.get_json(silent=True))
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
     conn = psycopg2.connect(**build_db_config())
     try:
-        with conn:
-            with conn.cursor() as cur:
-                if request.method == "PUT":
-                    cur.execute("""SELECT 1 FROM prodotti p WHERE p.id=%s AND p.id_negozio=%s
-                        AND EXISTS (SELECT 1 FROM pizzeria_formati f WHERE f.id_prodotto=p.id AND f.id_negozio=p.id_negozio)""",
-                        (product_id, shop_id))
-                    if not cur.fetchone():
-                        return jsonify({"error": "Pizza non trovata nel tuo negozio."}), 404
-                    cur.execute("""INSERT INTO pizzeria_ingredienti (id_negozio,id_prodotto,ingredienti)
-                        VALUES (%s,%s,%s::jsonb) ON CONFLICT (id_prodotto) DO UPDATE SET
-                        ingredienti=EXCLUDED.ingredienti,aggiornato_il=NOW()""",
-                        (shop_id, product_id, json.dumps(ingredients)))
-                cur.execute("""SELECT p.id,p.nome,p.descrizione,COALESCE(i.ingredienti,'[]'::jsonb)
-                    FROM prodotti p JOIN pizzeria_formati f ON f.id_prodotto=p.id AND f.id_negozio=p.id_negozio
-                    LEFT JOIN pizzeria_ingredienti i ON i.id_prodotto=p.id AND i.id_negozio=p.id_negozio
-                    WHERE p.id_negozio=%s GROUP BY p.id,p.nome,p.descrizione,i.ingredienti ORDER BY p.nome,p.id""", (shop_id,))
-                rows = cur.fetchall()
+        with conn.cursor() as cur:
+            cur.execute("""SELECT DISTINCT p.id,p.nome,p.descrizione
+                FROM prodotti p JOIN pizzeria_formati f ON f.id_prodotto=p.id AND f.id_negozio=p.id_negozio
+                WHERE p.id_negozio=%s ORDER BY p.nome,p.id""", (shop_id,))
+            rows = cur.fetchall()
         return jsonify({"attivo": False, "pizze": [{"id": row[0], "nome": row[1],
-            "descrizione_attuale": row[2] or "", "ingredienti_rimovibili": row[3]} for row in rows]})
+            "descrizione_attuale": row[2] or "", "ingredienti_rimovibili": derive_pizzeria_removable_ingredients(row[2])} for row in rows]})
     finally:
         conn.close()
 
@@ -4618,13 +4600,15 @@ def api_pizzeria_preventivo():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("""SELECT p.id,p.id_categoria,p.nome,f.nome,f.prezzo,f.disponibile
+            cur.execute("""SELECT p.id,p.id_categoria,p.nome,f.nome,f.prezzo,f.disponibile,p.descrizione
                 FROM pizzeria_formati f JOIN prodotti p ON p.id=f.id_prodotto AND p.id_negozio=f.id_negozio
                 WHERE f.id_negozio=%s AND p.disponibile=TRUE""", (shop_id,))
             pizzas = {}
-            for product_id, category_id, name, fmt, price, available in cur.fetchall():
+            removables = {}
+            for product_id, category_id, name, fmt, price, available, description in cur.fetchall():
                 pizza = pizzas.setdefault(product_id, {"id": product_id, "id_categoria": category_id, "nome": name, "formati": {}})
                 pizza["formati"][fmt.casefold()] = {"prezzo": str(price), "disponibile": bool(available)}
+                removables[product_id] = derive_pizzeria_removable_ingredients(description)
             cur.execute("SELECT frazioni,aggiunte FROM pizzeria_varianti_config WHERE id_negozio=%s", (shop_id,))
             row = cur.fetchone()
             fractions = {item["formato"].casefold(): item["tagli"] for item in row[0]
@@ -4637,8 +4621,6 @@ def api_pizzeria_preventivo():
             row = cur.fetchone()
             dough_list = row[0] if row else [{"nome": "Classico", "supplemento": "0.00", "disponibile": True}]
             doughs = {item["nome"].casefold(): item for item in dough_list}
-            cur.execute("SELECT id_prodotto,ingredienti FROM pizzeria_ingredienti WHERE id_negozio=%s", (shop_id,))
-            removables = {row[0]: row[1] for row in cur.fetchall()}
         try:
             result = quote_pizzeria_draft(request.get_json(silent=True), pizzas, fractions, additions, derivatives, doughs, removables)
         except ValueError as exc:
