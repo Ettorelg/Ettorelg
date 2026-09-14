@@ -1162,6 +1162,12 @@ def init_db() -> None:
                     UNIQUE (id_prodotto, nome)
                 )""")
                 cur.execute("CREATE INDEX IF NOT EXISTS pizzeria_formati_negozio ON pizzeria_formati(id_negozio, id_prodotto)")
+                cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_varianti_config (
+                    id_negozio INTEGER PRIMARY KEY REFERENCES negozi(id) ON DELETE CASCADE,
+                    frazioni JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    aggiunte JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""")
                 cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_preparazione_config (
                     id_negozio INTEGER PRIMARY KEY REFERENCES negozi(id) ON DELETE CASCADE,
                     impasti JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -4275,6 +4281,114 @@ def normalize_pizzeria_preparation(payload, available_formats):
         normalized_stocks.append({"formato": format_name, "impasto": dough_name,
                                   "quantita": 0 if unlimited else quantity, "illimitate": unlimited})
     return normalized_doughs, normalized_stocks
+
+
+def normalize_pizzeria_variants(payload, category_ids, product_categories, format_names):
+    if not isinstance(payload, dict) or not isinstance(payload.get("frazioni"), list) or not isinstance(payload.get("aggiunte"), list):
+        raise ValueError("Configurazione varianti non valida.")
+    if len(payload["frazioni"]) > len(category_ids) or len(payload["aggiunte"]) > 100:
+        raise ValueError("Troppe regole o aggiunte configurate.")
+    fractions = []
+    seen_categories = set()
+    for item in payload["frazioni"]:
+        if not isinstance(item, dict) or type(item.get("id_categoria")) is not int or item["id_categoria"] not in category_ids:
+            raise ValueError("Categoria delle frazioni non valida.")
+        category_id = item["id_categoria"]
+        allowed = item.get("tagli")
+        if category_id in seen_categories or not isinstance(allowed, list) or len(allowed) > 3 or any(type(n) is not int or n not in (2, 3, 4) for n in allowed) or len(set(allowed)) != len(allowed):
+            raise ValueError("Scegli tagli univoci tra metà, terzi e quarti.")
+        seen_categories.add(category_id)
+        fractions.append({"id_categoria": category_id, "tagli": sorted(allowed)})
+    additions = []
+    for item in payload["aggiunte"]:
+        if not isinstance(item, dict) or not isinstance(item.get("nome"), str):
+            raise ValueError("Aggiunta non valida.")
+        name = item["nome"].strip()
+        category_id, product_id = item.get("id_categoria"), item.get("id_prodotto")
+        if not 1 <= len(name) <= 80 or (category_id is None) == (product_id is None):
+            raise ValueError("Indica nome e una sola destinazione per l'aggiunta.")
+        if category_id is not None and (type(category_id) is not int or category_id not in category_ids):
+            raise ValueError("Categoria dell'aggiunta non valida.")
+        if product_id is not None and (type(product_id) is not int or product_id not in product_categories):
+            raise ValueError("Prodotto dell'aggiunta non valido.")
+        prices = item.get("prezzi")
+        if not isinstance(prices, dict) or not 1 <= len(prices) <= 12:
+            raise ValueError("Indica il prezzo per almeno un formato.")
+        normalized_prices = {}
+        for format_name, value in prices.items():
+            if not isinstance(format_name, str) or format_name.casefold() not in format_names:
+                raise ValueError("Formato dell'aggiunta non configurato.")
+            try:
+                price = Decimal(str(value).replace(",", "."))
+            except (ValueError, ArithmeticError):
+                raise ValueError("Prezzo dell'aggiunta non valido.")
+            if not price.is_finite() or not 0 <= price <= 1000 or price != price.quantize(Decimal("0.01")):
+                raise ValueError("Prezzo dell'aggiunta non valido.")
+            normalized_prices[format_names[format_name.casefold()]] = f"{price:.2f}"
+        available = item.get("disponibile", True)
+        if not isinstance(available, bool):
+            raise ValueError("Disponibilità dell'aggiunta non valida.")
+        additions.append({"nome": name, "id_categoria": category_id, "id_prodotto": product_id,
+                          "prezzi": normalized_prices, "disponibile": available})
+    return fractions, additions
+
+
+def calculate_pizzeria_mixed_price(format_name, portions):
+    """Calculate equal pizza portions; each topping is charged only on its portion."""
+    if not isinstance(format_name, str) or not format_name.strip() or not isinstance(portions, list) or len(portions) not in (2, 3, 4):
+        raise ValueError("La pizza mista richiede 2, 3 o 4 porzioni dello stesso formato.")
+    total = Decimal("0")
+    for portion in portions:
+        if not isinstance(portion, dict) or portion.get("formato") != format_name or not isinstance(portion.get("aggiunte"), list) or len(portion["aggiunte"]) > 20:
+            raise ValueError("Tutte le porzioni devono avere lo stesso formato e aggiunte valide.")
+        values = [portion.get("prezzo_gusto"), *portion["aggiunte"]]
+        for value in values:
+            try:
+                price = Decimal(str(value).replace(",", "."))
+            except (ValueError, ArithmeticError):
+                raise ValueError("Prezzo della porzione non valido.")
+            if not price.is_finite() or not 0 <= price <= 10000 or price != price.quantize(Decimal("0.01")):
+                raise ValueError("Prezzo della porzione non valido.")
+            total += price
+    return (total / len(portions)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+@app.route("/api/pizzeria/varianti", methods=["GET", "PUT"])
+def api_pizzeria_varianti():
+    if "user_id" not in session or session.get("employee_id"):
+        return jsonify({"error": "Accesso del titolare richiesto."}), 403
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id,nome FROM categorie WHERE id_negozio=%s ORDER BY nome,id", (shop_id,))
+                categories = [{"id": row[0], "nome": row[1]} for row in cur.fetchall()]
+                cur.execute("SELECT id,nome,id_categoria FROM prodotti WHERE id_negozio=%s AND unita_prezzo='pezzo' ORDER BY nome,id", (shop_id,))
+                products = [{"id": row[0], "nome": row[1], "id_categoria": row[2]} for row in cur.fetchall()]
+                cur.execute("SELECT DISTINCT nome FROM pizzeria_formati WHERE id_negozio=%s ORDER BY nome", (shop_id,))
+                formats = [row[0] for row in cur.fetchall()]
+                if request.method == "PUT":
+                    try:
+                        fractions, additions = normalize_pizzeria_variants(
+                            request.get_json(silent=True), {row["id"] for row in categories},
+                            {row["id"]: row["id_categoria"] for row in products},
+                            {name.casefold(): name for name in formats})
+                    except ValueError as exc:
+                        return jsonify({"error": str(exc)}), 400
+                    cur.execute("""INSERT INTO pizzeria_varianti_config (id_negozio,frazioni,aggiunte)
+                        VALUES (%s,%s::jsonb,%s::jsonb)
+                        ON CONFLICT (id_negozio) DO UPDATE SET
+                        frazioni=EXCLUDED.frazioni,aggiunte=EXCLUDED.aggiunte,aggiornato_il=NOW()""",
+                        (shop_id, json.dumps(fractions), json.dumps(additions)))
+                cur.execute("SELECT frazioni,aggiunte FROM pizzeria_varianti_config WHERE id_negozio=%s", (shop_id,))
+                row = cur.fetchone()
+        return jsonify({"attivo": False, "categorie": categories, "prodotti": products, "formati": formats,
+                        "frazioni": row[0] if row else [], "aggiunte": row[1] if row else []})
+    finally:
+        conn.close()
 
 
 @app.route("/api/pizzeria/preparazione", methods=["GET", "PUT"])

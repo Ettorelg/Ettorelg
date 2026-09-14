@@ -33,7 +33,15 @@
     <div class="pizza-actions"><button id="pizzaAddStock" type="button">+ Aggiungi scorta</button><button id="pizzaSavePreparation" type="button">Salva impasti e panette</button></div>
     <p id="pizzaPreparationMessage" class="pizza-message" role="status"></p>
   </div>
-  <div class="pizza-card"><strong>Prossime fasi</strong><p>Aggiunte · metà, terzi e quarti · calzoni e panini · calcolo degli ordini e scarico panette · stampa · Delivery. Queste funzioni non sono ancora attive.</p></div>
+  <div class="pizza-card">
+    <strong>Pizze miste e aggiunte · bozza</strong>
+    <p>Abilita metà, terzi e quarti per categoria. Il prezzo della pizza mista sarà la media dei gusti; ogni aggiunta si applicherà solo alla sua frazione (per esempio 3 € su un terzo = 1 €). Per ora salvi soltanto le regole: il cliente non può ancora ordinare pizze miste.</p>
+    <h3>Tagli per categoria</h3><div id="pizzaFractions" class="pizza-formats"></div>
+    <h3>Aggiunte</h3><div id="pizzaAdditions" class="pizza-formats"></div>
+    <div class="pizza-actions"><button id="pizzaAddAddition" type="button">+ Aggiungi opzione</button><button id="pizzaSaveVariants" type="button">Salva pizze miste e aggiunte</button></div>
+    <p id="pizzaVariantMessage" class="pizza-message" role="status"></p>
+  </div>
+  <div class="pizza-card"><strong>Prossime fasi</strong><p>Calzoni e panini · calcolo degli ordini e scarico panette · stampa · Delivery. Queste funzioni non sono ancora attive.</p></div>
 </section>
 <script>
 (() => {
@@ -73,7 +81,7 @@
       const response=await fetch('/api/pizzeria/formati',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_prodotto:productId,formati})});
       const data=await response.json();if(!response.ok)throw new Error(data.error||'Salvataggio non riuscito.');
       products=data.prodotti.filter(item=>item.unita_prezzo==='pezzo');productSelect.value=String(productId);
-      showProduct();message.textContent='Formati salvati. Non sono ancora visibili ai clienti.';loadPreparation();
+      showProduct();message.textContent='Formati salvati. Non sono ancora visibili ai clienti.';loadPreparation();loadVariants();
     }catch(error){message.textContent=error.message}finally{saveButton.disabled=false}
   };
   fetch('/api/pizzeria/formati',{cache:'no-store'}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');products=data.prodotti.filter(item=>item.unita_prezzo==='pezzo');productSelect.replaceChildren(new Option('Seleziona un articolo',''));products.forEach(item=>productSelect.add(new Option(item.nome+' · € '+item.prezzo_base,item.id)));showProduct()}).catch(error=>{message.textContent=error.message});
@@ -123,5 +131,52 @@
     catch(error){preparationMessage.textContent=error.message}finally{button.disabled=false}
   };
   loadPreparation();
+
+  const fractionBox=document.getElementById('pizzaFractions'),additionBox=document.getElementById('pizzaAdditions');
+  const variantMessage=document.getElementById('pizzaVariantMessage');
+  let variantCategories=[],variantProducts=[],variantFormats=[];
+  function addFraction(category,selected=[]){
+    const row=document.createElement('div');row.className='pizza-format';
+    const name=document.createElement('strong');name.textContent=category.nome;row.append(name);
+    [2,3,4].forEach(n=>{const [label,input]=check(n===2?'Metà':n===3?'Terzi':'Quarti',selected.includes(n));input.dataset.cut=String(n);row.append(label)});
+    row.dataset.category=String(category.id);fractionBox.append(row);
+  }
+  function addAddition(item={nome:'',id_categoria:null,id_prodotto:null,prezzi:{},disponibile:true}){
+    if(additionBox.children.length>=100){variantMessage.textContent='Massimo 100 aggiunte.';return}
+    const row=document.createElement('div');row.className='pizza-format';
+    const [nameLabel,name]=field('Aggiunta',item.nome);name.maxLength=80;
+    const destinationLabel=document.createElement('label');destinationLabel.textContent='Valida per';
+    const destination=document.createElement('select');destination.add(new Option('Scegli categoria o prodotto',''));
+    variantCategories.forEach(cat=>destination.add(new Option('Categoria · '+cat.nome,'c:'+cat.id)));
+    variantProducts.forEach(product=>destination.add(new Option('Prodotto · '+product.nome,'p:'+product.id)));
+    destination.value=item.id_categoria?'c:'+item.id_categoria:item.id_prodotto?'p:'+item.id_prodotto:'';destinationLabel.append(destination);
+    const prices=document.createElement('div');prices.className='pizza-formats';
+    variantFormats.forEach(formatName=>{const [label,input]=field(formatName+' €',item.prezzi[formatName]??'','number');input.dataset.format=formatName;input.min='0';input.max='1000';input.step='0.01';prices.append(label)});
+    const [availableLabel]=check('Disponibile',item.disponibile!==false);
+    const remove=document.createElement('button');remove.type='button';remove.textContent='Rimuovi';remove.onclick=()=>row.remove();
+    row.append(nameLabel,destinationLabel,prices,availableLabel,remove);additionBox.append(row);
+  }
+  async function loadVariants(){
+    try{const response=await fetch('/api/pizzeria/varianti',{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');
+      variantCategories=data.categorie;variantProducts=data.prodotti;variantFormats=data.formati;
+      fractionBox.replaceChildren();additionBox.replaceChildren();
+      variantCategories.forEach(cat=>addFraction(cat,(data.frazioni.find(rule=>rule.id_categoria===cat.id)||{}).tagli||[]));
+      data.aggiunte.forEach(addAddition);document.getElementById('pizzaAddAddition').disabled=!variantFormats.length;
+    }catch(error){variantMessage.textContent=error.message}
+  }
+  document.getElementById('pizzaAddAddition').onclick=()=>addAddition();
+  document.getElementById('pizzaSaveVariants').onclick=async()=>{
+    const button=document.getElementById('pizzaSaveVariants');
+    const frazioni=[...fractionBox.children].map(row=>({id_categoria:Number(row.dataset.category),tagli:[...row.querySelectorAll('input:checked')].map(input=>Number(input.dataset.cut))}));
+    const aggiunte=[...additionBox.children].map(row=>{
+      const destination=row.querySelector('select').value;
+      const prezzi={};row.querySelectorAll('input[data-format]').forEach(input=>{if(input.value!=='')prezzi[input.dataset.format]=input.value});
+      return {nome:row.querySelector('input[type=text]').value.trim(),id_categoria:destination.startsWith('c:')?Number(destination.slice(2)):null,id_prodotto:destination.startsWith('p:')?Number(destination.slice(2)):null,prezzi,disponibile:row.querySelector('input[type=checkbox]').checked};
+    });
+    button.disabled=true;variantMessage.textContent='Salvataggio…';
+    try{const response=await fetch('/api/pizzeria/varianti',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({frazioni,aggiunte})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Salvataggio non riuscito.');await loadVariants();variantMessage.textContent='Regole salvate in bozza: non sono ancora visibili nel menu pubblico.'}
+    catch(error){variantMessage.textContent=error.message}finally{button.disabled=false}
+  };
+  loadVariants();
 })();
 </script>
