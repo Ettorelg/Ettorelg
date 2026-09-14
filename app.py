@@ -1162,6 +1162,15 @@ def init_db() -> None:
                     UNIQUE (id_prodotto, nome)
                 )""")
                 cur.execute("CREATE INDEX IF NOT EXISTS pizzeria_formati_negozio ON pizzeria_formati(id_negozio, id_prodotto)")
+                cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_derivati (
+                    id BIGSERIAL PRIMARY KEY,
+                    id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                    id_pizza INTEGER NOT NULL REFERENCES prodotti(id) ON DELETE CASCADE,
+                    tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('calzone','panino')),
+                    prezzo_override NUMERIC(10,2) CHECK (prezzo_override IS NULL OR (prezzo_override >= 0 AND prezzo_override <= 10000)),
+                    disponibile BOOLEAN NOT NULL DEFAULT TRUE,
+                    UNIQUE (id_negozio,id_pizza,tipo)
+                )""")
                 cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_varianti_config (
                     id_negozio INTEGER PRIMARY KEY REFERENCES negozi(id) ON DELETE CASCADE,
                     frazioni JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -4281,6 +4290,76 @@ def normalize_pizzeria_preparation(payload, available_formats):
         normalized_stocks.append({"formato": format_name, "impasto": dough_name,
                                   "quantita": 0 if unlimited else quantity, "illimitate": unlimited})
     return normalized_doughs, normalized_stocks
+
+
+def normalize_pizzeria_derivatives(payload, pizza_ids):
+    if not isinstance(payload, dict) or not isinstance(payload.get("derivati"), list) or len(payload["derivati"]) > 100:
+        raise ValueError("Configurazione calzoni e panini non valida.")
+    normalized = []
+    seen = set()
+    for item in payload["derivati"]:
+        if not isinstance(item, dict):
+            raise ValueError("Calzone o panino non valido.")
+        pizza_id, kind = item.get("id_pizza"), item.get("tipo")
+        if type(pizza_id) is not int or pizza_id not in pizza_ids or kind not in ("calzone", "panino") or (pizza_id, kind) in seen:
+            raise ValueError("Scegli una pizza con formato Singola e un tipo univoco.")
+        seen.add((pizza_id, kind))
+        override = item.get("prezzo_override")
+        if override in (None, ""):
+            price = None
+        else:
+            try:
+                price = Decimal(str(override).replace(",", "."))
+            except (ValueError, ArithmeticError):
+                raise ValueError("Prezzo personalizzato non valido.")
+            if not price.is_finite() or not 0 <= price <= 10000 or price != price.quantize(Decimal("0.01")):
+                raise ValueError("Prezzo personalizzato non valido.")
+            price = f"{price:.2f}"
+        available = item.get("disponibile", True)
+        if not isinstance(available, bool):
+            raise ValueError("Disponibilità non valida.")
+        normalized.append({"id_pizza": pizza_id, "tipo": kind, "prezzo_override": price,
+                           "disponibile": available, "panette_per_unita": 1})
+    return normalized
+
+
+@app.route("/api/pizzeria/derivati", methods=["GET", "PUT"])
+def api_pizzeria_derivati():
+    if "user_id" not in session or session.get("employee_id"):
+        return jsonify({"error": "Accesso del titolare richiesto."}), 403
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT p.id,p.nome,f.prezzo,f.disponibile
+                    FROM pizzeria_formati f JOIN prodotti p ON p.id=f.id_prodotto AND p.id_negozio=f.id_negozio
+                    WHERE f.id_negozio=%s AND LOWER(f.nome)='singola' ORDER BY p.nome,p.id""", (shop_id,))
+                pizzas = [{"id": row[0], "nome": row[1], "prezzo_singola": str(row[2]),
+                           "singola_disponibile": bool(row[3])} for row in cur.fetchall()]
+                if request.method == "PUT":
+                    try:
+                        derivatives = normalize_pizzeria_derivatives(request.get_json(silent=True), {item["id"] for item in pizzas})
+                    except ValueError as exc:
+                        return jsonify({"error": str(exc)}), 400
+                    cur.execute("DELETE FROM pizzeria_derivati WHERE id_negozio=%s", (shop_id,))
+                    for item in derivatives:
+                        cur.execute("""INSERT INTO pizzeria_derivati
+                            (id_negozio,id_pizza,tipo,prezzo_override,disponibile) VALUES (%s,%s,%s,%s,%s)""",
+                            (shop_id, item["id_pizza"], item["tipo"], item["prezzo_override"], item["disponibile"]))
+                cur.execute("""SELECT id_pizza,tipo,prezzo_override,disponibile FROM pizzeria_derivati
+                    WHERE id_negozio=%s ORDER BY tipo,id_pizza""", (shop_id,))
+                rows = cur.fetchall()
+        prices = {pizza["id"]: pizza["prezzo_singola"] for pizza in pizzas}
+        return jsonify({"attivo": False, "pizze": pizzas,
+                        "derivati": [{"id_pizza": row[0], "tipo": row[1],
+                                      "prezzo_override": str(row[2]) if row[2] is not None else None,
+                                      "prezzo_effettivo": str(row[2]) if row[2] is not None else prices.get(row[0]),
+                                      "disponibile": bool(row[3]), "panette_per_unita": 1} for row in rows if row[0] in prices]})
+    finally:
+        conn.close()
 
 
 def normalize_pizzeria_variants(payload, category_ids, product_categories, format_names):
