@@ -1,5 +1,4 @@
 window.AlphaOrderPrint = (() => {
-  const amount = value => Number(value || 0).toLocaleString('it-IT', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const quantity = value => Number(value || 0).toLocaleString('it-IT', {maximumFractionDigits: 3});
   function add(parent, tag, value, className) {
     const element = parent.ownerDocument.createElement(tag);
@@ -20,7 +19,7 @@ window.AlphaOrderPrint = (() => {
       if (!routes.stampante_ip && !routes.stampante_riepilogo_ip && !(routes.categorie || []).length) throw new Error('Imposta una stampante generale, di riepilogo o per categoria.');
       const healthResponse = await fetch('http://127.0.0.1:17891/health', {signal: AbortSignal.timeout(5000)});
       const health = await healthResponse.json();
-      if (!healthResponse.ok || health.version !== 3) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per usare la stampante di riepilogo.');
+      if (!healthResponse.ok || health.version !== 4) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per usare il nuovo formato degli ordini.');
       const response = await fetch('http://127.0.0.1:17891/print', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({printer_ip: routes.stampante_ip, summary_ip: routes.stampante_riepilogo_ip, printers: routes.categorie, order: currentOrder, automatic}),
@@ -63,11 +62,9 @@ window.AlphaOrderPrint = (() => {
     for (const product of order.prodotti || []) {
       const row = add(body, 'div', undefined, 'item');
       add(row, 'span', quantity(product.quantita) + ' × ' + product.nome);
-      if (product.totale !== undefined) add(row, 'span', '€ ' + amount(product.totale));
     }
     add(body, 'div', undefined, 'line');
     if (order.note) add(body, 'div', 'NOTE: ' + order.note, 'note');
-    if (order.totale !== undefined) add(body, 'div', 'Totale richiesto: € ' + amount(order.totale), 'total');
     add(body, 'p', 'Promemoria ordine · non è uno scontrino fiscale', 'small center');
     const actions = add(body, 'div', undefined, 'print-actions');
     const button = add(actions, 'button', 'Stampa');

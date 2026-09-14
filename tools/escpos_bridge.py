@@ -5,12 +5,13 @@ import json
 import socket
 import textwrap
 import threading
+from decimal import Decimal, InvalidOperation
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 3
+BRIDGE_VERSION = 4
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
@@ -31,6 +32,16 @@ def valid_printer_ip(value):
 def clean(value, limit=300):
     text = str(value if value is not None else "")[:limit]
     return "".join(ch if ch.isprintable() else " " for ch in text).strip()
+
+
+def format_quantity(value):
+    try:
+        number = Decimal(str(value).replace(",", "."))
+        if not number.is_finite():
+            raise InvalidOperation
+        return format(number.normalize(), "f").replace(".", ",")
+    except (InvalidOperation, ValueError):
+        return clean(value, 15)
 
 
 def receipt(order, large_category_ids=None, summary=False):
@@ -59,15 +70,13 @@ def receipt(order, large_category_ids=None, summary=False):
     for product in order["prodotti"][:100]:
         if not isinstance(product, dict):
             continue
-        item = clean(product.get("quantita"), 15) + " x " + clean(product.get("nome"), 200)
+        item = format_quantity(product.get("quantita")) + " x " + clean(product.get("nome"), 200)
         is_large = large_category_ids is None or str(product.get("id_categoria")) in large_category_ids
         line(item, is_large)
-        if product.get("totale") is not None:
-            line("  EUR " + clean(product["totale"], 20))
     line("-" * 42)
     if order.get("note"):
         line("NOTE: " + clean(order["note"], 500))
-    if order.get("totale") is not None:
+    if summary and order.get("totale") is not None:
         line("TOTALE: EUR " + clean(order["totale"], 20))
     line("")
     line("Promemoria ordine - non fiscale")

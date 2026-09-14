@@ -72,3 +72,18 @@ def test_same_ip_can_print_category_and_separate_summary_ticket():
     printers = [{"id_categoria": 1, "ip": "192.168.1.10"}]
     assert bridge.print_jobs(order, printers, "", "192.168.1.10") == [
         ("192.168.1.10", {"1"}, "categoria"), ("192.168.1.10", None, "riepilogo")]
+
+
+def test_prices_only_appear_as_final_total_on_summary():
+    order = {"id": 14, "prodotti": [
+        {"id_categoria": 1, "nome": "Pizza", "quantita": 2.0, "totale": 20},
+        {"id_categoria": 2, "nome": "Vino", "quantita": "1,5", "totale": 12},
+    ], "totale": 32}
+    category = bridge.receipt(order, {"1"})
+    summary = bridge.receipt(order, summary=True)
+    assert b"2 x Pizza" in category
+    assert b"1,5 x Vino" in category
+    assert b"EUR" not in category
+    assert b"EUR 20" not in summary and b"EUR 12" not in summary
+    assert summary.count(b"EUR") == 1
+    assert b"TOTALE: EUR 32" in summary
