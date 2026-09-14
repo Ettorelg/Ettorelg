@@ -1162,6 +1162,12 @@ def init_db() -> None:
                     UNIQUE (id_prodotto, nome)
                 )""")
                 cur.execute("CREATE INDEX IF NOT EXISTS pizzeria_formati_negozio ON pizzeria_formati(id_negozio, id_prodotto)")
+                cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_preparazione_config (
+                    id_negozio INTEGER PRIMARY KEY REFERENCES negozi(id) ON DELETE CASCADE,
+                    impasti JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    panette JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""")
                 cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_delivery_config (
                     id_negozio INTEGER PRIMARY KEY REFERENCES negozi(id) ON DELETE CASCADE,
                     attivo BOOLEAN NOT NULL DEFAULT FALSE,
@@ -4211,6 +4217,94 @@ def api_pizzeria_formati():
         return jsonify({"attivo": bool(module_row[0]) if module_row else False,
                         "configurazione_pronta": True, "ordinazione_varianti_attiva": False,
                         "prodotti": list(products.values())})
+    finally:
+        conn.close()
+
+
+def normalize_pizzeria_preparation(payload, available_formats):
+    if not isinstance(payload, dict):
+        raise ValueError("Configurazione pizzeria non valida.")
+    doughs = payload.get("impasti")
+    stocks = payload.get("panette")
+    if not isinstance(doughs, list) or not 1 <= len(doughs) <= 12:
+        raise ValueError("Imposta da 1 a 12 tipi di impasto.")
+    if not isinstance(stocks, list) or len(stocks) > 60:
+        raise ValueError("Imposta al massimo 60 scorte di panette.")
+    normalized_doughs = []
+    dough_names = {}
+    for dough in doughs:
+        if not isinstance(dough, dict) or not isinstance(dough.get("nome"), str):
+            raise ValueError("Tipo di impasto non valido.")
+        name = dough["nome"].strip()
+        if not 1 <= len(name) <= 80 or name.casefold() in dough_names:
+            raise ValueError("Ogni impasto deve avere un nome univoco.")
+        try:
+            supplement = Decimal(str(dough.get("supplemento")).replace(",", "."))
+        except (ValueError, ArithmeticError):
+            raise ValueError("Supplemento dell'impasto non valido.")
+        if not supplement.is_finite() or not 0 <= supplement <= 1000 or supplement != supplement.quantize(Decimal("0.01")):
+            raise ValueError("Supplemento dell'impasto non valido.")
+        available = dough.get("disponibile", True)
+        if not isinstance(available, bool):
+            raise ValueError("Disponibilità dell'impasto non valida.")
+        dough_names[name.casefold()] = name
+        normalized_doughs.append({"nome": name, "supplemento": f"{supplement:.2f}", "disponibile": available})
+    if "classico" not in dough_names:
+        raise ValueError("Mantieni l'impasto Classico come scelta base.")
+
+    format_names = {name.casefold(): name for name in available_formats}
+    normalized_stocks = []
+    keys = set()
+    for stock in stocks:
+        if not isinstance(stock, dict) or not isinstance(stock.get("formato"), str) or not isinstance(stock.get("impasto"), str):
+            raise ValueError("Scorta panette non valida.")
+        format_name = format_names.get(stock["formato"].strip().casefold())
+        dough_name = dough_names.get(stock["impasto"].strip().casefold())
+        if not format_name or not dough_name:
+            raise ValueError("La scorta deve usare un formato e un impasto configurati.")
+        if format_name.casefold() != "singola" and dough_name.casefold() != "classico":
+            raise ValueError("Gli impasti alternativi sono disponibili solo per la Singola.")
+        key = (format_name.casefold(), dough_name.casefold())
+        if key in keys:
+            raise ValueError("Ogni coppia formato/impasto può avere una sola scorta.")
+        keys.add(key)
+        unlimited = stock.get("illimitate", False)
+        quantity = stock.get("quantita", 0)
+        if not isinstance(unlimited, bool) or type(quantity) is not int or not 0 <= quantity <= 100000:
+            raise ValueError("Quantità panette non valida.")
+        normalized_stocks.append({"formato": format_name, "impasto": dough_name,
+                                  "quantita": 0 if unlimited else quantity, "illimitate": unlimited})
+    return normalized_doughs, normalized_stocks
+
+
+@app.route("/api/pizzeria/preparazione", methods=["GET", "PUT"])
+def api_pizzeria_preparazione():
+    if "user_id" not in session or session.get("employee_id"):
+        return jsonify({"error": "Accesso del titolare richiesto."}), 403
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT DISTINCT nome FROM pizzeria_formati WHERE id_negozio=%s ORDER BY nome", (shop_id,))
+                format_names = [row[0] for row in cur.fetchall()]
+                if request.method == "PUT":
+                    try:
+                        doughs, stocks = normalize_pizzeria_preparation(request.get_json(silent=True), format_names)
+                    except ValueError as exc:
+                        return jsonify({"error": str(exc)}), 400
+                    cur.execute("""INSERT INTO pizzeria_preparazione_config (id_negozio,impasti,panette)
+                        VALUES (%s,%s::jsonb,%s::jsonb)
+                        ON CONFLICT (id_negozio) DO UPDATE SET
+                        impasti=EXCLUDED.impasti,panette=EXCLUDED.panette,aggiornato_il=NOW()""",
+                        (shop_id, json.dumps(doughs), json.dumps(stocks)))
+                cur.execute("SELECT impasti,panette FROM pizzeria_preparazione_config WHERE id_negozio=%s", (shop_id,))
+                row = cur.fetchone()
+        return jsonify({"attivo": False, "formati_disponibili": format_names,
+                        "impasti": row[0] if row else [{"nome": "Classico", "supplemento": "0.00", "disponibile": True}],
+                        "panette": row[1] if row else []})
     finally:
         conn.close()
 
