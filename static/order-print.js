@@ -10,19 +10,26 @@ window.AlphaOrderPrint = (() => {
   }
   async function direct(order, {quiet = false, automatic = false} = {}) {
     try {
-      const configResponse = await fetch('/api/ordini/configurazione', {cache: 'no-store'});
-      if (!configResponse.ok) throw new Error('Impossibile leggere le impostazioni della stampante.');
-      const config = await configResponse.json();
-      if (!config.stampante_ip) throw new Error('Imposta prima l’IP della stampante in Impostazioni ordini.');
+      const [routesResponse, orderResponse] = await Promise.all([
+        fetch('/api/ordini/stampanti', {cache: 'no-store'}),
+        fetch('/api/ordini/' + encodeURIComponent(order.id) + '/stampa', {cache: 'no-store'})
+      ]);
+      if (!routesResponse.ok || !orderResponse.ok) throw new Error('Impossibile leggere le stampanti o l’ordine.');
+      const routes = await routesResponse.json();
+      const currentOrder = (await orderResponse.json()).ordine;
+      if (!routes.stampante_ip && !(routes.categorie || []).length) throw new Error('Imposta l’IP generale o assegna una stampante alle categorie.');
+      const healthResponse = await fetch('http://127.0.0.1:17891/health', {signal: AbortSignal.timeout(5000)});
+      const health = await healthResponse.json();
+      if (!healthResponse.ok || health.version !== 2) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per usare le stampanti per categoria.');
       const response = await fetch('http://127.0.0.1:17891/print', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({printer_ip: config.stampante_ip, order, automatic}),
-        signal: AbortSignal.timeout(7000)
+        body: JSON.stringify({printer_ip: routes.stampante_ip, printers: routes.categorie, order: currentOrder, automatic}),
+        signal: AbortSignal.timeout(30000)
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || 'Stampa diretta non riuscita.');
-      if (!quiet) window.alert('Ordine #' + order.id + ' inviato alla stampante.');
-      return true;
+      if (!quiet) window.alert(result.message || ('Ordine #' + order.id + ' inviato alla stampante.'));
+      return result.printed || 0;
     } catch (error) {
       const message = (error instanceof TypeError || error.name === 'TimeoutError'
         ? 'Programma di stampa non raggiungibile sul PC. Avvia escpos_bridge.py e riprova.'

@@ -883,6 +883,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS allergeni_auto TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS allergeni_manual TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]")
+                cur.execute("ALTER TABLE categorie ADD COLUMN IF NOT EXISTS stampante_ip VARCHAR(45) NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS indirizzo TEXT NOT NULL DEFAULT ''")
                 cur.execute("""CREATE TABLE IF NOT EXISTS dipendenti_negozio (
                     id BIGSERIAL PRIMARY KEY,
@@ -4422,9 +4423,11 @@ def api_ordine_per_stampa(order_id: int):
                        TO_CHAR(o.ora_richiesta,'HH24:MI'),o.nome_cliente,o.telefono_cliente,
                        o.riferimento,o.note,o.totale,o.origine,
                        TO_CHAR(o.creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
-                       r.nome_prodotto,r.quantita,r.totale_riga
+                       r.nome_prodotto,r.quantita,r.totale_riga,p.id_categoria,c.nome
                 FROM ordini_menu o
                 LEFT JOIN righe_ordini_menu r ON r.id_ordine=o.id
+                LEFT JOIN prodotti p ON p.id=r.id_prodotto AND p.id_negozio=o.id_negozio
+                LEFT JOIN categorie c ON c.id=p.id_categoria AND c.id_negozio=o.id_negozio
                 WHERE o.id_negozio=%s AND o.id=%s
                 ORDER BY r.id
             """, (shop_id, order_id))
@@ -4437,10 +4440,28 @@ def api_ordine_per_stampa(order_id: int):
             "nome": first[3], "telefono": first[4], "riferimento": first[5],
             "note": first[6], "totale": str(first[7]), "origine": first[8],
             "creato_il": first[9], "prodotti": [
-                {"nome": row[10], "quantita": str(row[11]), "totale": str(row[12])}
+                {"nome": row[10], "quantita": str(row[11]), "totale": str(row[12]),
+                 "id_categoria": row[13], "categoria": row[14] or ""}
                 for row in rows if row[10] is not None
             ]
         }})
+    finally:
+        conn.close()
+
+
+@app.get("/api/ordini/stampanti")
+def api_stampanti_categorie():
+    shop_id = order_notification_shop_id()
+    if not shop_id:
+        return jsonify({"error": "Accesso al locale richiesto."}), 403
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT stampante_ip FROM negozi WHERE id=%s", (shop_id,))
+            row = cur.fetchone()
+            cur.execute("SELECT id,nome,stampante_ip FROM categorie WHERE id_negozio=%s AND stampante_ip<>'' ORDER BY id", (shop_id,))
+            categories = [{"id_categoria": item[0], "nome": item[1], "ip": item[2]} for item in cur.fetchall()]
+        return jsonify({"stampante_ip": row[0] if row else "", "categorie": categories})
     finally:
         conn.close()
 
@@ -5746,6 +5767,21 @@ from flask import jsonify
 
 # ---------- CATEGORIE ----------
 
+def local_printer_ip(value):
+    if not isinstance(value, str):
+        raise ValueError("Indirizzo IP stampante non valido.")
+    value = value.strip()
+    if value:
+        try:
+            address = ipaddress.IPv4Address(value)
+        except ipaddress.AddressValueError as exc:
+            raise ValueError("Inserisci un indirizzo IPv4 valido.") from exc
+        if not any(address in network for network in (
+            ipaddress.IPv4Network("10.0.0.0/8"), ipaddress.IPv4Network("172.16.0.0/12"),
+            ipaddress.IPv4Network("192.168.0.0/16"))):
+            raise ValueError("La stampante deve avere un IP della rete locale.")
+    return value
+
 @app.post("/api/categorie")
 def api_categorie_create():
     if "user_id" not in session:
@@ -5764,6 +5800,10 @@ def api_categorie_create():
     visibile_fino = data.get("visibile_fino") or None
     ora_inizio = data.get("ora_inizio") or None
     ora_fine = data.get("ora_fine") or None
+    try:
+        stampante_ip = local_printer_ip(data.get("stampante_ip", ""))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     if not nome:
         return jsonify({"error": "nome obbligatorio"}), 400
@@ -5787,19 +5827,19 @@ def api_categorie_create():
             with conn.cursor() as cur:
                 if ordine_int is None:
                     cur.execute("""
-                        INSERT INTO categorie (id_negozio, nome, ordine, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine)
+                        INSERT INTO categorie (id_negozio, nome, ordine, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine, stampante_ip)
                         VALUES (%s, %s,
                             (SELECT COALESCE(MAX(ordine), 0) + 10 FROM categorie WHERE id_negozio = %s),
-                            %s, %s, %s, %s, %s
+                            %s, %s, %s, %s, %s, %s
                         )
                         RETURNING id
-                    """, (shop_id, nome, shop_id, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine))
+                    """, (shop_id, nome, shop_id, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine, stampante_ip))
                 else:
                     cur.execute("""
-                        INSERT INTO categorie (id_negozio, nome, ordine, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO categorie (id_negozio, nome, ordine, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine, stampante_ip)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
-                    """, (shop_id, nome, ordine_int, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine))
+                    """, (shop_id, nome, ordine_int, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine, stampante_ip))
 
                 new_id = cur.fetchone()[0]
                 if ordine_int is not None:
@@ -5830,6 +5870,10 @@ def api_categorie_update(categoria_id: int):
     visibile_fino = data.get("visibile_fino") or None
     ora_inizio = data.get("ora_inizio") or None
     ora_fine = data.get("ora_fine") or None
+    try:
+        stampante_ip = local_printer_ip(data.get("stampante_ip", ""))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     if not nome:
         return jsonify({"error": "nome obbligatorio"}), 400
@@ -5849,9 +5893,9 @@ def api_categorie_update(categoria_id: int):
                 if ordine is None or ordine == "":
                     cur.execute("""
                         UPDATE categorie
-                        SET nome=%s, visibile=%s, visibile_da=%s, visibile_fino=%s, ora_inizio=%s, ora_fine=%s
+                        SET nome=%s, visibile=%s, visibile_da=%s, visibile_fino=%s, ora_inizio=%s, ora_fine=%s, stampante_ip=%s
                         WHERE id=%s
-                    """, (nome, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine, categoria_id))
+                    """, (nome, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine, stampante_ip, categoria_id))
                 else:
                     try:
                         ordine_int = int(ordine)
@@ -5859,9 +5903,9 @@ def api_categorie_update(categoria_id: int):
                         return jsonify({"error": "ordine non valido"}), 400
                     cur.execute("""
                         UPDATE categorie
-                        SET nome=%s, visibile=%s, ordine=%s, visibile_da=%s, visibile_fino=%s, ora_inizio=%s, ora_fine=%s
+                        SET nome=%s, visibile=%s, ordine=%s, visibile_da=%s, visibile_fino=%s, ora_inizio=%s, ora_fine=%s, stampante_ip=%s
                         WHERE id=%s
-                    """, (nome, visibile, ordine_int, visibile_da, visibile_fino, ora_inizio, ora_fine, categoria_id))
+                    """, (nome, visibile, ordine_int, visibile_da, visibile_fino, ora_inizio, ora_fine, stampante_ip, categoria_id))
                     cur.execute("UPDATE negozi SET ordine_categorie_personalizzato = TRUE WHERE id = %s", (shop_id,))
 
         return jsonify({"ok": True})
@@ -5980,7 +6024,7 @@ def api_categorie_full():
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, nome, ordine, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine
+                SELECT id, nome, ordine, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine, stampante_ip
                 FROM categorie
                 WHERE id_negozio = %s
                 ORDER BY ordine ASC, nome ASC
@@ -5994,6 +6038,7 @@ def api_categorie_full():
                 "visibile_fino": r[5].isoformat() if r[5] else "",
                 "ora_inizio": r[6].strftime("%H:%M") if r[6] else "",
                 "ora_fine": r[7].strftime("%H:%M") if r[7] else "",
+                "stampante_ip": r[8] or "",
             } for r in cur.fetchall()]
         return jsonify({"items": items})
     finally:

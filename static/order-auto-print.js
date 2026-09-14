@@ -49,9 +49,9 @@
       const response = await fetch('/api/ordini/' + encodeURIComponent(item.id) + '/stampa', {cache: 'no-store'});
       if (!response.ok) throw new Error('Impossibile leggere l’ordine #' + item.id + '.');
       const {ordine} = await response.json();
-      await AlphaOrderPrint.direct(ordine, {quiet: true, automatic: true});
+      const printed = await AlphaOrderPrint.direct(ordine, {quiet: true, automatic: true});
       save({enabled: true, cursor: item.id});
-      indicator.textContent = 'Stampato automaticamente ordine #' + item.id;
+      indicator.textContent = printed ? 'Stampato automaticamente ordine #' + item.id : 'Ordine #' + item.id + ': nessuna stampante assegnata alle sue categorie.';
     }
   }
 
@@ -78,9 +78,9 @@
         save({enabled: false, cursor: read().cursor});
         indicator.textContent = 'Stampa automatica disattivata su questo PC.';
       } else {
-        const response = await fetch('/api/ordini/configurazione', {cache: 'no-store'});
+        const response = await fetch('/api/ordini/stampanti', {cache: 'no-store'});
         const config = await response.json();
-        if (!response.ok || !config.stampante_ip) throw new Error('Configura prima l’IP della stampante nelle impostazioni ordini.');
+        if (!response.ok || (!config.stampante_ip && !(config.categorie || []).length)) throw new Error('Configura prima una stampante generale o una stampante per categoria.');
         const baseline = await notifications();
         save({enabled: true, cursor: Number(baseline.ultimo_id)});
         indicator.textContent = 'Attiva: stamperò i nuovi ordini da adesso. Lascia aperta questa pagina e il programma sul PC.';

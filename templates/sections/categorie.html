@@ -40,11 +40,11 @@
   @media(max-width:720px){
     .catalog-head{display:block}.row{display:grid;grid-template-columns:1fr}.field{min-width:0!important;max-width:none!important}
     #catForm,#scForm{padding:15px}.actions .btn{flex:1;justify-content:center}
-    .table-wrap-catalog{overflow:visible}.table{border:0;background:transparent}.table thead{display:none}.table tbody{display:grid;gap:12px}.table tr{display:grid;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.035)}.table td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border:0}.table td:first-child{font-size:1.02rem}.table td:nth-child(2)::before{content:"Ordine";color:#9eabca;font-size:12px}.table td:nth-child(3)::before{content:"Visibile";color:#9eabca;font-size:12px}.table td.right{display:flex;white-space:normal}.table td.right .btn{flex:1;justify-content:center}
+    .table-wrap-catalog{overflow:visible}.table{border:0;background:transparent}.table thead{display:none}.table tbody{display:grid;gap:12px}.table tr{display:grid;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.035)}.table td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border:0}.table td:first-child{font-size:1.02rem}.table td:nth-child(2)::before{content:"Visibile";color:#9eabca;font-size:12px}.table td:nth-child(3)::before{content:"Stampante";color:#9eabca;font-size:12px}.table td.right{display:flex;white-space:normal}.table td.right .btn{flex:1;justify-content:center}
   }
 </style>
 
-<div class="catalog-head"><div><span class="eyebrow">Struttura del menu</span><h2>Categorie</h2><p class="muted">Organizza il menu in categorie chiare; usa “Ordine” per stabilire la posizione.</p></div></div>
+<div class="catalog-head"><div><span class="eyebrow">Struttura del menu</span><h2>Categorie</h2><p class="muted">Assegna facoltativamente l’IP di una stampante ESC/POS a ogni categoria. Le sottocategorie seguono la categoria principale.</p></div></div>
 
 <div class="toast hidden" id="toast"></div>
 
@@ -58,6 +58,7 @@
     </div>
 
     <div class="field" style="max-width:180px"><label>Visibile</label><select id="visibile"><option value="true">Sì</option><option value="false">No</option></select></div>
+    <div class="field" style="max-width:220px"><label>IP stampante categoria (opzionale)</label><input id="stampante_ip" inputmode="decimal" autocomplete="off" placeholder="192.168.1.50" maxlength="45"><small class="muted">Le sottocategorie usano la stampante della categoria.</small></div>
   </div>
   <div class="actions" style="margin-top:10px"><button class="btn" type="button" id="toggleSchedule">🕒 Programma visibilità (opzionale)</button></div>
   <div id="scheduleFields" class="row hidden" style="margin-top:10px;padding:12px;border:1px dashed rgba(110,168,254,.45);border-radius:12px">
@@ -80,6 +81,7 @@
     <tr>
       <th>Nome</th>
       <th>Visibile</th>
+      <th>Stampante</th>
       <th class="right">Azioni</th>
     </tr>
   </thead>
@@ -105,7 +107,7 @@
   function resetForm(){
     f("id").value = "";
     f("nome").value = "";
-    f("visibile").value = "true"; f("visibile_da").value = ""; f("visibile_fino").value = ""; f("ora_inizio").value = ""; f("ora_fine").value = ""; f("scheduleFields").classList.add("hidden");
+    f("visibile").value = "true"; f("stampante_ip").value = ""; f("visibile_da").value = ""; f("visibile_fino").value = ""; f("ora_inizio").value = ""; f("ora_fine").value = ""; f("scheduleFields").classList.add("hidden");
     modeHint.textContent = "Modalità: creazione";
     f("saveBtn").textContent = "Salva categoria";
   }
@@ -125,6 +127,7 @@
         <tr draggable="true" data-category-id="${c.id}">
           <td style="font-weight:650"><span class="drag-cell"><span class="drag-grip">⋮⋮</span>${esc(c.nome)}</span></td>
           <td>${vis}</td>
+          <td>${c.stampante_ip ? esc(c.stampante_ip) : '<span class="muted">Non assegnata</span>'}</td>
           <td class="right">
             <button class="btn" type="button" onclick="editCat(${c.id})">Modifica</button>
             <button class="btn danger" type="button" onclick="delCat(${c.id})">Elimina</button>
@@ -156,7 +159,7 @@
     if(!c) return;
     f("id").value = c.id;
     f("nome").value = c.nome;
-    f("visibile").value = c.visibile ? "true" : "false"; f("visibile_da").value=c.visibile_da||""; f("visibile_fino").value=c.visibile_fino||""; f("ora_inizio").value=c.ora_inizio||""; f("ora_fine").value=c.ora_fine||""; if(c.visibile_da||c.visibile_fino||c.ora_inizio||c.ora_fine) f("scheduleFields").classList.remove("hidden");
+    f("visibile").value = c.visibile ? "true" : "false"; f("stampante_ip").value = c.stampante_ip || ""; f("visibile_da").value=c.visibile_da||""; f("visibile_fino").value=c.visibile_fino||""; f("ora_inizio").value=c.ora_inizio||""; f("ora_fine").value=c.ora_fine||""; if(c.visibile_da||c.visibile_fino||c.ora_inizio||c.ora_fine) f("scheduleFields").classList.remove("hidden");
     modeHint.textContent = "Modalità: modifica";
     f("saveBtn").textContent = "Aggiorna categoria";
     showToast("Modifica categoria: aggiorna e salva.");
@@ -182,7 +185,7 @@
     ev.preventDefault();
     const payload = {
       nome: f("nome").value.trim(),
-      visibile: f("visibile").value === "true", visibile_da:f("visibile_da").value, visibile_fino:f("visibile_fino").value, ora_inizio:f("ora_inizio").value, ora_fine:f("ora_fine").value
+      visibile: f("visibile").value === "true", stampante_ip:f("stampante_ip").value.trim(), visibile_da:f("visibile_da").value, visibile_fino:f("visibile_fino").value, ora_inizio:f("ora_inizio").value, ora_fine:f("ora_fine").value
     };
     const id = f("id").value ? Number(f("id").value) : null;
 

@@ -30,3 +30,28 @@ def test_receipt_contains_order_and_escpos_cut_without_control_injection():
     assert b"\x1d!\x112 x Pizza" in payload
     assert b"Pizza [0m" in payload
     assert payload.count(b"\x1b") == 2
+
+
+def test_mixed_category_order_routes_once_per_matching_printer():
+    order = {"id": 10, "prodotti": [
+        {"id_categoria": 1, "nome": "Pizza", "quantita": 1},
+        {"id_categoria": 2, "nome": "Birra", "quantita": 1},
+        {"id_categoria": 3, "nome": "Dolce", "quantita": 1},
+    ]}
+    printers = [{"id_categoria": 1, "ip": "192.168.1.10"},
+                {"id_categoria": 2, "ip": "192.168.1.20"},
+                {"id_categoria": 3, "ip": "192.168.1.10"},
+                {"id_categoria": 4, "ip": "192.168.1.30"}]
+    targets = bridge.print_targets(order, printers, "192.168.1.99")
+    assert targets == {"192.168.1.10": {"1", "3"}, "192.168.1.20": {"2"}}
+    pizza_receipt = bridge.receipt(order, targets["192.168.1.10"])
+    assert b"\x1d!\x111 x Pizza" in pizza_receipt
+    assert b"\x1d!\x001 x Birra" in pizza_receipt
+    assert b"\x1d!\x111 x Dolce" in pizza_receipt
+
+
+def test_unmatched_category_printer_receives_nothing():
+    order = {"id": 11, "prodotti": [{"id_categoria": 2, "nome": "Birra", "quantita": 1}]}
+    printers = [{"id_categoria": 1, "ip": "192.168.1.10"}]
+    assert bridge.print_targets(order, printers, "192.168.1.10") == {}
+    assert bridge.print_targets(order, [], "192.168.1.10") == {"192.168.1.10": None}

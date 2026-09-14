@@ -41,12 +41,13 @@ def endpoint(db):
 
 def test_print_order_is_scoped_to_current_shop():
     db = Connection([(8, date(2026, 9, 14), "20:00", "Mario", "333", "7", "", 20,
-                      "tavolo", "14/09/2026 19:00", "Pizza", 2, 20)])
+                      "tavolo", "14/09/2026 19:00", "Pizza", 2, 20, 3, "Pizze")])
     with FLASK.test_request_context("/api/ordini/8/stampa"):
         session["shop_id"] = 7
         result = endpoint(db)(8)
     assert db.cur.params == (7, 8)
     assert result.json["ordine"]["prodotti"][0]["nome"] == "Pizza"
+    assert result.json["ordine"]["prodotti"][0]["id_categoria"] == 3
 
 
 def test_print_order_rejects_anonymous_access():
@@ -55,3 +56,14 @@ def test_print_order_rejects_anonymous_access():
         _, status = endpoint(db)(8)
     assert status == 403
     assert db.cur.params is None
+
+
+def test_print_query_keeps_category_join_inside_current_shop():
+    node = next(item for item in TREE.body if isinstance(item, ast.FunctionDef)
+                and item.name == "api_ordine_per_stampa")
+    queries = [item.value for item in ast.walk(node) if isinstance(item, ast.Constant)
+               and isinstance(item.value, str) and "FROM ordini_menu o" in item.value]
+    assert len(queries) == 1
+    assert "p.id_negozio=o.id_negozio" in queries[0]
+    assert "c.id_negozio=o.id_negozio" in queries[0]
+    assert "o.id_negozio=%s AND o.id=%s" in queries[0]
