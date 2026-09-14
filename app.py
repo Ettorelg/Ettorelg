@@ -3545,6 +3545,18 @@ def dashboard_user():
     )
 
 
+@app.get("/pizzeria/prova")
+def pizzeria_test_page():
+    """Private, read-only customer-flow rehearsal; it cannot submit an order."""
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    if session.get("is_admin") or session.get("employee_id"):
+        abort(403)
+    if not get_user_shop_id(session["user_id"]):
+        return redirect(url_for("dashboard_user") + "#attivita")
+    return render_template("pizzeria_test.html", username=session.get("username", "utente"))
+
+
 @app.get("/ordini/evasione")
 def fulfillment_dashboard():
     if "user_id" not in session:

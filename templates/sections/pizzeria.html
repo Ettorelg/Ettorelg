@@ -6,6 +6,7 @@
   .pizza-formats{display:grid;gap:9px}.pizza-format{display:grid;grid-template-columns:minmax(120px,1fr) 130px auto auto;gap:9px;align-items:end;padding:10px;border:1px solid #405575;border-radius:10px}
   .pizza-format label{margin:0}.pizza-format .available{display:flex;align-items:center;gap:7px}.pizza-format .available input{min-height:auto;width:18px;height:18px}
   .pizza-card button{padding:10px 14px;border:1px solid #7297cc;border-radius:9px;background:#244f82;color:#fff;font:700 .9rem system-ui;cursor:pointer}.pizza-card button:disabled{opacity:.5;cursor:not-allowed}
+  .pizza-test-link{display:inline-block;padding:10px 14px;border:1px solid #7297cc;border-radius:9px;background:#244f82;color:#fff;font:700 .9rem system-ui;text-decoration:none}
   .pizza-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.pizza-message{min-height:22px;color:#a9ebc1}
   .pizza-removals{grid-column:1/-1;display:flex;gap:12px;flex-wrap:wrap}.pizza-removals label{display:flex;align-items:center;gap:6px}.pizza-removals input{min-height:auto}
   @media(max-width:650px){.pizza-format{grid-template-columns:1fr 1fr}.pizza-format .available{align-self:center}}
@@ -15,7 +16,7 @@
   <div class="pizza-card pizza-notice">
     <strong>Configurazione in bozza · formati, impasti, varianti e panette</strong>
     <p>Puoi preparare formati, prezzi, impasti, varianti e scorte. <strong>Il modulo non è ancora attivo nel menu pubblico o negli ordini:</strong> nessun cliente vedrà questi prezzi finché non saranno pronti carrello, calcolo e comande. Resta indipendente dalla licenza e dal modulo Ordinazioni.</p>
-    <button type="button" disabled aria-label="Attivazione non ancora disponibile">Attiva modulo Pizzeria · prossimamente</button>
+    <a class="pizza-test-link" href="/pizzeria/prova">Apri la prova interattiva</a>
   </div>
   <div class="pizza-card">
     <strong>Formati per singolo articolo</strong>
