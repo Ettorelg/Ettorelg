@@ -86,7 +86,7 @@
   </main>
   {% include '_legal_footer.html' %}
   <script src="{{ url_for('static', filename='order-request.js') }}?v=1"></script>
-  <script src="{{ url_for('static', filename='order-print.js') }}?v=10"></script>
+  <script src="{{ url_for('static', filename='order-print.js') }}?v=11"></script>
   <script src="{{ url_for('static', filename='order-auto-print.js') }}?v=3"></script>
 <script>
     const csrf={{ csrf_token()|tojson }};

@@ -28,7 +28,8 @@ def test_receipt_contains_order_and_escpos_cut_without_control_injection():
     assert b"\x1d!\x01Data: 2026-09-14" in payload
     assert b"\x1d!\x11Ora: 20:00" in payload
     assert b"\x1d!\x11Cliente: Mario" in payload
-    assert b"\x1d!\x112 x Pizza" in payload
+    assert b"\x1d!\x00Riferimento: 7" in payload
+    assert b"\x1d!\x002 x Pizza" in payload
     assert b"Pizza [0m" in payload
     assert payload.count(b"\x1b") == 4
     assert b"Promemoria ordine" not in payload
@@ -49,7 +50,7 @@ def test_mixed_category_order_routes_once_per_matching_printer():
     assert targets == {"192.168.1.10": {"1", "3"}, "192.168.1.20": {"2"}}
     pizza_receipt = bridge.receipt(order, targets["192.168.1.10"])
     assert b"\x1d!\x111 x Pizza" in pizza_receipt
-    assert b"\x1d!\x101 x Birra" in pizza_receipt
+    assert b"\x1d!\x001 x Birra" in pizza_receipt
     assert b"\x1d!\x111 x Dolce" in pizza_receipt
 
 
@@ -63,17 +64,17 @@ def test_unmatched_category_printer_receives_nothing():
 def test_summary_printer_adds_full_order_receipt_even_when_no_category_matches():
     order = {"id": 12, "prodotti": [{"id_categoria": 2, "nome": "Birra", "quantita": 1}]}
     printers = [{"id_categoria": 1, "ip": "192.168.1.10"}]
-    jobs = bridge.print_jobs(order, printers, "", "192.168.1.60")
+    jobs = bridge.print_jobs(order, printers, "", "192.168.1.60", "auto")
     assert jobs == [("192.168.1.60", None, "riepilogo")]
     payload = bridge.receipt(order, jobs[0][1], summary=True)
     assert b"\x1ba\x01\x1d!\x11RIEPILOGO\n\x1ba\x00" in payload
-    assert b"\x1d!\x101 x Birra" in payload
+    assert b"\x1d!\x001 x Birra" in payload
 
 
 def test_same_ip_can_print_category_and_separate_summary_ticket():
     order = {"id": 13, "prodotti": [{"id_categoria": 1, "nome": "Pizza", "quantita": 1}]}
     printers = [{"id_categoria": 1, "ip": "192.168.1.10"}]
-    assert bridge.print_jobs(order, printers, "", "192.168.1.10") == [
+    assert bridge.print_jobs(order, printers, "", "192.168.1.10", "auto") == [
         ("192.168.1.10", {"1"}, "categoria"), ("192.168.1.10", None, "riepilogo")]
 
 
@@ -83,6 +84,8 @@ def test_manual_summary_mode_sends_only_the_summary_printer():
     assert bridge.print_jobs(order, printers, "", "192.168.1.20", "summary") == [
         ("192.168.1.20", None, "riepilogo")]
     assert bridge.print_jobs(order, printers, "", "192.168.1.20", "all") == [
+        ("192.168.1.10", {"1"}, "categoria")]
+    assert bridge.print_jobs(order, printers, "", "192.168.1.20", "auto") == [
         ("192.168.1.10", {"1"}, "categoria"), ("192.168.1.20", None, "riepilogo")]
 
 
@@ -120,8 +123,18 @@ def test_category_products_print_first_and_other_products_follow_small():
     payload = bridge.receipt(order, {"1"})
     assert payload.index(b"2 x Pizza") < payload.index(b"1 x Birra") < payload.index(b"1 x Dolce")
     assert b"\x1d!\x112 x Pizza" in payload
-    assert b"\x1d!\x101 x Birra" in payload
-    assert b"\x1d!\x101 x Dolce" in payload
+    assert b"\x1d!\x001 x Birra" in payload
+    assert b"\x1d!\x001 x Dolce" in payload
+
+
+def test_takeaway_receipt_omits_takeaway_label_and_default_printer_keeps_products_small():
+    order = {"id": 19, "origine": "asporto", "riferimento": "Banco", "prodotti": [
+        {"id_categoria": 2, "nome": "Bibita", "quantita": 1}]}
+    payload = bridge.receipt(order)
+    assert b"DA ASPORTO" not in payload
+    assert b"Riferimento: Banco" in payload
+    assert b"Riferimento/tavolo" not in payload
+    assert b"\x1d!\x001 x Bibita" in payload
 
 
 def test_weighted_products_always_print_three_decimal_places():

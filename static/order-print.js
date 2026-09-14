@@ -1,5 +1,5 @@
 window.AlphaOrderPrint = (() => {
-  function chooseMode(orderId, hasSummary) {
+  function chooseMode(orderId, hasSummary, hasOtherPrinters) {
     return new Promise(resolve => {
       const dialog = document.createElement('dialog');
       dialog.setAttribute('aria-label', 'Scegli dove stampare l’ordine #' + orderId);
@@ -9,20 +9,20 @@ window.AlphaOrderPrint = (() => {
       title.style.margin = '0 0 12px';
       dialog.append(title);
       const hint = document.createElement('p');
-      hint.textContent = 'Scegli le stampanti a cui inviare questo ordine.';
+      hint.textContent = 'Scegli dove inviare l’ordine. “Tutte le stampanti” esclude il riepilogo.';
       dialog.append(hint);
       const actions = document.createElement('div');
       actions.style.cssText = 'display:flex;gap:9px;flex-wrap:wrap';
       for (const [mode, label, disabled] of [
         ['summary', 'Solo riepilogo', !hasSummary],
-        ['all', 'Tutte le stampanti', false],
+        ['all', 'Tutte le stampanti', !hasOtherPrinters],
         [null, 'Annulla', false]
       ]) {
         const button = document.createElement('button');
         button.type = 'button';
         button.textContent = label;
         button.disabled = disabled;
-        button.title = disabled ? 'Configura prima la stampante di riepilogo nelle impostazioni Ordini.' : '';
+        button.title = disabled ? (mode === 'summary' ? 'Configura prima la stampante di riepilogo nelle impostazioni Ordini.' : 'Configura prima una stampante generale o di categoria.') : '';
         button.style.cssText = 'padding:10px 12px;border:1px solid #7797bd;border-radius:9px;background:#25486d;color:#fff;font:inherit;cursor:pointer';
         button.onclick = () => dialog.close(mode || 'cancel');
         actions.append(button);
@@ -43,11 +43,11 @@ window.AlphaOrderPrint = (() => {
       const routes = await routesResponse.json();
       const currentOrder = (await orderResponse.json()).ordine;
       if (!routes.stampante_ip && !routes.stampante_riepilogo_ip && !(routes.categorie || []).length) throw new Error('Imposta una stampante generale, di riepilogo o per categoria.');
-      const mode = automatic || quiet ? 'all' : await chooseMode(order.id, Boolean(routes.stampante_riepilogo_ip));
+      const mode = automatic || quiet ? 'all' : await chooseMode(order.id, Boolean(routes.stampante_riepilogo_ip), Boolean(routes.stampante_ip || (routes.categorie || []).length));
       if (!mode) return false;
       const healthResponse = await fetch('http://127.0.0.1:17891/health', {signal: AbortSignal.timeout(5000)});
       const health = await healthResponse.json();
-      if (!healthResponse.ok || health.version !== 7) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per usare il nuovo formato degli scontrini.');
+      if (!healthResponse.ok || health.version !== 8) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per usare il nuovo formato degli scontrini.');
       const response = await fetch('http://127.0.0.1:17891/print', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({printer_ip: routes.stampante_ip, summary_ip: routes.stampante_riepilogo_ip, printers: routes.categorie, order: currentOrder, automatic, mode}),

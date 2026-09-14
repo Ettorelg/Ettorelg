@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 7
+BRIDGE_VERSION = 8
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
@@ -65,11 +65,12 @@ def receipt(order, large_category_ids=None, summary=False):
     if summary:
         line("RIEPILOGO", True, centered=True)
     line("ORDINE #" + clean(order.get("id"), 30), True, centered=True)
-    line("AL TAVOLO" if order.get("origine") == "tavolo" else "DA ASPORTO")
+    if order.get("origine") == "tavolo":
+        line("AL TAVOLO")
     line("Data: " + clean(order.get("data_richiesta"), 30), double_width=True)
     line("Ora: " + clean(order.get("ora_richiesta"), 20), True)
     line("-" * 42)
-    for field, label in (("nome", "Cliente"), ("riferimento", "Riferimento/tavolo"),
+    for field, label in (("nome", "Cliente"), ("riferimento", "Riferimento"),
                          ("telefono", "Telefono")):
         if order.get(field):
             line(label + ": " + clean(order[field]), field == "nome")
@@ -84,8 +85,8 @@ def receipt(order, large_category_ids=None, summary=False):
         name = clean(product.get("nome"), 200)
         is_weight = product.get("unita_prezzo") == "kg" or name.lower().endswith(" (kg)")
         item = format_quantity(product.get("quantita"), is_weight) + " x " + name
-        is_large = not summary and (large_category_ids is None or str(product.get("id_categoria")) in large_category_ids)
-        line(item, is_large, double_height=True)
+        is_large = not summary and large_category_ids is not None and str(product.get("id_categoria")) in large_category_ids
+        line(item, is_large)
     line("-" * 42)
     if order.get("note"):
         line("NOTE: " + clean(order["note"], 500))
@@ -126,7 +127,7 @@ def print_targets(order, printers, default_ip):
 
 
 def print_jobs(order, printers, default_ip, summary_ip, mode="all"):
-    if mode not in ("all", "summary"):
+    if mode not in ("all", "summary", "auto"):
         raise ValueError("Modalità di stampa non valida.")
     summary_ip = summary_ip or ""
     if summary_ip and not valid_printer_ip(summary_ip):
@@ -137,7 +138,7 @@ def print_jobs(order, printers, default_ip, summary_ip, mode="all"):
         return [(summary_ip, None, "riepilogo")]
     targets = print_targets(order, printers, default_ip)
     jobs = [(ip, large_ids, "categoria") for ip, large_ids in targets.items()]
-    if summary_ip:
+    if summary_ip and mode == "auto":
         jobs.append((summary_ip, None, "riepilogo"))
     return jobs
 
@@ -192,8 +193,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("Dimensione ordine non valida.")
             data = json.loads(self.rfile.read(size))
             order = data.get("order")
-            jobs = print_jobs(order, data.get("printers", []), data.get("printer_ip"), data.get("summary_ip"), data.get("mode", "all"))
             automatic = data.get("automatic") is True
+            jobs = print_jobs(order, data.get("printers", []), data.get("printer_ip"), data.get("summary_ip"), "auto" if automatic else data.get("mode", "all"))
         except (ValueError, TypeError, UnicodeError) as exc:
             return self._reply(400, str(exc))
         if not jobs:
