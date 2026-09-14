@@ -1150,6 +1150,15 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS criterio_limite_fascia VARCHAR(10) NOT NULL DEFAULT 'ordini'")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS stampante_ip VARCHAR(45) NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS stampante_riepilogo_ip VARCHAR(45) NOT NULL DEFAULT ''")
+                cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_delivery_config (
+                    id_negozio INTEGER PRIMARY KEY REFERENCES negozi(id) ON DELETE CASCADE,
+                    attivo BOOLEAN NOT NULL DEFAULT FALSE,
+                    tempo_preparazione_minuti INTEGER NOT NULL DEFAULT 25 CHECK (tempo_preparazione_minuti BETWEEN 0 AND 240),
+                    minuti_per_km NUMERIC(6,2) NOT NULL DEFAULT 5 CHECK (minuti_per_km BETWEEN 0 AND 60),
+                    raggio_massimo_km NUMERIC(6,2) NOT NULL DEFAULT 0 CHECK (raggio_massimo_km BETWEEN 0 AND 100),
+                    zone JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""")
                 cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS unita_prezzo VARCHAR(6) NOT NULL DEFAULT 'pezzo' CHECK (unita_prezzo IN ('pezzo','kg'))")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS ordini_menu (
@@ -4063,6 +4072,94 @@ def api_ordini_configurazione():
                 row = cur.fetchone()
                 legacy_windows = [[{"dalle": row[4], "alle": row[5]}] if row[4] and row[5] else [] for _ in range(7)]
                 return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2], "fasce_ritiro_attive": bool(row[3]), "ritiro_dalle": row[4], "ritiro_alle": row[5], "minuti_fascia_ritiro": row[6], "limite_fascia_ritiro": str(row[7]), "criterio_limite_fascia": row[8], "fasce_settimanali": row[9] if row[9] is not None else legacy_windows, "stampante_ip": row[10], "stampante_riepilogo_ip": row[11], "shop_id": shop_id})
+    finally:
+        conn.close()
+
+
+def normalize_delivery_config(payload):
+    """Validate draft pizzeria delivery settings; this does not enable delivery."""
+    if not isinstance(payload, dict) or "attivo" in payload:
+        raise ValueError("La consegna non è ancora attivabile.")
+    minutes = payload.get("tempo_preparazione_minuti", 25)
+    if type(minutes) is not int or not 0 <= minutes <= 240:
+        raise ValueError("Tempo di preparazione non valido.")
+
+    def decimal_field(value, limit, label):
+        try:
+            number = Decimal(str(value).replace(",", "."))
+        except (ValueError, ArithmeticError):
+            raise ValueError(label + " non valido.")
+        if not number.is_finite() or not 0 <= number <= limit or number != number.quantize(Decimal("0.01")):
+            raise ValueError(label + " non valido.")
+        return f"{number:.2f}"
+
+    per_km = decimal_field(payload.get("minuti_per_km", 5), 60, "Minuti per km")
+    radius = decimal_field(payload.get("raggio_massimo_km", 0), 100, "Raggio massimo")
+    zones = payload.get("zone", [])
+    if not isinstance(zones, list) or len(zones) > 20:
+        raise ValueError("Imposta al massimo 20 zone di consegna.")
+    normalized = []
+    names = set()
+    previous_distance = Decimal("0")
+    for zone in zones:
+        if not isinstance(zone, dict):
+            raise ValueError("Zona di consegna non valida.")
+        name = zone.get("nome")
+        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or name.strip().casefold() in names:
+            raise ValueError("Ogni zona deve avere un nome univoco.")
+        name = name.strip()
+        names.add(name.casefold())
+        distance = decimal_field(zone.get("fino_km"), 100, "Distanza della zona")
+        distance_number = Decimal(distance)
+        if distance_number <= previous_distance or (Decimal(radius) > 0 and distance_number > Decimal(radius)):
+            raise ValueError("Ordina le zone per distanza crescente entro il raggio massimo.")
+        previous_distance = distance_number
+        normalized.append({
+            "nome": name,
+            "fino_km": distance,
+            "costo_consegna": decimal_field(zone.get("costo_consegna"), 1000, "Costo di consegna"),
+            "ordine_minimo": decimal_field(zone.get("ordine_minimo"), 10000, "Ordine minimo"),
+        })
+    return {"tempo_preparazione_minuti": minutes, "minuti_per_km": per_km,
+            "raggio_massimo_km": radius, "zone": normalized}
+
+
+@app.route("/api/pizzeria/delivery/configurazione", methods=["GET", "PUT"])
+def api_pizzeria_delivery_configurazione():
+    if "user_id" not in session or session.get("employee_id"):
+        return jsonify({"error": "Accesso del titolare richiesto."}), 403
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    if request.method == "PUT":
+        try:
+            config = normalize_delivery_config(request.get_json(silent=True))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if request.method == "PUT":
+                    cur.execute("""INSERT INTO pizzeria_delivery_config
+                        (id_negozio,tempo_preparazione_minuti,minuti_per_km,raggio_massimo_km,zone)
+                        VALUES (%s,%s,%s,%s,%s::jsonb)
+                        ON CONFLICT (id_negozio) DO UPDATE SET
+                        tempo_preparazione_minuti=EXCLUDED.tempo_preparazione_minuti,
+                        minuti_per_km=EXCLUDED.minuti_per_km,
+                        raggio_massimo_km=EXCLUDED.raggio_massimo_km,
+                        zone=EXCLUDED.zone,aggiornato_il=NOW()""",
+                        (shop_id, config["tempo_preparazione_minuti"], config["minuti_per_km"],
+                         config["raggio_massimo_km"], json.dumps(config["zone"])))
+                cur.execute("""SELECT attivo,tempo_preparazione_minuti,minuti_per_km,raggio_massimo_km,zone
+                    FROM pizzeria_delivery_config WHERE id_negozio=%s""", (shop_id,))
+                row = cur.fetchone()
+        if not row:
+            return jsonify({"attivo": False, "tempo_preparazione_minuti": 25,
+                            "minuti_per_km": "5.00", "raggio_massimo_km": "0.00", "zone": []})
+        return jsonify({"attivo": False, "tempo_preparazione_minuti": row[1],
+                        "minuti_per_km": str(row[2]), "raggio_massimo_km": str(row[3]),
+                        "zone": row[4] or []})
     finally:
         conn.close()
 
