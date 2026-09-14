@@ -44,7 +44,8 @@
     <strong>3 · Stampante ricevute 80 mm</strong>
     <p>Indica l’IP locale della tua stampante ESC/POS, per esempio 192.168.1.50. Imposta un IP fisso o una prenotazione DHCP nel router.</p>
     <label>Indirizzo IP stampante <input id="printerIp" inputmode="decimal" autocomplete="off" placeholder="192.168.1.50" maxlength="45"></label>
-    <div class="orders-help"><strong>Stampa attuale:</strong> nel banco evasione premi “Stampa” sul singolo ordine e scegli la stampante nella finestra del dispositivo. L’IP viene conservato per il futuro collegamento diretto, ma il browser non lo usa ancora: non è attiva la stampa automatica via rete.</div>
+    <div class="orders-help"><strong>Stampa diretta da PC:</strong> scarica e avvia il programma locale sul PC collegato alla stessa rete della stampante. Deve restare aperto mentre usi il banco ordini. Poi premi “ESC/POS” sul singolo ordine: sarà inviato direttamente alla porta 9100, senza finestra di stampa. Se il programma non è avviato, puoi usare “Stampa dal browser”. <strong>La stampa non parte automaticamente all’arrivo di un ordine.</strong></div>
+    <p><a href="{{ url_for('scarica_programma_stampa') }}" download>Scarica programma di stampa per PC</a> · Per avviarlo da PowerShell: <code>python "$env:USERPROFILE\Downloads\escpos_bridge.py"</code>. Richiede Python installato sul PC.</p>
     <button id="printerSave" type="button">Salva IP stampante</button>
   </div>
   <p id="ordersMessage" role="status"></p>
@@ -104,7 +105,7 @@
   }
   orderToggle.addEventListener('click',async()=>{orderToggle.disabled=true;try{await saveOrdersConfig({asporto_attivi:!ordersActive},'Impostazione asporto salvata.')}catch(error){orderMessage.textContent=error.message;orderToggle.disabled=false}});
   tableOrdersToggle.addEventListener('click',async()=>{tableOrdersToggle.disabled=true;try{await saveOrdersConfig({tavolo_attivi:!tableOrdersActive},'Impostazione tavoli salvata.')}catch(error){orderMessage.textContent=error.message;tableOrdersToggle.disabled=false}});
-  document.getElementById('printerSave').addEventListener('click',async()=>{const button=document.getElementById('printerSave');button.disabled=true;try{await saveOrdersConfig({stampante_ip:printerIp.value.trim()},'Indirizzo IP stampante salvato. Per stampare scegli la stampante dalla finestra del dispositivo.')}catch(error){orderMessage.textContent=error.message}finally{button.disabled=false}});
+  document.getElementById('printerSave').addEventListener('click',async()=>{const button=document.getElementById('printerSave');button.disabled=true;try{await saveOrdersConfig({stampante_ip:printerIp.value.trim()},'Indirizzo IP stampante salvato. Avvia il programma locale sul PC, poi usa ESC/POS nel banco ordini.')}catch(error){orderMessage.textContent=error.message}finally{button.disabled=false}});
   document.getElementById('ordersSaveLimit').addEventListener('click',async()=>{
     const limit=Number(ordersLimit.value);if(!Number.isInteger(limit)||limit<0||limit>10000){orderMessage.textContent='Inserisci un limite da 0 a 10000.';return}
     try{await saveOrdersConfig({limite_giornaliero:limit},'Limite giornaliero salvato.')}catch(error){orderMessage.textContent=error.message}

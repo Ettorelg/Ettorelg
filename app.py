@@ -4052,9 +4052,16 @@ def api_ordini_configurazione():
                 cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi,limite_ordini_giorno,fasce_ritiro_attive,TO_CHAR(ritiro_dalle,'HH24:MI'),TO_CHAR(ritiro_alle,'HH24:MI'),minuti_fascia_ritiro,limite_fascia_ritiro,criterio_limite_fascia,fasce_ritiro_settimanali,stampante_ip FROM negozi WHERE id=%s", (shop_id,))
                 row = cur.fetchone()
                 legacy_windows = [[{"dalle": row[4], "alle": row[5]}] if row[4] and row[5] else [] for _ in range(7)]
-                return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2], "fasce_ritiro_attive": bool(row[3]), "ritiro_dalle": row[4], "ritiro_alle": row[5], "minuti_fascia_ritiro": row[6], "limite_fascia_ritiro": str(row[7]), "criterio_limite_fascia": row[8], "fasce_settimanali": row[9] if row[9] is not None else legacy_windows, "stampante_ip": row[10] if not session.get("employee_id") else ""})
+                return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2], "fasce_ritiro_attive": bool(row[3]), "ritiro_dalle": row[4], "ritiro_alle": row[5], "minuti_fascia_ritiro": row[6], "limite_fascia_ritiro": str(row[7]), "criterio_limite_fascia": row[8], "fasce_settimanali": row[9] if row[9] is not None else legacy_windows, "stampante_ip": row[10]})
     finally:
         conn.close()
+
+
+@app.get("/ordini/programma-stampa")
+def scarica_programma_stampa():
+    if "user_id" not in session and "employee_id" not in session:
+        return redirect(url_for("login"))
+    return send_from_directory(Path(__file__).resolve().parent / "tools", "escpos_bridge.py", as_attachment=True)
 
 
 @app.get("/api/ordini/disponibilita")
