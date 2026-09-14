@@ -43,7 +43,7 @@ class Connection:
 def functions(db):
     nodes = [copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef)
                                 and item.name == name))
-             for name in ("normalize_pizzeria_variants", "calculate_pizzeria_mixed_price", "api_pizzeria_varianti")]
+             for name in ("normalize_pizzeria_variants", "calculate_pizzeria_multigusto_price", "api_pizzeria_varianti")]
     for node in nodes: node.decorator_list = []
     scope = {"Decimal": Decimal, "ROUND_HALF_UP": ROUND_HALF_UP, "json": json, "request": request, "session": session,
              "jsonify": jsonify, "get_user_shop_id": lambda _: 7,
@@ -66,21 +66,25 @@ def test_valid_rules_have_normalized_prices():
     assert additions[0]["prezzi"] == {"Singola": "1.50", "Gigante": "3.00"}
 
 
-def test_mixed_price_averages_flavours_and_fractional_toppings():
-    calculate = functions(Connection())["calculate_pizzeria_mixed_price"]
-    assert calculate("Gigante", [
-        {"formato": "Gigante", "prezzo_gusto": "9.00", "aggiunte": ["3.00"]},
-        {"formato": "Gigante", "prezzo_gusto": "12.00", "aggiunte": []},
-        {"formato": "Gigante", "prezzo_gusto": "15.00", "aggiunte": []},
-    ]) == Decimal("13.00")  # Taste average 12, plus one third of a €3 topping.
+def test_multigusto_price_weights_flavours_and_fractional_toppings():
+    calculate = functions(Connection())["calculate_pizzeria_multigusto_price"]
+    assert calculate("Gigante", 3, [
+        {"formato": "Gigante", "quota": 2, "prezzo_gusto": "9.00", "aggiunte": []},
+        {"formato": "Gigante", "quota": 1, "prezzo_gusto": "15.00", "aggiunte": ["3.00"]},
+    ]) == Decimal("12.00")  # 2/3 of €9 + 1/3 of (€15 + €3).
 
 
-def test_mixed_price_rejects_different_format():
-    calculate = functions(Connection())["calculate_pizzeria_mixed_price"]
+def test_multigusto_price_rejects_different_format_or_incomplete_fraction():
+    calculate = functions(Connection())["calculate_pizzeria_multigusto_price"]
     with pytest.raises(ValueError):
-        calculate("Gigante", [
-            {"formato": "Gigante", "prezzo_gusto": "9.00", "aggiunte": []},
-            {"formato": "Singola", "prezzo_gusto": "8.00", "aggiunte": []},
+        calculate("Gigante", 3, [
+            {"formato": "Gigante", "quota": 2, "prezzo_gusto": "9.00", "aggiunte": []},
+            {"formato": "Singola", "quota": 1, "prezzo_gusto": "8.00", "aggiunte": []},
+        ])
+    with pytest.raises(ValueError):
+        calculate("Gigante", 3, [
+            {"formato": "Gigante", "quota": 1, "prezzo_gusto": "9.00", "aggiunte": []},
+            {"formato": "Gigante", "quota": 1, "prezzo_gusto": "8.00", "aggiunte": []},
         ])
 
 

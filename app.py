@@ -4488,29 +4488,39 @@ def normalize_pizzeria_variants(payload, category_ids, product_categories, forma
     return fractions, additions
 
 
-def calculate_pizzeria_mixed_price(format_name, portions):
-    """Calculate equal pizza portions; each topping is charged only on its portion."""
-    if not isinstance(format_name, str) or not format_name.strip() or not isinstance(portions, list) or len(portions) not in (2, 3, 4):
-        raise ValueError("La pizza mista richiede 2, 3 o 4 porzioni dello stesso formato.")
+def calculate_pizzeria_multigusto_price(format_name, denominator, tastes):
+    """Weight each flavour and its additions by its assigned fraction of one pizza."""
+    if (not isinstance(format_name, str) or not format_name.strip() or type(denominator) is not int
+            or denominator not in (2, 3, 4) or not isinstance(tastes, list)
+            or not 2 <= len(tastes) <= denominator):
+        raise ValueError("Configura da 2 a 4 gusti nello stesso formato.")
     total = Decimal("0")
-    for portion in portions:
-        if not isinstance(portion, dict) or portion.get("formato") != format_name or not isinstance(portion.get("aggiunte"), list) or len(portion["aggiunte"]) > 20:
-            raise ValueError("Tutte le porzioni devono avere lo stesso formato e aggiunte valide.")
-        values = [portion.get("prezzo_gusto"), *portion["aggiunte"]]
+    used_units = 0
+    for taste in tastes:
+        if (not isinstance(taste, dict) or taste.get("formato") != format_name
+                or type(taste.get("quota")) is not int or not 1 <= taste["quota"] < denominator
+                or not isinstance(taste.get("aggiunte"), list) or len(taste["aggiunte"]) > 20):
+            raise ValueError("Ogni gusto deve avere formato e frazione validi.")
+        used_units += taste["quota"]
+        taste_total = Decimal("0")
+        values = [taste.get("prezzo_gusto"), *taste["aggiunte"]]
         for value in values:
             try:
                 price = Decimal(str(value).replace(",", "."))
             except (ValueError, ArithmeticError):
-                raise ValueError("Prezzo della porzione non valido.")
+                raise ValueError("Prezzo del gusto non valido.")
             if not price.is_finite() or not 0 <= price <= 10000 or price != price.quantize(Decimal("0.01")):
-                raise ValueError("Prezzo della porzione non valido.")
-            total += price
-    return (total / len(portions)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                raise ValueError("Prezzo del gusto non valido.")
+            taste_total += price
+        total += taste_total * taste["quota"]
+    if used_units != denominator:
+        raise ValueError("La somma delle frazioni dei gusti deve coprire la pizza intera.")
+    return (total / denominator).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, doughs, removables=None):
     """Owner-only dry run. All amounts come from persisted shop settings, never the request."""
-    if not isinstance(payload, dict) or payload.get("tipo") not in ("pizza", "mista", "calzone", "panino"):
+    if not isinstance(payload, dict) or payload.get("tipo") not in ("pizza", "multigusto", "calzone", "panino"):
         raise ValueError("Scegli un tipo di pizza valido.")
     kind = payload["tipo"]
     quantity = payload.get("quantita", 1)
@@ -4554,21 +4564,25 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
         return [configured[index] for index in indexes]
 
     removed = []
-    if kind == "mista":
-        portions = payload.get("porzioni")
-        if not isinstance(portions, list) or len(portions) not in (2, 3, 4):
-            raise ValueError("La pizza mista richiede 2, 3 o 4 gusti.")
-        priced_portions = []
-        for part in portions:
-            if not isinstance(part, dict):
-                raise ValueError("Porzione non valida.")
-            pizza, selected_format = pizza_and_format(part.get("id_pizza"))
-            removed.append(removed_ingredients(part.get("senza", []), pizza))
-            priced_portions.append({"formato": format_name, "prezzo_gusto": selected_format["prezzo"],
-                                    "aggiunte": [str(topping_total(part.get("aggiunte", []), pizza))]})
-        if len(portions) not in fractions.get(format_name.casefold(), []):
-            raise ValueError("Questo taglio non è abilitato per il formato.")
-        unit = calculate_pizzeria_mixed_price(format_name, priced_portions)
+    if kind == "multigusto":
+        denominator, tastes = payload.get("taglio"), payload.get("gusti")
+        if type(denominator) is not int or denominator not in fractions.get(format_name.casefold(), []):
+            raise ValueError("Questo frazionamento non è abilitato per il formato.")
+        if not isinstance(tastes, list) or not 2 <= len(tastes) <= denominator:
+            raise ValueError("Scegli da 2 gusti fino al numero dei tagli.")
+        priced_tastes, chosen_ids = [], set()
+        for taste in tastes:
+            if not isinstance(taste, dict):
+                raise ValueError("Gusto non valido.")
+            pizza, selected_format = pizza_and_format(taste.get("id_pizza"))
+            if pizza["id"] in chosen_ids:
+                raise ValueError("Ogni gusto va indicato una sola volta, con la sua frazione totale.")
+            chosen_ids.add(pizza["id"])
+            removed.append(removed_ingredients(taste.get("senza", []), pizza))
+            priced_tastes.append({"formato": format_name, "quota": taste.get("quota"),
+                                  "prezzo_gusto": selected_format["prezzo"],
+                                  "aggiunte": [str(topping_total(taste.get("aggiunte", []), pizza))]})
+        unit = calculate_pizzeria_multigusto_price(format_name, denominator, priced_tastes)
     else:
         pizza, selected_format = pizza_and_format(payload.get("id_pizza"))
         removed.append(removed_ingredients(payload.get("senza", []), pizza))
@@ -4590,7 +4604,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
     result = {"prezzo_unitario": f"{unit:.2f}", "quantita": quantity,
               "totale": f"{(unit * quantity):.2f}", "solo_anteprima": True}
     if any(removed):
-        result["ingredienti_tolti_per_porzione"] = removed
+        result["ingredienti_tolti_per_gusto"] = removed
     return result
 
 

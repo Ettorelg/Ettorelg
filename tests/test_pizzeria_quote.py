@@ -12,7 +12,7 @@ from flask import Flask, jsonify, request, session
 TREE = ast.parse((Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8"))
 NODES = [copy.deepcopy(next(node for node in TREE.body if isinstance(node, ast.FunctionDef)
                             and node.name == name))
-         for name in ("calculate_pizzeria_mixed_price", "quote_pizzeria_draft")]
+         for name in ("calculate_pizzeria_multigusto_price", "quote_pizzeria_draft")]
 scope = {"Decimal": Decimal, "ROUND_HALF_UP": ROUND_HALF_UP}
 exec(compile(ast.Module(body=NODES, type_ignores=[]), "app.py", "exec"), scope)
 quote = scope["quote_pizzeria_draft"]
@@ -80,26 +80,55 @@ def test_removing_ingredient_never_reduces_price():
     without = quote({"tipo": "pizza", "id_pizza": 10, "formato": "Singola", "senza": [0]},
                     *settings_tuple, {10: ["Mozzarella", "Basilico"]})
     assert without["totale"] == base["totale"] == "8.00"
-    assert without["ingredienti_tolti_per_porzione"] == [["Mozzarella"]]
+    assert without["ingredienti_tolti_per_gusto"] == [["Mozzarella"]]
 
 
-def test_removal_applies_only_to_selected_mixed_portion():
-    result = quote({"tipo": "mista", "formato": "Gigante", "porzioni": [
-        {"id_pizza": 10, "senza": [0]}, {"id_pizza": 11, "senza": []}]},
+def test_removal_applies_only_to_selected_multigusto_flavour():
+    result = quote({"tipo": "multigusto", "formato": "Gigante", "taglio": 2, "gusti": [
+        {"id_pizza": 10, "quota": 1, "senza": [0]}, {"id_pizza": 11, "quota": 1, "senza": []}]},
         *settings(), {10: ["Mozzarella"], 11: ["Funghi"]})
     assert result["totale"] == "23.00"
-    assert result["ingredienti_tolti_per_porzione"] == [["Mozzarella"], []]
+    assert result["ingredienti_tolti_per_gusto"] == [["Mozzarella"], []]
 
 
-def test_mixed_pizza_averages_tastes_and_fractional_topping():
-    result = quote({"tipo": "mista", "formato": "Gigante", "porzioni": [
-        {"id_pizza": 10, "aggiunte": [0]}, {"id_pizza": 11, "aggiunte": []}]}, *settings())
+def test_multigusto_pizza_averages_equal_tastes_and_fractional_topping():
+    result = quote({"tipo": "multigusto", "formato": "Gigante", "taglio": 2, "gusti": [
+        {"id_pizza": 10, "quota": 1, "aggiunte": [0]}, {"id_pizza": 11, "quota": 1, "aggiunte": []}]}, *settings())
     assert result["prezzo_unitario"] == "24.50"  # (20+3+26)/2
 
 
-def test_mixed_tastes_use_format_rule_even_across_categories():
-    result = quote({"tipo": "mista", "formato": "Gigante", "porzioni": [
-        {"id_pizza": 10}, {"id_pizza": 12}]}, *settings())
+def test_multigusto_can_have_two_thirds_one_taste_and_one_third_another():
+    result = quote({"tipo": "multigusto", "formato": "Gigante", "taglio": 3, "gusti": [
+        {"id_pizza": 10, "quota": 2}, {"id_pizza": 12, "quota": 1}]}, *settings())
+    assert result["prezzo_unitario"] == "20.67"
+
+
+def test_addition_on_one_third_is_charged_only_one_third():
+    result = quote({"tipo": "multigusto", "formato": "Gigante", "taglio": 3, "gusti": [
+        {"id_pizza": 10, "quota": 2}, {"id_pizza": 11, "quota": 1, "aggiunte": [0]}]}, *settings())
+    assert result["prezzo_unitario"] == "23.00"  # 2/3 of €20 + 1/3 of (€26 + €3).
+
+
+def test_multigusto_can_have_three_quarters_and_one_quarter():
+    local = settings()
+    local[1]["gigante"].append(4)
+    result = quote({"tipo": "multigusto", "formato": "Gigante", "taglio": 4, "gusti": [
+        {"id_pizza": 10, "quota": 3}, {"id_pizza": 12, "quota": 1}]}, *local)
+    assert result["prezzo_unitario"] == "20.50"
+
+
+def test_multigusto_can_have_half_and_two_quarters():
+    local = settings()
+    local[1]["gigante"].append(4)
+    result = quote({"tipo": "multigusto", "formato": "Gigante", "taglio": 4, "gusti": [
+        {"id_pizza": 10, "quota": 2}, {"id_pizza": 11, "quota": 1},
+        {"id_pizza": 12, "quota": 1}]}, *local)
+    assert result["prezzo_unitario"] == "22.00"
+
+
+def test_multigusto_tastes_use_format_rule_even_across_categories():
+    result = quote({"tipo": "multigusto", "formato": "Gigante", "taglio": 2, "gusti": [
+        {"id_pizza": 10, "quota": 1}, {"id_pizza": 12, "quota": 1}]}, *settings())
     assert result["prezzo_unitario"] == "21.00"
 
 
@@ -110,7 +139,9 @@ def test_derivative_inherits_or_overrides_single_price():
 
 
 @pytest.mark.parametrize("payload", [
-    {"tipo": "mista", "formato": "Singola", "porzioni": [{"id_pizza": 10}, {"id_pizza": 11}]},
+    {"tipo": "multigusto", "formato": "Singola", "taglio": 2, "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 11, "quota": 1}]},
+    {"tipo": "multigusto", "formato": "Gigante", "taglio": 3, "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 11, "quota": 1}]},
+    {"tipo": "multigusto", "formato": "Gigante", "taglio": 2, "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 10, "quota": 1}]},
     {"tipo": "pizza", "id_pizza": 10, "formato": "Singola", "aggiunte": [0, 0]},
     {"tipo": "pizza", "id_pizza": 10, "formato": "Gigante", "impasto": "Integrale"},
     {"tipo": "pizza", "id_pizza": 99, "formato": "Singola"},

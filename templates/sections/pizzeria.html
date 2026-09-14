@@ -44,11 +44,11 @@
     <p id="pizzaPreparationMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card">
-    <strong>Pizze miste e aggiunte · bozza</strong>
-    <p>Abilita metà, terzi e quarti per formato, indipendentemente dalla categoria. Il prezzo della pizza mista sarà la media dei gusti; ogni aggiunta si applicherà solo alla sua frazione (per esempio 3 € su un terzo = 1 €). Per ora salvi soltanto le regole: il cliente non può ancora ordinare pizze miste.</p>
+    <strong>Pizze multigusto e aggiunte · bozza</strong>
+    <p>Abilita metà, terzi e quarti per formato, indipendentemente dalla categoria. Una sola pizza può avere più gusti con quote diverse: per esempio 2/3 Margherita e 1/3 Rianata. Prezzi e aggiunte sono ponderati per la quota di ciascun gusto (3 € su 1/3 = 1 €). Il cliente non può ancora ordinarla.</p>
     <h3>Tagli per formato</h3><div id="pizzaFractions" class="pizza-formats"></div>
     <h3>Aggiunte</h3><div id="pizzaAdditions" class="pizza-formats"></div>
-    <div class="pizza-actions"><button id="pizzaAddAddition" type="button">+ Aggiungi opzione</button><button id="pizzaSaveVariants" type="button">Salva pizze miste e aggiunte</button></div>
+    <div class="pizza-actions"><button id="pizzaAddAddition" type="button">+ Aggiungi opzione</button><button id="pizzaSaveVariants" type="button">Salva multigusto e aggiunte</button></div>
     <p id="pizzaVariantMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card">
@@ -62,12 +62,14 @@
     <strong>Anteprima prezzo · senza inviare ordini</strong>
     <p>Prova le regole salvate, comprese le rimozioni senza sconto. Il totale viene calcolato dal server e non cambia il menu, le scorte o gli ordini.</p>
     <div class="pizza-format">
-      <label>Tipo <select id="pizzaQuoteType"><option value="pizza">Pizza</option><option value="mista">Pizza mista</option><option value="calzone">Calzone</option><option value="panino">Panino</option></select></label>
+      <label>Tipo <select id="pizzaQuoteType"><option value="pizza">Pizza</option><option value="multigusto">Pizza multigusto</option><option value="calzone">Calzone</option><option value="panino">Panino</option></select></label>
       <label id="pizzaQuoteFormatLabel">Formato <select id="pizzaQuoteFormat"></select></label>
-      <label id="pizzaQuoteCutLabel" hidden>Porzioni <select id="pizzaQuoteCut"><option value="2">Metà</option><option value="3">Terzi</option><option value="4">Quarti</option></select></label>
+      <label id="pizzaQuoteCutLabel" hidden>Frazionamento <select id="pizzaQuoteCut"><option value="2">Metà</option><option value="3">Terzi</option><option value="4">Quarti</option></select></label>
       <label>Quantità <input id="pizzaQuoteQuantity" type="number" min="1" max="100" step="1" value="1"></label>
     </div>
+    <label id="pizzaQuoteTasteCountLabel" hidden>Numero di gusti <select id="pizzaQuoteTasteCount"></select></label>
     <div id="pizzaQuoteParts" class="pizza-formats"></div>
+    <p id="pizzaQuoteShareStatus" class="muted" hidden></p>
     <label id="pizzaQuoteDoughLabel">Impasto <select id="pizzaQuoteDough"></select></label>
     <div class="pizza-actions"><button id="pizzaQuoteButton" type="button">Calcola anteprima</button></div>
     <p id="pizzaQuoteMessage" class="pizza-message" role="status"></p>
@@ -165,7 +167,7 @@
 
   const fractionBox=document.getElementById('pizzaFractions'),additionBox=document.getElementById('pizzaAdditions');
   const variantMessage=document.getElementById('pizzaVariantMessage');
-  let variantCategories=[],variantProducts=[],variantFormats=[];
+  let variantCategories=[],variantProducts=[],variantFormats=[],quoteFractions=[];
   function addFraction(formatName,selected=[]){
     const row=document.createElement('div');row.className='pizza-format';
     const name=document.createElement('strong');name.textContent=formatName;row.append(name);
@@ -189,7 +191,7 @@
   }
   async function loadVariants(){
     try{const response=await fetch('/api/pizzeria/varianti',{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');
-      variantCategories=data.categorie;variantProducts=data.prodotti;variantFormats=data.formati;quoteAdditions=data.aggiunte;
+      variantCategories=data.categorie;variantProducts=data.prodotti;variantFormats=data.formati;quoteAdditions=data.aggiunte;quoteFractions=data.frazioni;
       fractionBox.replaceChildren();additionBox.replaceChildren();
       variantFormats.forEach(formatName=>addFraction(formatName,(data.frazioni.find(rule=>rule.formato===formatName)||{}).tagli||[]));
       data.aggiunte.forEach(addAddition);document.getElementById('pizzaAddAddition').disabled=!variantFormats.length;renderQuote();
@@ -261,18 +263,24 @@
 
   const quoteType=document.getElementById('pizzaQuoteType'),quoteFormat=document.getElementById('pizzaQuoteFormat');
   const quoteCut=document.getElementById('pizzaQuoteCut'),quoteParts=document.getElementById('pizzaQuoteParts');
+  const quoteTasteCount=document.getElementById('pizzaQuoteTasteCount');
   const quoteDough=document.getElementById('pizzaQuoteDough'),quoteMessage=document.getElementById('pizzaQuoteMessage');
   function fillSelect(select,entries,placeholder){select.replaceChildren(new Option(placeholder,''));entries.forEach(entry=>select.add(new Option(entry.label,entry.value)))}
+  function updateShareStatus(){const status=document.getElementById('pizzaQuoteShareStatus');const mixed=quoteType.value==='multigusto';status.hidden=!mixed;if(!mixed)return;const denominator=Number(quoteCut.value),used=[...quoteParts.querySelectorAll('.quote-share')].reduce((sum,select)=>sum+Number(select.value),0);status.textContent=denominator?'Quote assegnate: '+used+'/'+denominator+(used===denominator?' · pizza completa':' · completa le quote dei gusti'):'Abilita un frazionamento per questo formato.'}
   function renderQuote(){
     if(!quoteType)return;
-    const kind=quoteType.value,mixed=kind==='mista',derivative=kind==='calzone'||kind==='panino';
+    const kind=quoteType.value,mixed=kind==='multigusto',derivative=kind==='calzone'||kind==='panino';
     document.getElementById('pizzaQuoteFormatLabel').hidden=false;
     document.getElementById('pizzaQuoteCutLabel').hidden=!mixed;
+    document.getElementById('pizzaQuoteTasteCountLabel').hidden=!mixed;
     document.getElementById('pizzaQuoteDoughLabel').hidden=kind!=='pizza';
     const oldFormat=quoteFormat.value;fillSelect(quoteFormat,variantFormats.map(name=>({label:name,value:name})),'Scegli formato');quoteFormat.value=variantFormats.includes(oldFormat)?oldFormat:variantFormats[0]||'';
+    const allowedCuts=(quoteFractions.find(rule=>rule.formato===quoteFormat.value)||{}).tagli||[];
+    const oldCut=quoteCut.value;quoteCut.replaceChildren();allowedCuts.forEach(n=>quoteCut.add(new Option(n===2?'Metà':n===3?'Terzi':'Quarti',String(n))));if(!allowedCuts.length)quoteCut.add(new Option('Nessun frazionamento abilitato',''));quoteCut.value=allowedCuts.includes(Number(oldCut))?oldCut:String(allowedCuts[0]||'');
+    const denominator=Number(quoteCut.value),oldTasteCount=Number(quoteTasteCount.value);quoteTasteCount.replaceChildren();for(let n=2;n<=denominator;n++)quoteTasteCount.add(new Option(String(n),String(n)));quoteTasteCount.value=oldTasteCount>=2&&oldTasteCount<=denominator?String(oldTasteCount):'2';
     fillSelect(quoteDough,quoteDoughs.filter(item=>item.disponibile).map(item=>({label:item.nome,value:item.nome})),'Scegli impasto');quoteDough.value='Classico';
     quoteParts.replaceChildren();
-    const count=mixed?Number(quoteCut.value):1;
+    const count=mixed?Number(quoteTasteCount.value):1;
     for(let i=0;i<count;i++){
       const row=document.createElement('div');row.className='pizza-format';
       const pizzaLabel=document.createElement('label');pizzaLabel.textContent=mixed?'Gusto '+(i+1):'Gusto pizza';
@@ -287,17 +295,18 @@
       const removals=document.createElement('div');removals.className='pizza-removals';
       const updateRemovals=()=>{const pizza=ingredientPizzas.find(p=>String(p.id)===pizzaSelect.value);removals.replaceChildren();(pizza?.ingredienti_rimovibili||[]).forEach((name,index)=>{const label=document.createElement('label');const input=document.createElement('input');input.type='checkbox';input.dataset.remove=String(index);label.append(input,document.createTextNode('Senza '+name));removals.append(label)})};
       pizzaSelect.addEventListener('change',updateRemovals);updateRemovals();
-      row.append(pizzaLabel,toppingLabel,removals);quoteParts.append(row);
+      if(mixed){const quotaLabel=document.createElement('label');quotaLabel.textContent='Quota del gusto';const quota=document.createElement('select');quota.className='quote-share';for(let n=1;n<denominator;n++)quota.add(new Option(n+'/'+denominator,String(n)));quota.value=String(i===count-1?denominator-(count-1):1);quota.onchange=updateShareStatus;quotaLabel.append(quota);row.append(pizzaLabel,quotaLabel,toppingLabel,removals)}else row.append(pizzaLabel,toppingLabel,removals);quoteParts.append(row);
     }
+    updateShareStatus();
   }
-  quoteType.onchange=renderQuote;quoteFormat.onchange=renderQuote;quoteCut.onchange=renderQuote;
+  quoteType.onchange=renderQuote;quoteFormat.onchange=renderQuote;quoteCut.onchange=renderQuote;quoteTasteCount.onchange=renderQuote;
   document.getElementById('pizzaQuoteButton').onclick=async()=>{
     const kind=quoteType.value,rows=[...quoteParts.children];
-    const parts=rows.map(row=>({id_pizza:Number(row.querySelector('.quote-pizza').value),aggiunte:row.querySelector('.quote-topping').value===''?[]:[Number(row.querySelector('.quote-topping').value)],senza:[...row.querySelectorAll('input[data-remove]:checked')].map(input=>Number(input.dataset.remove))}));
+    const parts=rows.map(row=>({id_pizza:Number(row.querySelector('.quote-pizza').value),quota:row.querySelector('.quote-share')?Number(row.querySelector('.quote-share').value):undefined,aggiunte:row.querySelector('.quote-topping').value===''?[]:[Number(row.querySelector('.quote-topping').value)],senza:[...row.querySelectorAll('input[data-remove]:checked')].map(input=>Number(input.dataset.remove))}));
     const payload={tipo:kind,formato:quoteFormat.value,quantita:Number(document.getElementById('pizzaQuoteQuantity').value),impasto:quoteDough.value||'Classico'};
-    if(kind==='mista')payload.porzioni=parts;else{payload.id_pizza=parts[0]?.id_pizza;payload.aggiunte=parts[0]?.aggiunte||[];payload.senza=parts[0]?.senza||[]}
+    if(kind==='multigusto'){payload.taglio=Number(quoteCut.value);payload.gusti=parts;if(parts.reduce((sum,part)=>sum+part.quota,0)!==payload.taglio){quoteMessage.textContent='Le frazioni dei gusti devono comporre una pizza intera.';return}}else{payload.id_pizza=parts[0]?.id_pizza;payload.aggiunte=parts[0]?.aggiunte||[];payload.senza=parts[0]?.senza||[]}
     quoteMessage.textContent='Calcolo…';
-    try{const response=await fetch('/api/pizzeria/preventivo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok)throw new Error(data.error||'Calcolo non riuscito.');const removed=(data.ingredienti_tolti_per_porzione||[]).map((names,i)=>names.length?'Porzione '+(i+1)+': senza '+names.join(', '):'').filter(Boolean).join(' · ');quoteMessage.textContent='Prezzo unitario € '+data.prezzo_unitario+' · Totale € '+data.totale+' (solo anteprima)'+(removed?' · '+removed:'')}
+    try{const response=await fetch('/api/pizzeria/preventivo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok)throw new Error(data.error||'Calcolo non riuscito.');const removed=(data.ingredienti_tolti_per_gusto||[]).map((names,i)=>names.length?'Gusto '+(i+1)+': senza '+names.join(', '):'').filter(Boolean).join(' · ');quoteMessage.textContent='Prezzo unitario € '+data.prezzo_unitario+' · Totale € '+data.totale+' (solo anteprima)'+(removed?' · '+removed:'')}
     catch(error){quoteMessage.textContent=error.message}
   };
   renderQuote();
