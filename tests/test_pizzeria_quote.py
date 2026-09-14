@@ -74,6 +74,23 @@ def test_single_pizza_uses_saved_prices_and_dough():
     assert result == {"prezzo_unitario": "11.50", "quantita": 2, "totale": "23.00", "solo_anteprima": True}
 
 
+def test_removing_ingredient_never_reduces_price():
+    settings_tuple = settings()
+    base = quote({"tipo": "pizza", "id_pizza": 10, "formato": "Singola"}, *settings_tuple, {10: ["Mozzarella", "Basilico"]})
+    without = quote({"tipo": "pizza", "id_pizza": 10, "formato": "Singola", "senza": [0]},
+                    *settings_tuple, {10: ["Mozzarella", "Basilico"]})
+    assert without["totale"] == base["totale"] == "8.00"
+    assert without["ingredienti_tolti_per_porzione"] == [["Mozzarella"]]
+
+
+def test_removal_applies_only_to_selected_mixed_portion():
+    result = quote({"tipo": "mista", "formato": "Gigante", "porzioni": [
+        {"id_pizza": 10, "senza": [0]}, {"id_pizza": 11, "senza": []}]},
+        *settings(), {10: ["Mozzarella"], 11: ["Funghi"]})
+    assert result["totale"] == "23.00"
+    assert result["ingredienti_tolti_per_porzione"] == [["Mozzarella"], []]
+
+
 def test_mixed_pizza_averages_tastes_and_fractional_topping():
     result = quote({"tipo": "mista", "formato": "Gigante", "porzioni": [
         {"id_pizza": 10, "aggiunte": [0]}, {"id_pizza": 11, "aggiunte": []}]}, *settings())
@@ -103,6 +120,12 @@ def test_derivative_inherits_or_overrides_single_price():
 def test_invalid_or_unavailable_choices_rejected(payload):
     with pytest.raises(ValueError):
         quote(payload, *settings())
+
+
+def test_unknown_ingredient_cannot_be_removed():
+    with pytest.raises(ValueError):
+        quote({"tipo": "pizza", "id_pizza": 10, "formato": "Singola", "senza": [1]},
+              *settings(), {10: ["Mozzarella"]})
 
 
 def test_owner_quote_is_read_only_and_scoped_to_shop():

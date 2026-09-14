@@ -2,11 +2,12 @@
   .pizza-panel{max-width:950px;color:#e7ecff}.pizza-panel h2{margin:0 0 8px}.pizza-panel p{color:#b9c8df;line-height:1.5}
   .pizza-card{padding:18px;margin:14px 0;border:1px solid #455877;border-radius:15px;background:#18253b}
   .pizza-notice{border-color:#907b47;background:#302b21}.pizza-card label{display:grid;gap:6px;margin:12px 0;color:#dbe6f5}
-  .pizza-card select,.pizza-card input{min-height:42px;padding:9px;border:1px solid #6a7d9d;border-radius:9px;background:#101d31;color:#fff;font:inherit}
+  .pizza-card select,.pizza-card input,.pizza-card textarea{min-height:42px;padding:9px;border:1px solid #6a7d9d;border-radius:9px;background:#101d31;color:#fff;font:inherit}
   .pizza-formats{display:grid;gap:9px}.pizza-format{display:grid;grid-template-columns:minmax(120px,1fr) 130px auto auto;gap:9px;align-items:end;padding:10px;border:1px solid #405575;border-radius:10px}
   .pizza-format label{margin:0}.pizza-format .available{display:flex;align-items:center;gap:7px}.pizza-format .available input{min-height:auto;width:18px;height:18px}
   .pizza-card button{padding:10px 14px;border:1px solid #7297cc;border-radius:9px;background:#244f82;color:#fff;font:700 .9rem system-ui;cursor:pointer}.pizza-card button:disabled{opacity:.5;cursor:not-allowed}
   .pizza-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.pizza-message{min-height:22px;color:#a9ebc1}
+  .pizza-removals{grid-column:1/-1;display:flex;gap:12px;flex-wrap:wrap}.pizza-removals label{display:flex;align-items:center;gap:6px}.pizza-removals input{min-height:auto}
   @media(max-width:650px){.pizza-format{grid-template-columns:1fr 1fr}.pizza-format .available{align-self:center}}
 </style>
 <section class="pizza-panel">
@@ -23,6 +24,15 @@
     <div id="pizzaFormats" class="pizza-formats"></div>
     <div class="pizza-actions"><button id="pizzaAddFormat" type="button">+ Aggiungi formato</button><button id="pizzaSaveFormats" type="button">Salva formati</button></div>
     <p id="pizzaMessage" class="pizza-message" role="status"></p>
+  </div>
+  <div class="pizza-card">
+    <strong>Ingredienti rimovibili · bozza</strong>
+    <p>Conferma quali ingredienti possono essere tolti da ogni pizza, uno per riga. Togliere un ingrediente non abbassa il prezzo. L'elenco non modifica la descrizione o gli allergeni del prodotto originale: in caso di allergie il cliente deve comunque verificare con il locale.</p>
+    <label>Pizza <select id="pizzaIngredientProduct"><option value="">Caricamento pizze…</option></select></label>
+    <label>Ingredienti che il cliente può togliere <textarea id="pizzaIngredientList" rows="5" placeholder="Mozzarella&#10;Pomodoro&#10;Basilico"></textarea></label>
+    <p id="pizzaIngredientHint" class="muted"></p>
+    <div class="pizza-actions"><button id="pizzaSaveIngredients" type="button">Salva ingredienti rimovibili</button></div>
+    <p id="pizzaIngredientMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card">
     <strong>Impasti e panette · bozza</strong>
@@ -50,7 +60,7 @@
   </div>
   <div class="pizza-card">
     <strong>Anteprima prezzo · senza inviare ordini</strong>
-    <p>Prova le regole salvate. Il totale viene calcolato dal server e non cambia il menu, le scorte o gli ordini.</p>
+    <p>Prova le regole salvate, comprese le rimozioni senza sconto. Il totale viene calcolato dal server e non cambia il menu, le scorte o gli ordini.</p>
     <div class="pizza-format">
       <label>Tipo <select id="pizzaQuoteType"><option value="pizza">Pizza</option><option value="mista">Pizza mista</option><option value="calzone">Calzone</option><option value="panino">Panino</option></select></label>
       <label id="pizzaQuoteFormatLabel">Formato <select id="pizzaQuoteFormat"></select></label>
@@ -102,7 +112,7 @@
       const response=await fetch('/api/pizzeria/formati',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_prodotto:productId,formati})});
       const data=await response.json();if(!response.ok)throw new Error(data.error||'Salvataggio non riuscito.');
       products=data.prodotti.filter(item=>item.unita_prezzo==='pezzo');productSelect.value=String(productId);
-      showProduct();message.textContent='Formati salvati. Non sono ancora visibili ai clienti.';loadPreparation();loadVariants();loadDerivatives();
+      showProduct();message.textContent='Formati salvati. Non sono ancora visibili ai clienti.';loadPreparation();loadVariants();loadDerivatives();loadIngredients();
     }catch(error){message.textContent=error.message}finally{saveButton.disabled=false}
   };
   fetch('/api/pizzeria/formati',{cache:'no-store'}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');products=data.prodotti.filter(item=>item.unita_prezzo==='pezzo');productSelect.replaceChildren(new Option('Seleziona un articolo',''));products.forEach(item=>productSelect.add(new Option(item.nome+' · € '+item.prezzo_base,item.id)));showProduct()}).catch(error=>{message.textContent=error.message});
@@ -230,6 +240,25 @@
   };
   loadDerivatives();
 
+  const ingredientSelect=document.getElementById('pizzaIngredientProduct'),ingredientList=document.getElementById('pizzaIngredientList');
+  const ingredientHint=document.getElementById('pizzaIngredientHint'),ingredientMessage=document.getElementById('pizzaIngredientMessage');
+  let ingredientPizzas=[];
+  function showIngredients(){const pizza=ingredientPizzas.find(p=>String(p.id)===ingredientSelect.value);ingredientList.value=(pizza?.ingredienti_rimovibili||[]).join('\n');ingredientHint.textContent=pizza?.descrizione_attuale?'Ingredienti descritti nel prodotto: '+pizza.descrizione_attuale:'';document.getElementById('pizzaSaveIngredients').disabled=!pizza}
+  async function loadIngredients(){
+    try{const selected=ingredientSelect.value;const response=await fetch('/api/pizzeria/ingredienti',{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');
+      ingredientPizzas=data.pizze;ingredientSelect.replaceChildren(new Option('Scegli una pizza',''));ingredientPizzas.forEach(p=>ingredientSelect.add(new Option(p.nome,p.id)));ingredientSelect.value=ingredientPizzas.some(p=>String(p.id)===selected)?selected:'';showIngredients();renderQuote();
+    }catch(error){ingredientMessage.textContent=error.message}
+  }
+  ingredientSelect.onchange=showIngredients;
+  document.getElementById('pizzaSaveIngredients').onclick=async()=>{
+    const button=document.getElementById('pizzaSaveIngredients');const id=Number(ingredientSelect.value);
+    if(!id)return;const ingredienti=ingredientList.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    button.disabled=true;ingredientMessage.textContent='Salvataggio…';
+    try{const response=await fetch('/api/pizzeria/ingredienti',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_prodotto:id,ingredienti})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Salvataggio non riuscito.');await loadIngredients();ingredientMessage.textContent='Ingredienti rimovibili salvati in bozza; nessuno sconto viene applicato.'}
+    catch(error){ingredientMessage.textContent=error.message}finally{button.disabled=false}
+  };
+  loadIngredients();
+
   const quoteType=document.getElementById('pizzaQuoteType'),quoteFormat=document.getElementById('pizzaQuoteFormat');
   const quoteCut=document.getElementById('pizzaQuoteCut'),quoteParts=document.getElementById('pizzaQuoteParts');
   const quoteDough=document.getElementById('pizzaQuoteDough'),quoteMessage=document.getElementById('pizzaQuoteMessage');
@@ -255,17 +284,20 @@
       const updateToppings=()=>{const chosen=variantProducts.find(p=>String(p.id)===pizzaSelect.value);const format=quoteFormat.value;
         fillSelect(toppingSelect,quoteAdditions.flatMap((a,index)=>a.disponibile&&chosen&&(a.id_prodotto===chosen.id||a.id_categoria===chosen.id_categoria)&&a.prezzi[format]!=null?[{label:a.nome+' · € '+a.prezzi[format],value:String(index)}]:[]),'Nessuna')};
       pizzaSelect.onchange=updateToppings;updateToppings();toppingLabel.append(toppingSelect);
-      row.append(pizzaLabel,toppingLabel);quoteParts.append(row);
+      const removals=document.createElement('div');removals.className='pizza-removals';
+      const updateRemovals=()=>{const pizza=ingredientPizzas.find(p=>String(p.id)===pizzaSelect.value);removals.replaceChildren();(pizza?.ingredienti_rimovibili||[]).forEach((name,index)=>{const label=document.createElement('label');const input=document.createElement('input');input.type='checkbox';input.dataset.remove=String(index);label.append(input,document.createTextNode('Senza '+name));removals.append(label)})};
+      pizzaSelect.addEventListener('change',updateRemovals);updateRemovals();
+      row.append(pizzaLabel,toppingLabel,removals);quoteParts.append(row);
     }
   }
   quoteType.onchange=renderQuote;quoteFormat.onchange=renderQuote;quoteCut.onchange=renderQuote;
   document.getElementById('pizzaQuoteButton').onclick=async()=>{
     const kind=quoteType.value,rows=[...quoteParts.children];
-    const parts=rows.map(row=>({id_pizza:Number(row.querySelector('.quote-pizza').value),aggiunte:row.querySelector('.quote-topping').value===''?[]:[Number(row.querySelector('.quote-topping').value)]}));
+    const parts=rows.map(row=>({id_pizza:Number(row.querySelector('.quote-pizza').value),aggiunte:row.querySelector('.quote-topping').value===''?[]:[Number(row.querySelector('.quote-topping').value)],senza:[...row.querySelectorAll('input[data-remove]:checked')].map(input=>Number(input.dataset.remove))}));
     const payload={tipo:kind,formato:quoteFormat.value,quantita:Number(document.getElementById('pizzaQuoteQuantity').value),impasto:quoteDough.value||'Classico'};
-    if(kind==='mista')payload.porzioni=parts;else{payload.id_pizza=parts[0]?.id_pizza;payload.aggiunte=parts[0]?.aggiunte||[]}
+    if(kind==='mista')payload.porzioni=parts;else{payload.id_pizza=parts[0]?.id_pizza;payload.aggiunte=parts[0]?.aggiunte||[];payload.senza=parts[0]?.senza||[]}
     quoteMessage.textContent='Calcolo…';
-    try{const response=await fetch('/api/pizzeria/preventivo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok)throw new Error(data.error||'Calcolo non riuscito.');quoteMessage.textContent='Prezzo unitario € '+data.prezzo_unitario+' · Totale € '+data.totale+' (solo anteprima)'}
+    try{const response=await fetch('/api/pizzeria/preventivo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok)throw new Error(data.error||'Calcolo non riuscito.');const removed=(data.ingredienti_tolti_per_porzione||[]).map((names,i)=>names.length?'Porzione '+(i+1)+': senza '+names.join(', '):'').filter(Boolean).join(' · ');quoteMessage.textContent='Prezzo unitario € '+data.prezzo_unitario+' · Totale € '+data.totale+' (solo anteprima)'+(removed?' · '+removed:'')}
     catch(error){quoteMessage.textContent=error.message}
   };
   renderQuote();

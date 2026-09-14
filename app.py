@@ -1162,6 +1162,12 @@ def init_db() -> None:
                     UNIQUE (id_prodotto, nome)
                 )""")
                 cur.execute("CREATE INDEX IF NOT EXISTS pizzeria_formati_negozio ON pizzeria_formati(id_negozio, id_prodotto)")
+                cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_ingredienti (
+                    id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                    id_prodotto INTEGER PRIMARY KEY REFERENCES prodotti(id) ON DELETE CASCADE,
+                    ingredienti JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""")
                 cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_derivati (
                     id BIGSERIAL PRIMARY KEY,
                     id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
@@ -4295,6 +4301,61 @@ def normalize_pizzeria_preparation(payload, available_formats):
     return normalized_doughs, normalized_stocks
 
 
+def normalize_pizzeria_ingredients(payload):
+    if not isinstance(payload, dict) or type(payload.get("id_prodotto")) is not int or payload["id_prodotto"] <= 0:
+        raise ValueError("Scegli una pizza valida.")
+    items = payload.get("ingredienti")
+    if not isinstance(items, list) or len(items) > 40:
+        raise ValueError("Imposta al massimo 40 ingredienti rimovibili.")
+    normalized, seen = [], set()
+    for item in items:
+        if not isinstance(item, str):
+            raise ValueError("Ingrediente non valido.")
+        name = item.strip()
+        if not 1 <= len(name) <= 80 or name.casefold() in seen:
+            raise ValueError("Ogni ingrediente deve avere un nome univoco.")
+        seen.add(name.casefold())
+        normalized.append(name)
+    return payload["id_prodotto"], normalized
+
+
+@app.route("/api/pizzeria/ingredienti", methods=["GET", "PUT"])
+def api_pizzeria_ingredienti():
+    if "user_id" not in session or session.get("employee_id"):
+        return jsonify({"error": "Accesso del titolare richiesto."}), 403
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    if request.method == "PUT":
+        try:
+            product_id, ingredients = normalize_pizzeria_ingredients(request.get_json(silent=True))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if request.method == "PUT":
+                    cur.execute("""SELECT 1 FROM prodotti p WHERE p.id=%s AND p.id_negozio=%s
+                        AND EXISTS (SELECT 1 FROM pizzeria_formati f WHERE f.id_prodotto=p.id AND f.id_negozio=p.id_negozio)""",
+                        (product_id, shop_id))
+                    if not cur.fetchone():
+                        return jsonify({"error": "Pizza non trovata nel tuo negozio."}), 404
+                    cur.execute("""INSERT INTO pizzeria_ingredienti (id_negozio,id_prodotto,ingredienti)
+                        VALUES (%s,%s,%s::jsonb) ON CONFLICT (id_prodotto) DO UPDATE SET
+                        ingredienti=EXCLUDED.ingredienti,aggiornato_il=NOW()""",
+                        (shop_id, product_id, json.dumps(ingredients)))
+                cur.execute("""SELECT p.id,p.nome,p.descrizione,COALESCE(i.ingredienti,'[]'::jsonb)
+                    FROM prodotti p JOIN pizzeria_formati f ON f.id_prodotto=p.id AND f.id_negozio=p.id_negozio
+                    LEFT JOIN pizzeria_ingredienti i ON i.id_prodotto=p.id AND i.id_negozio=p.id_negozio
+                    WHERE p.id_negozio=%s GROUP BY p.id,p.nome,p.descrizione,i.ingredienti ORDER BY p.nome,p.id""", (shop_id,))
+                rows = cur.fetchall()
+        return jsonify({"attivo": False, "pizze": [{"id": row[0], "nome": row[1],
+            "descrizione_attuale": row[2] or "", "ingredienti_rimovibili": row[3]} for row in rows]})
+    finally:
+        conn.close()
+
+
 def normalize_pizzeria_derivatives(payload, pizza_formats):
     if not isinstance(payload, dict) or not isinstance(payload.get("derivati"), list) or len(payload["derivati"]) > 100:
         raise ValueError("Configurazione calzoni e panini non valida.")
@@ -4447,7 +4508,7 @@ def calculate_pizzeria_mixed_price(format_name, portions):
     return (total / len(portions)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, doughs):
+def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, doughs, removables=None):
     """Owner-only dry run. All amounts come from persisted shop settings, never the request."""
     if not isinstance(payload, dict) or payload.get("tipo") not in ("pizza", "mista", "calzone", "panino"):
         raise ValueError("Scegli un tipo di pizza valido.")
@@ -4458,6 +4519,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
     format_name = payload.get("formato", "Singola" if kind in ("calzone", "panino") else None)
     if not isinstance(format_name, str) or not format_name.strip():
         raise ValueError("Scegli un formato valido.")
+    removables = removables or {}
 
     def pizza_and_format(product_id):
         if type(product_id) is not int or product_id not in pizzas:
@@ -4485,6 +4547,13 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
             total += Decimal(price)
         return total
 
+    def removed_ingredients(indexes, pizza):
+        configured = removables.get(pizza["id"], [])
+        if not isinstance(indexes, list) or len(indexes) > 40 or any(type(index) is not int or index < 0 or index >= len(configured) for index in indexes) or len(indexes) != len(set(indexes)):
+            raise ValueError("Ingredienti da togliere non validi.")
+        return [configured[index] for index in indexes]
+
+    removed = []
     if kind == "mista":
         portions = payload.get("porzioni")
         if not isinstance(portions, list) or len(portions) not in (2, 3, 4):
@@ -4494,6 +4563,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
             if not isinstance(part, dict):
                 raise ValueError("Porzione non valida.")
             pizza, selected_format = pizza_and_format(part.get("id_pizza"))
+            removed.append(removed_ingredients(part.get("senza", []), pizza))
             priced_portions.append({"formato": format_name, "prezzo_gusto": selected_format["prezzo"],
                                     "aggiunte": [str(topping_total(part.get("aggiunte", []), pizza))]})
         if len(portions) not in fractions.get(format_name.casefold(), []):
@@ -4501,6 +4571,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
         unit = calculate_pizzeria_mixed_price(format_name, priced_portions)
     else:
         pizza, selected_format = pizza_and_format(payload.get("id_pizza"))
+        removed.append(removed_ingredients(payload.get("senza", []), pizza))
         if kind in ("calzone", "panino"):
             derivative = derivatives.get((pizza["id"], kind, format_name.casefold()))
             if not derivative or not derivative["disponibile"]:
@@ -4516,8 +4587,11 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
     if dough_name.casefold() != "classico" and (kind != "pizza" or format_name.casefold() != "singola"):
         raise ValueError("Gli impasti alternativi sono disponibili solo per la pizza Singola.")
     unit = (unit + Decimal(doughs[dough_name.casefold()]["supplemento"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    return {"prezzo_unitario": f"{unit:.2f}", "quantita": quantity,
-            "totale": f"{(unit * quantity):.2f}", "solo_anteprima": True}
+    result = {"prezzo_unitario": f"{unit:.2f}", "quantita": quantity,
+              "totale": f"{(unit * quantity):.2f}", "solo_anteprima": True}
+    if any(removed):
+        result["ingredienti_tolti_per_porzione"] = removed
+    return result
 
 
 @app.post("/api/pizzeria/preventivo")
@@ -4549,8 +4623,10 @@ def api_pizzeria_preventivo():
             row = cur.fetchone()
             dough_list = row[0] if row else [{"nome": "Classico", "supplemento": "0.00", "disponibile": True}]
             doughs = {item["nome"].casefold(): item for item in dough_list}
+            cur.execute("SELECT id_prodotto,ingredienti FROM pizzeria_ingredienti WHERE id_negozio=%s", (shop_id,))
+            removables = {row[0]: row[1] for row in cur.fetchall()}
         try:
-            result = quote_pizzeria_draft(request.get_json(silent=True), pizzas, fractions, additions, derivatives, doughs)
+            result = quote_pizzeria_draft(request.get_json(silent=True), pizzas, fractions, additions, derivatives, doughs, removables)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify(result)
