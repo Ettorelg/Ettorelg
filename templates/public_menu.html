@@ -110,7 +110,7 @@
   </div>
 
   <main>
-    <div class="view-actions"><button class="menu-button" id="showMenu" type="button"><span class="menu-button-icon" aria-hidden="true">🍽️</span>Visualizza il menu e ordina</button></div>
+    <div class="view-actions"><button class="menu-button" id="showMenu" type="button"><span class="menu-button-icon" aria-hidden="true">🍽️</span>{% if shop.ordini_attivi or shop.ordini_tavolo_attivi %}Visualizza il menu e ordina{% else %}Visualizza il menu{% endif %}</button></div>
     <!-- CTA precedente: id="orderTakeawayStart" type="button">🛍️ Prenota un ordine (accorpato nel pulsante unico). -->
 
     {% if shop.descrizione_estesa or shop.indirizzo or shop.telefono or shop.email %}
