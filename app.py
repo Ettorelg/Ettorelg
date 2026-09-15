@@ -5164,7 +5164,21 @@ def api_crea_ordine_menu(slug: str | None = None):
                                                             if type(index) is int and 0 <= index < len(settings[2])))
                         if addition_names:
                             details.append("CON " + ", ".join(addition_names))
-                        pizzeria_lines.append({"unit": Decimal(quote["prezzo_unitario"]), "name": " · ".join(filter(None, details)), "config": config})
+                        print_tastes = []
+                        source_tastes = config.get("gusti", []) if kind.endswith("multigusto") else [{
+                            "id_pizza": product_id, "aggiunte": config.get("aggiunte", []), "senza": config.get("senza", [])}]
+                        denominator = config.get("taglio") if kind.endswith("multigusto") else None
+                        removed_groups = quote.get("ingredienti_tolti_per_gusto", [[] for _ in source_tastes])
+                        for taste_index, taste in enumerate(source_tastes):
+                            taste_additions = [settings[2][index]["nome"] for index in taste.get("aggiunte", [])
+                                               if type(index) is int and 0 <= index < len(settings[2])]
+                            print_tastes.append({"nome": settings[0][taste["id_pizza"]]["nome"],
+                                "quota": f"{taste.get('quota', 1)}/{denominator}" if denominator else "",
+                                "senza": removed_groups[taste_index] if taste_index < len(removed_groups) else [],
+                                "aggiunte": taste_additions})
+                        stored_config = {**config, "_stampa": {"tipo": label, "formato": str(config.get("formato") or ""),
+                            "impasto": str(config.get("impasto") or "Classico"), "gusti": print_tastes}}
+                        pizzeria_lines.append({"unit": Decimal(quote["prezzo_unitario"]), "name": " · ".join(filter(None, details)), "config": stored_config})
                 else:
                     pizzeria_lines = [None] * len(order_lines)
                 if mode == "asporto" and shop[4] and shop[8]:
@@ -5303,7 +5317,7 @@ def api_ordine_per_stampa(order_id: int):
                        TO_CHAR(o.ora_richiesta,'HH24:MI'),o.nome_cliente,o.telefono_cliente,
                        o.riferimento,o.note,o.totale,o.origine,
                        TO_CHAR(o.creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
-                       r.nome_prodotto,r.quantita,r.totale_riga,p.id_categoria,c.nome,p.unita_prezzo
+                       r.nome_prodotto,r.quantita,r.totale_riga,p.id_categoria,c.nome,p.unita_prezzo,r.configurazione
                 FROM ordini_menu o
                 LEFT JOIN righe_ordini_menu r ON r.id_ordine=o.id
                 LEFT JOIN prodotti p ON p.id=r.id_prodotto AND p.id_negozio=o.id_negozio
@@ -5321,7 +5335,8 @@ def api_ordine_per_stampa(order_id: int):
             "note": first[6], "totale": str(first[7]), "origine": first[8],
             "creato_il": first[9], "prodotti": [
                 {"nome": row[10], "quantita": str(row[11]), "totale": str(row[12]),
-                 "id_categoria": row[13], "categoria": row[14] or "", "unita_prezzo": row[15] or ""}
+                 "id_categoria": row[13], "categoria": row[14] or "", "unita_prezzo": row[15] or "",
+                 "configurazione": row[16] if len(row) > 16 else None}
                 for row in rows if row[10] is not None
             ]
         }})

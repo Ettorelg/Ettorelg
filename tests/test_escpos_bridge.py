@@ -25,8 +25,8 @@ def test_receipt_contains_order_and_escpos_cut_without_control_injection():
     assert payload.endswith(b"\x1dV\x00")
     assert b"ORDINE #42" in payload and b"AL TAVOLO" in payload
     assert b"\x1ba\x01\x1d!\x11ORDINE #42\n\x1ba\x00" in payload
-    assert b"\x1d!\x01Data: 2026-09-14" in payload
-    assert b"\x1d!\x11Ora: 20:00" in payload
+    assert b"\x1d!\x10DATA: 2026-09-14" in payload
+    assert b"\x1d!\x10ORA: 20:00" in payload
     assert b"\x1d!\x11Cliente: Mario" in payload
     assert b"\x1d!\x00Riferimento: 7" in payload
     assert b"\x1d!\x002 x Pizza" in payload
@@ -147,3 +147,15 @@ def test_weighted_products_always_print_three_decimal_places():
     assert b"1,000 x Salame (kg)" in payload
     assert b"0,125 x Formaggio" in payload
     assert b"2 x Pane" in payload
+
+
+def test_configured_multitaste_product_prints_flavors_and_changes_hierarchically():
+    order = {"id": 23, "prodotti": [{"id_categoria": 1, "quantita": 1, "nome": "fallback",
+        "configurazione": {"_stampa": {"tipo": "Pizza multigusto", "formato": "Singola",
+            "impasto": "Classico", "gusti": [
+                {"quota": "1/2", "nome": "Rianella", "senza": ["Aglio"], "aggiunte": ["Pomodoro"]},
+                {"quota": "1/2", "nome": "Margherita", "senza": ["Salame"], "aggiunte": ["Prosciutto"]}]}}}]}
+    payload = bridge.receipt(order, {"1"})
+    assert b"1 x PIZZA MULTIGUSTO" in payload
+    assert b"---| 1/2 RIANELLA" in payload and b"---| 1/2 MARGHERITA" in payload
+    assert b"     -AGLIO" in payload and b"     +PROSCIUTTO" in payload
