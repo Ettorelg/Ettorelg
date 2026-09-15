@@ -14,9 +14,10 @@
 <section class="pizza-panel">
   <h2>Modulo Pizzeria</h2>
   <div class="pizza-card pizza-notice">
-    <strong>Configurazione in bozza · formati, impasti, varianti e panette</strong>
-    <p>Puoi preparare formati, prezzi, impasti, varianti e scorte. <strong>Il modulo non è ancora attivo nel menu pubblico o negli ordini:</strong> nessun cliente vedrà questi prezzi finché non saranno pronti carrello, calcolo e comande. Resta indipendente dalla licenza e dal modulo Ordinazioni.</p>
-    <a class="pizza-test-link" href="/pizzeria/prova">Apri la prova interattiva</a>
+    <strong>Modulo separato · formati, impasti, varianti e panette</strong>
+    <p>Il modulo Pizzeria resta indipendente dalla licenza e dal modulo Ordinazioni. Prima configuralo e verificalo nella prova; poi puoi abilitarlo per il menu pubblico.</p>
+    <div class="pizza-actions"><a class="pizza-test-link" href="/pizzeria/prova">Apri la prova interattiva</a><button id="pizzaActivation" type="button" disabled>Caricamento stato…</button></div>
+    <p id="pizzaActivationMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card">
     <strong>Formati per singolo articolo</strong>
@@ -80,6 +81,9 @@
   const addButton=document.getElementById('pizzaAddFormat');
   const saveButton=document.getElementById('pizzaSaveFormats');
   let products=[];
+  const activationButton=document.getElementById('pizzaActivation'),activationMessage=document.getElementById('pizzaActivationMessage');let pizzeriaActive=false;
+  function showActivation(){activationButton.disabled=false;activationButton.textContent=pizzeriaActive?'Disattiva dal menu pubblico':'Attiva nel menu pubblico';activationMessage.textContent=pizzeriaActive?'Modulo Pizzeria attivo: le configurazioni possono essere usate negli ordini.':'Modulo Pizzeria disattivato: configurazione e prova restano disponibili.'}
+  activationButton.onclick=async()=>{activationButton.disabled=true;activationMessage.textContent='Aggiornamento…';try{const response=await fetch('/api/pizzeria/attivazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({attivo:!pizzeriaActive})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Aggiornamento non riuscito.');pizzeriaActive=data.attivo;showActivation()}catch(error){activationMessage.textContent=error.message;activationButton.disabled=false}};
   function addFormat(format={nome:'',prezzo:'',disponibile:true}){
     if(formatsBox.children.length>=12){message.textContent='Massimo 12 formati per prodotto.';return}
     const row=document.createElement('div');row.className='pizza-format';
@@ -113,7 +117,7 @@
       showProduct();message.textContent='Formati salvati. Non sono ancora visibili ai clienti.';loadPreparation();loadVariants();loadDerivatives();loadIngredients();
     }catch(error){message.textContent=error.message}finally{saveButton.disabled=false}
   };
-  fetch('/api/pizzeria/formati',{cache:'no-store'}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');products=data.prodotti.filter(item=>item.unita_prezzo==='pezzo');productSelect.replaceChildren(new Option('Seleziona un articolo',''));products.forEach(item=>productSelect.add(new Option(item.nome+' · € '+item.prezzo_base,item.id)));showProduct()}).catch(error=>{message.textContent=error.message});
+  fetch('/api/pizzeria/formati',{cache:'no-store'}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');pizzeriaActive=data.attivo;showActivation();products=data.prodotti.filter(item=>item.unita_prezzo==='pezzo');productSelect.replaceChildren(new Option('Seleziona un articolo',''));products.forEach(item=>productSelect.add(new Option(item.nome+' · € '+item.prezzo_base,item.id)));showProduct()}).catch(error=>{message.textContent=error.message;activationMessage.textContent=error.message});
 
   const doughBox=document.getElementById('pizzaDoughs'),stockBox=document.getElementById('pizzaStocks');
   const preparationMessage=document.getElementById('pizzaPreparationMessage');

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>Prova modulo Pizzeria · Alpha Menu</title>
+  <title>{{ 'Configura il prodotto' if public_slug else 'Prova modulo Pizzeria' }} · Alpha Menu</title>
   <style>
     :root{color-scheme:dark;font-family:system-ui,sans-serif;background:#101a2b;color:#f4f6fc}
     body{margin:0}header{background:#17253b;border-bottom:1px solid #40516c;padding:16px max(18px,calc((100vw - 1080px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -21,11 +21,11 @@
   </style>
 </head>
 <body>
-  <header><strong>🍕 Alpha Menu · Prova Pizzeria</strong><a href="/dashboard_user#pizzeria">← Torna alla configurazione</a></header>
+  <header><strong>🍕 Alpha Menu · {{ 'Configura il tuo ordine' if public_slug else 'Prova Pizzeria' }}</strong>{% if not public_slug %}<a href="/dashboard_user#pizzeria">← Torna alla configurazione</a>{% endif %}</header>
   <main>
-    <h1>Prova il percorso del cliente</h1>
+    <h1>{{ 'Scegli formato e personalizzazioni' if public_slug else 'Prova il percorso del cliente' }}</h1>
     <p>Seleziona una pizza o un prodotto derivato, il formato e le personalizzazioni. I prezzi vengono ricalcolati dal server usando la configurazione del tuo negozio.</p>
-    <div class="notice"><strong>Solo simulazione privata.</strong> Questa pagina è visibile soltanto al titolare autenticato. Non crea ordini, non scala panette, non stampa comande e non attiva il menu pubblico.</div>
+    {% if not public_slug %}<div class="notice"><strong>Solo simulazione privata.</strong> Questa pagina è visibile soltanto al titolare autenticato. Non crea ordini, non scala panette, non stampa comande e non attiva il menu pubblico.</div>{% endif %}
     <div class="card">
       <div class="grid">
         <label>Preparazione<select id="kind"><option value="pizza">Pizza</option><option value="multigusto">Pizza multigusto</option><option value="calzone">Calzone</option><option value="panino">Panino</option></select></label>
@@ -37,11 +37,11 @@
       </div>
     </div>
     <div id="tastes"></div>
-    <div class="card"><button id="calculate" type="button" disabled>Calcola totale</button><p id="result" role="status">Caricamento configurazione…</p><p class="muted">Gli ingredienti tolti non riducono il prezzo e non garantiscono l'assenza di allergeni. Per allergie, verificare sempre con il locale.</p></div>
+    <div class="card"><button id="calculate" type="button" disabled>Calcola totale</button> {% if public_slug %}<button id="addOrder" type="button" hidden>Aggiungi all’ordine</button>{% endif %}<p id="result" role="status">Caricamento configurazione…</p><p class="muted">Gli ingredienti tolti non riducono il prezzo e non garantiscono l'assenza di allergeni. Per allergie, verificare sempre con il locale.</p></div>
   </main>
   <script>
   (()=>{
-    const csrf={{ csrf_token()|tojson }};
+    const csrf={{ csrf_token()|tojson }},publicSlug={{ public_slug|tojson }},base=publicSlug?'/api/menu/'+encodeURIComponent(publicSlug)+'/pizzeria':'/api/pizzeria';let lastChoice=null;
     const el=id=>document.getElementById(id), kind=el('kind'),format=el('format'),cut=el('cut'),count=el('count'),dough=el('dough'),tastes=el('tastes'),result=el('result');
     let products=[],fractions=[],additions=[],derivatives=[],ingredients=[],doughs=[];
     const message=(text,error=false)=>{result.textContent=text;result.classList.toggle('error',error)};
@@ -73,7 +73,7 @@
       const productLabel=document.createElement('label');productLabel.textContent='Pizza di riferimento';
       const product=document.createElement('select');product.className='taste-product';
       const choices=derived?availableProducts().filter(p=>validDerivatives().some(d=>d.id_pizza===p.id)):availableProducts();
-      fill(product,choices.map(p=>({label:p.nome,value:String(p.id)})),'Scegli pizza');productLabel.append(product);box.append(productLabel);
+      fill(product,choices.map(p=>({label:p.nome,value:String(p.id)})),'Scegli pizza');if(index===0){const requested=new URLSearchParams(location.search).get('product');if(choices.some(p=>String(p.id)===requested))product.value=requested}productLabel.append(product);box.append(productLabel);
       if(mixed){const label=document.createElement('label');label.textContent='Quota di questa pizza';const share=document.createElement('select');share.className='taste-share';for(let n=1;n<denominator;n++)share.add(new Option(n+'/'+denominator,String(n)));share.value=String(index===total-1?denominator-total+1:1);label.append(share);box.append(label)}
       const additionLabel=document.createElement('label');additionLabel.textContent='Aggiunta (facoltativa)';const addition=document.createElement('select');addition.className='taste-addition';additionLabel.append(addition);box.append(additionLabel);
       const removals=document.createElement('div');removals.className='choices taste-removals';box.append(removals);
@@ -93,12 +93,14 @@
         if(new Set(parts.map(p=>p.id_pizza)).size!==parts.length||parts.reduce((sum,p)=>sum+p.quota,0)!==payload.taglio){message('Scegli gusti diversi e quote che compongono una pizza intera.',true);return}
       }else{payload.id_pizza=parts[0].id_pizza;payload.aggiunte=parts[0].aggiunte;payload.senza=parts[0].senza}
       message('Calcolo…');el('calculate').disabled=true;
-      try{const response=await fetch('/api/pizzeria/preventivo',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok)throw new Error(data.error||'Calcolo non riuscito.');const removed=(data.ingredienti_tolti_per_gusto||[]).map((list,i)=>list.length?'Gusto '+(i+1)+': senza '+list.join(', '):'').filter(Boolean);message('€ '+data.prezzo_unitario+' per unità · Totale € '+data.totale+' · SOLO PROVA'+(removed.length?' · '+removed.join(' · '):''))}
+      try{const response=await fetch(base+'/preventivo',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok)throw new Error(data.error||'Calcolo non riuscito.');const removed=(data.ingredienti_tolti_per_gusto||[]).map((list,i)=>list.length?'Gusto '+(i+1)+': senza '+list.join(', '):'').filter(Boolean);message('€ '+data.prezzo_unitario+' per unità · Totale € '+data.totale+(publicSlug?'':' · SOLO PROVA')+(removed.length?' · '+removed.join(' · '):''));lastChoice={payload,result:data,label:kind.options[kind.selectedIndex].text+' · '+chosenFormat()};if(el('addOrder'))el('addOrder').hidden=false}
       catch(error){message(error.message,true)}finally{el('calculate').disabled=false}
     });
     kind.addEventListener('change',render);format.addEventListener('change',render);cut.addEventListener('change',render);count.addEventListener('change',render);
-    Promise.all(['/api/pizzeria/formati','/api/pizzeria/varianti','/api/pizzeria/derivati','/api/pizzeria/preparazione','/api/pizzeria/ingredienti'].map(async url=>{const response=await fetch(url,{credentials:'same-origin',cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Impossibile caricare la configurazione.');return data}))
-      .then(([formats,variants,derived,preparation,removable])=>{products=formats.prodotti.filter(p=>p.formati?.length&&p.unita_prezzo==='pezzo').map(p=>({...p,id_categoria:variants.prodotti.find(v=>v.id===p.id)?.id_categoria}));fractions=variants.frazioni;additions=variants.aggiunte;derivatives=derived.derivati;doughs=preparation.impasti;ingredients=removable.pizze;render()})
+    if(el('addOrder'))el('addOrder').onclick=()=>{if(lastChoice)window.parent.postMessage({type:'alphamenu-pizzeria-add',...lastChoice},location.origin)};
+    const privateUrls=['/api/pizzeria/formati','/api/pizzeria/varianti','/api/pizzeria/derivati','/api/pizzeria/preparazione','/api/pizzeria/ingredienti'];
+    Promise.all((publicSlug?[base]:privateUrls).map(async url=>{const response=await fetch(url,{credentials:'same-origin',cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Impossibile caricare la configurazione.');return data}))
+      .then(data=>{if(publicSlug){const cfg=data[0];products=cfg.pizze.map(p=>({...p,formati:Object.values(p.formati)}));fractions=cfg.frazioni;additions=cfg.aggiunte;derivatives=cfg.derivati;doughs=cfg.impasti;ingredients=cfg.ingredienti.map(i=>({id:i.id,ingredienti_rimovibili:i.valori}))}else{const [formats,variants,derived,preparation,removable]=data;products=formats.prodotti.filter(p=>p.formati?.length&&p.unita_prezzo==='pezzo').map(p=>({...p,id_categoria:variants.prodotti.find(v=>v.id===p.id)?.id_categoria}));fractions=variants.frazioni;additions=variants.aggiunte;derivatives=derived.derivati;doughs=preparation.impasti;ingredients=removable.pizze}render()})
       .catch(error=>message(error.message,true));
   })();
   </script>

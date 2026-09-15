@@ -13,7 +13,7 @@ from flask import Flask, jsonify, request, session
 TREE = ast.parse((Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8"))
 NODES = [copy.deepcopy(next(node for node in TREE.body if isinstance(node, ast.FunctionDef)
                             and node.name == name))
-         for name in ("calculate_pizzeria_multigusto_price", "quote_pizzeria_draft", "derive_pizzeria_removable_ingredients")]
+         for name in ("calculate_pizzeria_multigusto_price", "quote_pizzeria_draft", "derive_pizzeria_removable_ingredients", "load_pizzeria_order_settings")]
 scope = {"Decimal": Decimal, "ROUND_HALF_UP": ROUND_HALF_UP, "re": re}
 exec(compile(ast.Module(body=NODES, type_ignores=[]), "app.py", "exec"), scope)
 quote = scope["quote_pizzeria_draft"]

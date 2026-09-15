@@ -179,6 +179,7 @@
         <p id="orderSuccessMessage"></p>
         <button id="orderSuccessClose" type="button">Torna al menu</button>
       </dialog>
+      {% if shop.modulo_pizzeria_attivo %}<dialog class="order-panel" id="pizzeriaConfigurator"><div class="order-panel-head"><h2>Configura il prodotto</h2><button class="order-panel-close" id="pizzeriaConfiguratorClose" type="button" aria-label="Chiudi">×</button></div><iframe id="pizzeriaConfiguratorFrame" title="Configuratore Pizzeria" style="width:min(900px,90vw);height:75vh;border:0;border-radius:12px;background:#101a2b"></iframe></dialog>{% endif %}
       <aside class="order-cart-preview" id="orderCartPreview" aria-label="Prodotti selezionati" hidden><strong>Stai ordinando</strong><ul id="orderCartPreviewLines"></ul><div class="order-cart-preview-bottom"><b id="orderCartPreviewTotal">Totale: € 0,00</b><button id="orderCartOpen" type="button">Prenota un ordine</button></div></aside>
       {% endif %}
       <div class="view-actions"><button class="menu-button secondary" id="hideMenu" type="button">{{ ui.back }}</button></div>
@@ -406,6 +407,14 @@
       document.getElementById('orderSuccessClose').addEventListener('click',()=>orderSuccess.close());
       orderPanel.addEventListener('click',event=>{if(event.target===orderPanel)orderPanel.close()});
       const orderAddButtons=[];
+      const configuredPizzas=new Set();
+      {% if shop.modulo_pizzeria_attivo %}
+      const pizzaDialog=document.getElementById('pizzeriaConfigurator'),pizzaFrame=document.getElementById('pizzeriaConfiguratorFrame');
+      fetch({{ url_for('api_public_pizzeria_config',slug=shop.slug)|tojson }},{credentials:'same-origin',cache:'no-store'}).then(r=>r.json()).then(data=>(data.pizze||[]).forEach(p=>configuredPizzas.add(p.id))).catch(()=>{});
+      document.getElementById('pizzeriaConfiguratorClose').onclick=()=>pizzaDialog.close();
+      pizzaDialog.addEventListener('click',event=>{if(event.target===pizzaDialog)pizzaDialog.close()});
+      window.addEventListener('message',event=>{if(event.origin!==location.origin||event.data?.type!=='alphamenu-pizzeria-add')return;const choice=event.data,anchor=choice.payload.tipo==='multigusto'?choice.payload.gusti?.[0]?.id_pizza:choice.payload.id_pizza;if(!anchor)return;orderCart.set(Number(anchor),{id:Number(anchor),nome:choice.label,prezzoCentesimi:Math.round(Number(choice.result.prezzo_unitario)*100),unita:'pezzo',quantita:Number(choice.result.quantita)||1,pizzeria:choice.payload});pizzaDialog.close();renderOrderCart();if(orderMode==='asporto')checkOrderDate()});
+      {% endif %}
       productCards.forEach(card => {
         if (card.dataset.available !== 'true') return;
         const button = document.createElement('button');
@@ -417,6 +426,7 @@
           event.stopPropagation();
           if(orderMode==='view')return;
           const id = Number(card.dataset.orderId);
+          {% if shop.modulo_pizzeria_attivo %}if(configuredPizzas.has(id)){pizzaFrame.src={{ url_for('public_pizzeria_configurator',slug=shop.slug)|tojson }}+'?product='+id;pizzaDialog.showModal();return}{% endif %}
           const current = orderCart.get(id);
           if (current) current.quantita = Math.min(current.quantita + 1, 999);
           else orderCart.set(id, {id, nome:card.dataset.orderName, prezzoCentesimi:Math.round(Number(card.dataset.orderPrice)*100), unita:card.dataset.orderUnit, quantita:1});
@@ -467,7 +477,7 @@
           data_richiesta:orderMode==='asporto'?String(fields.get('data_richiesta') || ''):'',
           ora_richiesta:orderMode==='asporto'?String(fields.get('ora_richiesta') || ''):'',
           salva_cliente:orderMode==='asporto'&&fields.has('salva_cliente'),
-          prodotti:[...orderCart.values()].map(item => ({id:item.id, quantita:item.quantita}))
+          prodotti:[...orderCart.values()].map(item => ({id:item.id, quantita:item.quantita, ...(item.pizzeria?{pizzeria:item.pizzeria}:{})}))
         };
         try {
           const response = await AlphaOrders.send({{ url_for('api_crea_ordine_menu', slug=shop.slug)|tojson }}, {

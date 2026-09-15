@@ -49,7 +49,7 @@ def test_owner_sees_dry_run_only():
         html = page()()
     assert "Prova il percorso del cliente" in html
     assert "non attiva il menu pubblico" in html
-    assert "/api/pizzeria/preventivo" in html
+    assert "'/api/pizzeria'" in html and "base+'/preventivo'" in html
     assert "/api/ordini" not in html
 
 
