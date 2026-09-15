@@ -5432,6 +5432,40 @@ def api_crea_ordine_menu(slug: str | None = None):
                                             "name": pizza_line["name"] if pizza_line else product[1] + (" (kg)" if product[3] == "kg" else ""),
                                             "config": pizza_line["config"] if pizza_line else None})
                 total = sum((line["total"] for line in validated_lines), Decimal("0.00"))
+                # Scala le panette solo per le righe configurate nel modulo Pizzeria.
+                # Il controllo e l'aggiornamento avvengono nella stessa transazione
+                # dell'ordine, con il negozio già bloccato FOR UPDATE.
+                stock_consumption = {}
+                for line in validated_lines:
+                    config = line.get("config")
+                    if not config:
+                        continue
+                    quantity = line["quantity"]
+                    if quantity != quantity.to_integral_value():
+                        return jsonify({"error": "La quantità delle pizze deve essere intera."}), 400
+                    key = (str(config.get("formato") or "Singola").strip().casefold(),
+                           str(config.get("impasto") or "Classico").strip().casefold())
+                    stock_consumption[key] = stock_consumption.get(key, Decimal(0)) + quantity
+                if stock_consumption:
+                    cur.execute("SELECT panette FROM pizzeria_preparazione_config WHERE id_negozio=%s FOR UPDATE", (shop_id,))
+                    stock_row = cur.fetchone()
+                    stocks = stock_row[0] if stock_row else []
+                    normalized_stocks = []
+                    for stock in stocks if isinstance(stocks, list) else []:
+                        if not isinstance(stock, dict):
+                            continue
+                        item = dict(stock)
+                        key = (str(item.get("formato") or "").strip().casefold(),
+                               str(item.get("impasto") or "Classico").strip().casefold())
+                        required = stock_consumption.get(key, Decimal(0))
+                        if required and not item.get("illimitate"):
+                            available = Decimal(str(item.get("quantita") or 0))
+                            if available < required:
+                                return jsonify({"error": f"Panette insufficienti per {item.get('formato')} · {item.get('impasto')}. Disponibili: {available:.0f}."}), 409
+                            item["quantita"] = int(available - required)
+                        normalized_stocks.append(item)
+                    # Una coppia formato/impasto senza scorta esplicita resta illimitata.
+                    cur.execute("UPDATE pizzeria_preparazione_config SET panette=%s::jsonb,aggiornato_il=NOW() WHERE id_negozio=%s", (json.dumps(normalized_stocks), shop_id))
                 cur.execute("""INSERT INTO contatori_ordini_menu (id_negozio,ultimo_numero) VALUES (%s,1)
                                ON CONFLICT (id_negozio) DO UPDATE SET ultimo_numero=
                                  CASE WHEN contatori_ordini_menu.ultimo_numero>=200 THEN 1
