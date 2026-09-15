@@ -28,9 +28,9 @@
     {% if not public_slug %}<div class="notice"><strong>Solo simulazione privata.</strong> Questa pagina è visibile soltanto al titolare autenticato. Non crea ordini, non scala panette, non stampa comande e non attiva il menu pubblico.</div>{% endif %}
     <div class="card">
       <div class="grid">
-        <label>Preparazione<select id="kind"><option value="pizza">Pizza</option><option value="multigusto">Pizza multigusto</option><option value="calzone">Calzone</option><option value="panino">Panino</option></select></label>
+        <label>Preparazione<select id="kind"><option value="pizza">Pizza · un gusto</option><option value="multigusto">Pizza · più gusti</option><option value="calzone">Calzone · un gusto</option><option value="calzone_multigusto">Calzone · più gusti</option><option value="panino">Panino · un gusto</option><option value="panino_multigusto">Panino · più gusti</option></select></label>
         <label>Formato<select id="format"></select></label>
-        <label id="cutWrap" hidden>Frazionamento<select id="cut"></select></label>
+        <label id="cutWrap" hidden>Divisione dei gusti<select id="cut"></select></label>
         <label id="countWrap" hidden>Numero di gusti<select id="count"></select></label>
         <label id="doughWrap">Impasto<select id="dough"></select></label>
         <label>Quantità<input id="quantity" type="number" min="1" max="100" step="1" value="1"></label>
@@ -48,11 +48,11 @@
     const fill=(select,options,placeholder)=>{select.replaceChildren(new Option(placeholder,''));options.forEach(item=>select.add(new Option(item.label,item.value)))};
     const chosenFormat=()=>format.value;
     const availableProducts=()=>products.filter(p=>p.formati.some(f=>f.nome===chosenFormat()&&f.disponibile));
-    const validDerivatives=()=>derivatives.filter(d=>d.tipo===kind.value&&d.formato===chosenFormat()&&d.disponibile);
+    const validDerivatives=()=>derivatives.filter(d=>d.tipo===kind.value.replace('_multigusto','')&&d.formato===chosenFormat()&&d.disponibile);
     function render(){
-      const currentFormat=format.value,mixed=kind.value==='multigusto',derived=kind.value==='calzone'||kind.value==='panino';
+      const currentFormat=format.value,mixed=kind.value.endsWith('multigusto'),derivativeKind=kind.value.replace('_multigusto',''),derived=derivativeKind==='calzone'||derivativeKind==='panino';
       let formats=[...new Set(products.flatMap(p=>p.formati.filter(f=>f.disponibile).map(f=>f.nome)))];
-      if(derived)formats=formats.filter(name=>derivatives.some(d=>d.tipo===kind.value&&d.formato===name&&d.disponibile));
+      if(derived)formats=formats.filter(name=>derivatives.some(d=>d.tipo===derivativeKind&&d.formato===name&&d.disponibile));
       if(mixed)formats=formats.filter(name=>fractions.some(f=>f.formato===name&&f.tagli.length));
       fill(format,formats.map(name=>({label:name,value:name})),'Scegli formato');format.value=formats.includes(currentFormat)?currentFormat:formats[0]||'';
       el('cutWrap').hidden=!mixed;el('countWrap').hidden=!mixed;
@@ -88,7 +88,7 @@
       const rows=[...tastes.children],parts=rows.map(row=>({id_pizza:Number(row.querySelector('.taste-product').value),quota:Number(row.querySelector('.taste-share')?.value),aggiunte:row.querySelector('.taste-addition').value?[Number(row.querySelector('.taste-addition').value)]:[],senza:[...row.querySelectorAll('.taste-removals input:checked')].map(input=>Number(input.value))}));
       if(parts.some(p=>!p.id_pizza)){message('Scegli tutte le pizze.',true);return}
       const payload={tipo:kind.value,formato:chosenFormat(),quantita:Number(el('quantity').value),impasto:dough.value||'Classico'};
-      if(kind.value==='multigusto'){
+      if(kind.value.endsWith('multigusto')){
         payload.taglio=Number(cut.value);payload.gusti=parts;
         if(new Set(parts.map(p=>p.id_pizza)).size!==parts.length||parts.reduce((sum,p)=>sum+p.quota,0)!==payload.taglio){message('Scegli gusti diversi e quote che compongono una pizza intera.',true);return}
       }else{payload.id_pizza=parts[0].id_pizza;payload.aggiunte=parts[0].aggiunte;payload.senza=parts[0].senza}

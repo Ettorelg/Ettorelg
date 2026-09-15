@@ -139,6 +139,22 @@ def test_derivative_inherits_or_overrides_single_price():
     assert quote({"tipo": "calzone", "id_pizza": 10, "formato": "Gigante"}, *settings())["totale"] == "20.00"
 
 
+def test_calzone_and_panino_can_mix_tastes_but_remain_one_whole_item():
+    local = settings()
+    local[3][(11, "calzone", "gigante")] = {"prezzo_override": "28.00", "disponibile": True}
+    result = quote({"tipo": "calzone_multigusto", "formato": "Gigante", "taglio": 2,
+                    "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 11, "quota": 1}],
+                    "quantita": 1}, *local)
+    assert result["quantita"] == 1
+    assert result["totale"] == "24.00"
+
+
+def test_multitaste_shares_must_always_make_one_whole_item():
+    with pytest.raises(ValueError):
+        quote({"tipo": "panino_multigusto", "formato": "Gigante", "taglio": 2,
+               "gusti": [{"id_pizza": 10, "quota": 1}]}, *settings())
+
+
 @pytest.mark.parametrize("payload", [
     {"tipo": "multigusto", "formato": "Singola", "taglio": 2, "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 11, "quota": 1}]},
     {"tipo": "multigusto", "formato": "Gigante", "taglio": 3, "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 11, "quota": 1}]},

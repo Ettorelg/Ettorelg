@@ -4528,9 +4528,12 @@ def calculate_pizzeria_multigusto_price(format_name, denominator, tastes):
 
 def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, doughs, removables=None):
     """Owner-only dry run. All amounts come from persisted shop settings, never the request."""
-    if not isinstance(payload, dict) or payload.get("tipo") not in ("pizza", "multigusto", "calzone", "panino"):
+    valid_kinds = ("pizza", "multigusto", "calzone", "panino", "calzone_multigusto", "panino_multigusto")
+    if not isinstance(payload, dict) or payload.get("tipo") not in valid_kinds:
         raise ValueError("Scegli un tipo di pizza valido.")
     kind = payload["tipo"]
+    mixed = kind in ("multigusto", "calzone_multigusto", "panino_multigusto")
+    derivative_kind = kind.removesuffix("_multigusto") if kind.endswith("_multigusto") else kind
     quantity = payload.get("quantita", 1)
     if type(quantity) is not int or not 1 <= quantity <= 100:
         raise ValueError("Quantità non valida.")
@@ -4572,7 +4575,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
         return [configured[index] for index in indexes]
 
     removed = []
-    if kind == "multigusto":
+    if mixed:
         denominator, tastes = payload.get("taglio"), payload.get("gusti")
         if type(denominator) is not int or denominator not in fractions.get(format_name.casefold(), []):
             raise ValueError("Questo frazionamento non è abilitato per il formato.")
@@ -4587,15 +4590,21 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
                 raise ValueError("Ogni gusto va indicato una sola volta, con la sua frazione totale.")
             chosen_ids.add(pizza["id"])
             removed.append(removed_ingredients(taste.get("senza", []), pizza))
+            taste_price = selected_format["prezzo"]
+            if derivative_kind in ("calzone", "panino"):
+                derivative = derivatives.get((pizza["id"], derivative_kind, format_name.casefold()))
+                if not derivative or not derivative["disponibile"]:
+                    raise ValueError("Questo gusto non è disponibile per la preparazione scelta.")
+                taste_price = derivative["prezzo_override"] if derivative["prezzo_override"] is not None else taste_price
             priced_tastes.append({"formato": format_name, "quota": taste.get("quota"),
-                                  "prezzo_gusto": selected_format["prezzo"],
+                                  "prezzo_gusto": taste_price,
                                   "aggiunte": [str(topping_total(taste.get("aggiunte", []), pizza))]})
         unit = calculate_pizzeria_multigusto_price(format_name, denominator, priced_tastes)
     else:
         pizza, selected_format = pizza_and_format(payload.get("id_pizza"))
         removed.append(removed_ingredients(payload.get("senza", []), pizza))
-        if kind in ("calzone", "panino"):
-            derivative = derivatives.get((pizza["id"], kind, format_name.casefold()))
+        if derivative_kind in ("calzone", "panino"):
+            derivative = derivatives.get((pizza["id"], derivative_kind, format_name.casefold()))
             if not derivative or not derivative["disponibile"]:
                 raise ValueError("Calzone o panino non configurato.")
             base = derivative["prezzo_override"] if derivative["prezzo_override"] is not None else selected_format["prezzo"]
@@ -5000,7 +5009,7 @@ def api_crea_ordine_menu(slug: str | None = None):
             config = item["pizzeria"]
             if manual or not isinstance(config, dict):
                 return jsonify({"error": "Configurazione Pizzeria non valida."}), 400
-            anchor_id = config.get("gusti", [{}])[0].get("id_pizza") if config.get("tipo") == "multigusto" and isinstance(config.get("gusti"), list) and config["gusti"] else config.get("id_pizza")
+            anchor_id = config.get("gusti", [{}])[0].get("id_pizza") if str(config.get("tipo", "")).endswith("multigusto") and isinstance(config.get("gusti"), list) and config["gusti"] else config.get("id_pizza")
             if anchor_id != product_id:
                 return jsonify({"error": "Configurazione Pizzeria non valida."}), 400
             pizzeria_configs[product_id] = config
@@ -5087,9 +5096,9 @@ def api_crea_ordine_menu(slug: str | None = None):
                         except ValueError as exc:
                             return jsonify({"error": str(exc)}), 400
                         kind = config["tipo"]
-                        label = {"pizza": "Pizza", "multigusto": "Pizza multigusto", "calzone": "Calzone", "panino": "Panino"}[kind]
+                        label = {"pizza": "Pizza", "multigusto": "Pizza multigusto", "calzone": "Calzone", "panino": "Panino", "calzone_multigusto": "Calzone multigusto", "panino_multigusto": "Panino multigusto"}[kind]
                         details = [label, str(config.get("formato") or "")]
-                        if kind == "multigusto":
+                        if kind.endswith("multigusto"):
                             names = [settings[0][taste["id_pizza"]]["nome"] for taste in config["gusti"]]
                             details.append(" / ".join(names))
                         else:
