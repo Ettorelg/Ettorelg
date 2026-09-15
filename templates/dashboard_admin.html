@@ -11,6 +11,8 @@
 <script>
 const csrfToken={{ csrf_token()|tojson }};const nativeFetch=window.fetch.bind(window);window.fetch=(input,opts={})=>{const method=String(opts.method||'GET').toUpperCase();if(['POST','PUT','PATCH','DELETE'].includes(method)){const headers=new Headers(opts.headers||{});headers.set('X-CSRF-Token',csrfToken);opts={...opts,headers}}return nativeFetch(input,opts)};
 let users=[];let currentUserId=null;
+function accessUser(id){if(!confirm('Accedere come questo cliente? Potrai tornare al Superadmin premendo Esci.'))return;api('/api/admin/utenti/'+id+'/accedi',{method:'POST'}).then(d=>window.location.href=d.redirect).catch(e=>notify(e.message,true))}
+const accessObserver=new MutationObserver(()=>document.querySelectorAll('#rows tr[data-id]').forEach(row=>{if(row.querySelector('.access-user'))return;const id=row.dataset.id;const button=document.createElement('button');button.className='access-user primary';button.textContent='Accedi come cliente';button.onclick=()=>accessUser(id);row.querySelector('.row-actions')?.prepend(button)}));accessObserver.observe(document.getElementById('rows'),{childList:true});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notify(t,error=false){const el=document.getElementById('message');el.textContent=t;el.className='msg'+(error?' error':'')}
 async function api(url,opts={}){const r=await fetch(url,{headers:{'Content-Type':'application/json'},...opts});const d=await r.json();if(!r.ok){const error=new Error(d.error||'Operazione non riuscita');error.status=r.status;error.code=d.codice||'';throw error}return d}

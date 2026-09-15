@@ -100,12 +100,12 @@
         <button class="nav-item" data-section="categorie" data-requires-shop="1"><div class="icon">📁</div><div class="label">Categorie</div></button>
         <button class="nav-item" data-section="attivita"><div class="icon">🏪</div><div class="label">Negozio e orari</div></button>
         <button class="nav-item" data-section="menu_online" data-requires-shop="1"><div class="icon">📱</div><div class="label">Menu pubblico</div></button>
-        <button class="nav-item" data-section="ordini" data-requires-shop="1"><div class="icon">🛎️</div><div class="label">Ordini</div></button>
-        <button class="nav-item" data-section="clienti" data-requires-shop="1"><div class="icon">👥</div><div class="label">Clienti</div></button>
-        <button class="nav-item" data-section="pizzeria" data-requires-shop="1"><div class="icon">🍕</div><div class="label">Pizzeria</div></button>
+        <button class="nav-item" data-section="ordini" data-requires-shop="1" data-module="orders" {% if not orders_active %}hidden{% endif %}><div class="icon">🛎️</div><div class="label">Ordini</div></button>
+        <button class="nav-item" data-section="clienti" data-requires-shop="1" data-module="orders" {% if not orders_active %}hidden{% endif %}><div class="icon">👥</div><div class="label">Clienti</div></button>
+        <button class="nav-item" data-section="pizzeria" data-requires-shop="1" data-module="pizzeria" {% if not pizzeria_active %}hidden{% endif %}><div class="icon">🍕</div><div class="label">Pizzeria</div></button>
 
         <button class="nav-item" data-section="lingue" data-requires-shop="1"><div class="icon">🌐</div><div class="label">Lingue</div></button>
-        <button class="nav-item" data-section="statistiche" data-requires-shop="1"><div class="icon">📊</div><div class="label">Statistiche</div></button>
+        <button class="nav-item" data-section="statistiche" data-requires-shop="1" data-module="analytics" {% if not orders_active and not pizzeria_active %}hidden{% endif %}><div class="icon">📊</div><div class="label">Statistiche</div></button>
         <button class="nav-item" data-section="licenze"><div class="icon">🔐</div><div class="label">Licenze</div></button>
         <button class="nav-item" data-section="account"><div class="icon">👤</div><div class="label">Account</div></button>
       </nav>
@@ -201,6 +201,11 @@
         btn.removeAttribute('aria-disabled');
         btn.title = '';
       }
+      const ordersActive = {{ 'true' if orders_active else 'false' }};
+      const pizzeriaActive = {{ 'true' if pizzeria_active else 'false' }};
+      for (const btn of nav.querySelectorAll('[data-module="orders"]')) btn.hidden = !ordersActive;
+      for (const btn of nav.querySelectorAll('[data-module="pizzeria"]')) btn.hidden = !pizzeriaActive;
+      for (const btn of nav.querySelectorAll('[data-module="analytics"]')) btn.hidden = !(ordersActive || pizzeriaActive);
     }
 
     window.loadShopBranding = async function loadShopBranding(){
@@ -210,6 +215,11 @@
         const data = await response.json();
         const shop = data.item || {};
         shopConfigured = Boolean(shop.id);
+        const ordersActive = Boolean(shop.ordini_attivi || shop.ordini_tavolo_attivi);
+        const pizzeriaActive = Boolean(shop.modulo_pizzeria_attivo);
+        for (const btn of nav.querySelectorAll('[data-module="orders"]')) btn.hidden = !ordersActive;
+        for (const btn of nav.querySelectorAll('[data-module="pizzeria"]')) btn.hidden = !pizzeriaActive;
+        for (const btn of nav.querySelectorAll('[data-module="analytics"]')) btn.hidden = !(ordersActive || pizzeriaActive);
         syncShopLocks();
         const name = (shop.nome || 'Alpha Menu').trim();
         shopName.textContent = name;

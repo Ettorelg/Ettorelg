@@ -957,6 +957,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS password_impostata BOOLEAN NOT NULL DEFAULT TRUE")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS email_verificata BOOLEAN NOT NULL DEFAULT TRUE")
                 cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS guida_iniziale_vista BOOLEAN NOT NULL DEFAULT TRUE")
+                cur.execute("ALTER TABLE utenti ADD COLUMN IF NOT EXISTS telefono TEXT NOT NULL DEFAULT ''")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS lingue_negozio (
                         id SERIAL PRIMARY KEY,
@@ -1461,6 +1462,7 @@ def login():
         return render_template("login.html", google_enabled=google_enabled())
 
     email = request.form.get("email", "").strip().lower()
+    telefono = request.form.get("telefono", "").strip()
     password = request.form.get("password", "")
     if not email or not password:
         return render_template("login.html", error="Inserisci email e password.", google_enabled=google_enabled())
@@ -1606,14 +1608,16 @@ def register():
         return render_template("register.html", error="Le password non coincidono.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
     if len(password) < 8:
         return render_template("register.html", error="La password deve avere almeno 8 caratteri.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
+    if telefono and (len(telefono) > 40 or not re.fullmatch(r"[+\d ()-]+", telefono)):
+        return render_template("register.html", error="Inserisci un numero di telefono valido.", google_enabled=google_enabled(), plans=LICENSE_PLANS, base_available=paypal_configured("base"))
 
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO utenti (username, email, password, admin, email_verificata, guida_iniziale_vista) VALUES (%s, %s, %s, FALSE, FALSE, FALSE) RETURNING id",
-                    (business_name, email, hash_password(password)),
+                    "INSERT INTO utenti (username, email, telefono, password, admin, email_verificata, guida_iniziale_vista) VALUES (%s, %s, %s, %s, FALSE, FALSE, FALSE) RETURNING id",
+                    (business_name, email, telefono, hash_password(password)),
                 )
                 user_id = cur.fetchone()[0]
                 record_registration_consents(cur, user_id, consent["marketing"])
@@ -3467,6 +3471,12 @@ def api_admin_user_delete(user_id: int):
 
 @app.route("/logout")
 def logout():
+    if session.get("admin_origin_id"):
+        admin_id = session.pop("admin_origin_id")
+        admin_name = session.pop("admin_origin_username", "Superadmin")
+        session.clear()
+        session.update(user_id=admin_id, username=admin_name, is_admin=True)
+        return redirect("/dashboard_admin")
     session.clear()
     return redirect("/login")
 
@@ -3550,14 +3560,42 @@ def dashboard_user():
 
     # sezione iniziale
     license_plan = get_user_license_plan(session["user_id"])
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COALESCE(ordini_attivi,FALSE),COALESCE(ordini_tavolo_attivi,FALSE),COALESCE(modulo_pizzeria_attivo,FALSE) FROM negozi WHERE id_utente=%s", (session["user_id"],))
+            modules = cur.fetchone() or (False, False, False)
+    finally:
+        conn.close()
     return render_template(
         "dashboard_user.html",
         username=session.get("username", "utente"),
         active_section="home",
         shop_configured=get_user_shop_id(session["user_id"]) is not None,
         license_plan=license_plan,
+        orders_active=bool(modules[0] or modules[1]),
+        pizzeria_active=bool(modules[2]),
     )
 
+
+@app.post("/api/admin/utenti/<int:user_id>/accedi")
+def api_admin_impersonate_user(user_id: int):
+    denied = require_admin()
+    if denied:
+        return denied
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id,username FROM utenti WHERE id=%s AND admin=FALSE", (user_id,))
+            target = cur.fetchone()
+    finally:
+        conn.close()
+    if not target:
+        return jsonify({"error": "Cliente non trovato o non impersonabile."}), 404
+    session["admin_origin_id"] = session["user_id"]
+    session["admin_origin_username"] = session.get("username", "Superadmin")
+    session.update(user_id=target[0], username=target[1], is_admin=False)
+    return jsonify({"ok": True, "redirect": url_for("dashboard_user")})
 
 @app.get("/pizzeria/prova")
 def pizzeria_test_page():
@@ -3679,7 +3717,7 @@ def api_negozio():
             with conn.cursor() as cur:
                 if request.method == "GET":
                     cur.execute(
-                        "SELECT id, " + ", ".join(fields) + ", logo_url, copertina_url FROM negozi WHERE id_utente = %s",
+                        "SELECT id, " + ", ".join(fields) + ", logo_url, copertina_url, COALESCE(ordini_attivi,FALSE), COALESCE(ordini_tavolo_attivi,FALSE), COALESCE(modulo_pizzeria_attivo,FALSE) FROM negozi WHERE id_utente = %s",
                         (user_id,),
                     )
                     row = cur.fetchone()
@@ -3689,6 +3727,9 @@ def api_negozio():
                             **dict(zip(fields, row[1:1 + len(fields)])),
                             "logo_url": row[1 + len(fields)] or "",
                             "copertina_url": row[2 + len(fields)] or "",
+                            "ordini_attivi": bool(row[3 + len(fields)]),
+                            "ordini_tavolo_attivi": bool(row[4 + len(fields)]),
+                            "modulo_pizzeria_attivo": bool(row[5 + len(fields)]),
                         }
                         if row else None
                     )
@@ -5998,7 +6039,12 @@ def public_menu(slug: str):
             hours = [{"nome": ui["days"][day], **saved_hours.get(day, {"aperto": False})} for day in range(7)]
             languages = [{"codice": "it", "nome": "Italiano"}] + [{"codice": code, "nome": SUPPORTED_MENU_LANGUAGES[code]} for code in enabled_codes]
 
-        return render_template("public_menu.html", shop=shop, categories=categories, hours=hours, ui=ui, language=language, languages=languages, customer_google=session.get("customer_google"))
+        customer_phone = ""
+        if session.get("user_id") and not session.get("is_admin"):
+            cur.execute("SELECT COALESCE(telefono,'') FROM utenti WHERE id=%s", (session["user_id"],))
+            phone_row = cur.fetchone()
+            customer_phone = phone_row[0] if phone_row else ""
+        return render_template("public_menu.html", shop=shop, categories=categories, hours=hours, ui=ui, language=language, languages=languages, customer_google=session.get("customer_google"), customer_phone=customer_phone)
     finally:
         conn.close()
 
