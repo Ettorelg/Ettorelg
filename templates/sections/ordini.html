@@ -7,11 +7,11 @@
   .orders-link{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;border-color:#6ea8fe;background:#1d3c65}.orders-link p{margin:5px 0 0}.orders-link a{display:inline-flex;align-items:center;min-height:45px}
   .orders-settings label{display:grid;gap:5px;color:#c6d3f2;font-size:.86rem}.orders-settings input:not([type=checkbox]),.orders-settings select{min-height:42px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:#15223a;color:#fff;font:inherit}
   .orders-settings .pickup-toggle{display:flex;align-items:center;gap:9px;margin:12px 0}.orders-settings .pickup-toggle input{width:19px;height:19px;accent-color:#6ea8fe}
-  .orders-help{margin:12px 0;padding:12px 14px;border-left:4px solid #6ea8fe;border-radius:9px;background:rgba(110,168,254,.1);color:#e1ebff;line-height:1.5}.orders-help strong{color:#fff}.orders-settings .orders-help{color:#e1ebff}
+  .orders-help{margin:9px 0;padding:9px 11px;border-left:3px solid #6ea8fe;border-radius:8px;background:rgba(110,168,254,.1);color:#e1ebff;line-height:1.4;font-size:.86rem}.orders-help strong{color:#fff}.orders-settings .orders-help{color:#e1ebff}.orders-settings.compact{padding:14px}.orders-settings.compact>p{margin:6px 0 8px;font-size:.9rem}.orders-subsection{margin:14px 0 10px;padding-top:13px;border-top:1px solid rgba(255,255,255,.14)}.orders-inline-limit{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:9px;align-items:end}.orders-inline-limit button{min-height:42px}
   .pickup-hours{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.pickup-hours[hidden]{display:none!important}.pickup-hours label{min-width:140px}
   .weekly-pickup{display:grid;gap:8px;width:100%}.weekly-pickup-row{display:grid;grid-template-columns:100px repeat(4,minmax(100px,1fr));gap:8px;align-items:end;padding:10px;border:1px solid rgba(255,255,255,.13);border-radius:9px}.weekly-pickup-row strong{align-self:center}.weekly-pickup-row label{min-width:0}.weekly-pickup-row input{width:100%}@media(max-width:700px){.weekly-pickup-row{grid-template-columns:repeat(2,minmax(0,1fr))}.weekly-pickup-row strong{grid-column:1/-1}}
   #ordersMessage{min-height:20px;color:#aee8bd}
-  @media(max-width:640px){.orders-activation button,.orders-link a{width:100%;justify-content:center}}
+  @media(max-width:640px){.orders-activation button,.orders-link a{width:100%;justify-content:center}.orders-inline-limit{grid-template-columns:1fr}.orders-inline-limit button{width:100%}}
 </style>
 <section class="orders-panel">
   <h2>Impostazioni ordini</h2>
@@ -19,15 +19,12 @@
   <div class="orders-link"><div><strong>Banco evasione e storico ordini</strong><p>Ordini da preparare, inserimento manuale e riepilogo per periodo.</p></div><a href="{{ url_for('fulfillment_dashboard') }}">Apri riepilogo di evasione →</a></div>
   <div class="orders-activation"><div><strong>Ordini da asporto</strong><p id="ordersState">Caricamento…</p></div><button id="ordersToggle" type="button" disabled>Caricamento…</button></div>
   <div class="orders-activation"><div><strong>Ordini al tavolo</strong><p id="tableOrdersState">Il cliente indica il tavolo e invia l'ordine per subito, senza nome, telefono o data.</p></div><button id="tableOrdersToggle" type="button" disabled>Caricamento…</button></div>
-  <div class="orders-settings">
-    <strong>1 · Quanti ordini da asporto accettare in un giorno?</strong>
+  <div class="orders-settings compact">
+    <strong>1 · Capacità giornaliera e modalità di ritiro</strong>
     <p>Questo limite riguarda la <strong>data di ritiro scelta dal cliente</strong>, non il giorno in cui invia l’ordine. Vale per tutti gli ordini da asporto di quella data, anche se scegli più fasce orarie. Non riguarda gli ordini al tavolo.</p>
     <div class="orders-help"><strong>Esempio:</strong> imposti 20 ordini per sabato. Dopo il ventesimo ordine, sabato non sarà più prenotabile. Un ordine annullato libera un posto; uno già evaso resta conteggiato. Inserisci <strong>0</strong> se non vuoi un limite giornaliero.</div>
-    <label>Numero massimo di ordini da asporto per giorno <input id="ordersLimit" type="number" min="0" max="10000" step="1" value="0"></label>
-    <button id="ordersSaveLimit" type="button">Salva capacità giornaliera</button>
-  </div>
-  <div class="orders-settings">
-    <strong>2 · Il cliente deve scegliere anche un orario di ritiro?</strong>
+    <div class="orders-inline-limit"><label>Numero massimo di ordini da asporto per giorno <input id="ordersLimit" type="number" min="0" max="10000" step="1" value="0"></label><button id="ordersSaveLimit" type="button">Salva capacità</button></div>
+    <div class="orders-subsection"><strong>Fasce orarie di ritiro</strong></div>
     <p>Se lasci disattivata questa opzione, il cliente sceglie <strong>solo il giorno</strong>: utile, per esempio, per un pastificio. Se la attivi, imposti quando si può ritirare e il cliente sceglie una fascia disponibile: utile per una pizzeria.</p>
     <label class="pickup-toggle"><input id="pickupSlotsEnabled" type="checkbox"> Sì, fai scegliere giorno e fascia oraria</label>
     <div class="pickup-hours" id="pickupHours">
@@ -41,7 +38,7 @@
     <button id="pickupSave" type="button">Salva modalità di ritiro</button>
   </div>
   <div class="orders-settings">
-    <strong>3 · Stampante ricevute 80 mm</strong>
+    <strong>2 · Stampante ricevute 80 mm</strong>
     <p>Indica l’IP della stampante generale, per esempio 192.168.1.50. Se assegni stampanti alle categorie nella sezione Categorie, gli ordini vengono inviati solo alle stampanti delle categorie presenti; questa stampante generale rimane come soluzione per i locali che non usano l’instradamento per categoria. Usa IP fissi o prenotazioni DHCP nel router.</p>
     <label>Indirizzo IP stampante <input id="printerIp" inputmode="decimal" autocomplete="off" placeholder="192.168.1.50" maxlength="45"></label>
     <label style="margin-top:12px">IP stampante di riepilogo (opzionale) <input id="summaryPrinterIp" inputmode="decimal" autocomplete="off" placeholder="192.168.1.60" maxlength="45"></label>
