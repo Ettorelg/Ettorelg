@@ -36,7 +36,7 @@ test('Google return restores quantities with current prices and discards expired
   const code=html.slice(start,html.indexOf('      const orderCsrf',start));
   let shown=0;
   const field={value:''};
-  const ctx=context({draftKey:'draft',productCards:[{dataset:{orderId:'3',available:'true',orderName:'Pasta',orderPrice:'12.50',orderUnit:'kg'}}],orderCart:new Map(),orderForm:{elements:{nome:{value:'Google name'},email:{value:'google@test.it'},telefono:field,data_richiesta:{},riferimento:{},note:{},salva_cliente:{}}},renderOrderCart:()=>{},checkOrderDate:()=>Promise.resolve(),orderPickupSlot:{value:''},orderPanel:{showModal:()=>shown++}});
+  const ctx=context({draftKey:'draft',productCards:[{dataset:{orderId:'3',available:'true',orderName:'Pasta',orderPrice:'12.50',orderUnit:'kg'}}],orderCart:new Map(),orderForm:{elements:{nome:{value:'Google name'},email:{value:'google@test.it'},telefono:field,data_richiesta:{},riferimento:{},note:{},salva_cliente:{}}},renderOrderCart:()=>{},checkOrderDate:()=>Promise.resolve(),showOrderStep:()=>{},orderPickupSlot:{value:''},orderPanel:{showModal:()=>shown++}});
   ctx.sessionStorage.setItem('draft',JSON.stringify({saved:Date.now(),items:[{id:3,quantita:1.5,prezzoCentesimi:1}],fields:{nome:'old',telefono:'12345678'},save:true}));
   vm.runInContext(code,ctx);ctx.restoreOrderDraft();
   assert.equal(ctx.orderCart.get(3).quantita,1.5);assert.equal(ctx.orderCart.get(3).prezzoCentesimi,1250);
