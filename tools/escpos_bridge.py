@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 10
+BRIDGE_VERSION = 11
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
@@ -87,6 +87,7 @@ def receipt(order, large_category_ids=None, summary=False):
         name = clean(product.get("nome"), 200)
         is_weight = product.get("unita_prezzo") == "kg" or name.lower().endswith(" (kg)")
         is_large = not summary and large_category_ids is not None and str(product.get("id_categoria")) in large_category_ids
+        product_emphasis = not summary and (large_category_ids is None or is_large)
         if large_category_ids is not None and not summary and not is_large and not summary_started:
             line("-" * 42)
             line("RIEPILOGO", centered=True, bold=True)
@@ -97,21 +98,22 @@ def receipt(order, large_category_ids=None, summary=False):
             heading = format_quantity(product.get("quantita"), is_weight) + " x " + clean(print_config.get("tipo"), 40).upper()
             if print_config.get("formato"):
                 heading += " " + clean(print_config["formato"], 40).upper()
-            line(heading, double_height=True, bold=True)
+            line(heading, double_width=product_emphasis, bold=True)
             for taste in print_config["gusti"][:4]:
                 if not isinstance(taste, dict):
                     continue
                 prefix = (clean(taste.get("quota"), 10) + " ") if taste.get("quota") else ""
-                line("---| " + prefix + clean(taste.get("nome"), 100).upper(), double_height=True, bold=True)
+                line("---| " + prefix + clean(taste.get("nome"), 100).upper(), double_width=product_emphasis, bold=True)
                 for removed in taste.get("senza", [])[:40]:
-                    line("     -" + clean(removed, 100).upper(), double_width=True)
+                    line("     -" + clean(removed, 100).upper(), double_height=product_emphasis)
                 for addition in taste.get("aggiunte", [])[:20]:
-                    line("     +" + clean(addition, 100).upper(), double_width=True)
+                    line("     +" + clean(addition, 100).upper(), double_height=product_emphasis)
             if print_config.get("impasto") and clean(print_config["impasto"]).casefold() != "classico":
-                line("     IMPASTO: " + clean(print_config["impasto"], 80).upper())
+                line("     IMPASTO: " + clean(print_config["impasto"], 80).upper(),
+                     double_width=product_emphasis, bold=True)
         else:
             item = format_quantity(product.get("quantita"), is_weight) + " x " + name
-            line(item, double_height=True, bold=True)
+            line(item, double_width=product_emphasis, bold=True)
     line("-" * 42)
     if order.get("note"):
         line("NOTE: " + clean(order["note"], 500))
