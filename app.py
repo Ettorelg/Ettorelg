@@ -6045,6 +6045,7 @@ def public_menu(slug: str):
                     section["prodotti"].append(item)
                 cur.execute("SELECT id_pizza,tipo,formato,prezzo_override,disponibile FROM pizzeria_derivati WHERE id_negozio=%s AND disponibile=TRUE", (shop["id"],))
                 format_prices = {(row[0], row[2].casefold()): row[3] for row in format_rows}
+                derivative_groups = {}
                 for product_id, kind, format_name, override, available in cur.fetchall():
                     source = product_lookup.get(product_id)
                     price = override if override is not None else format_prices.get((product_id, format_name.casefold()))
@@ -6056,9 +6057,18 @@ def public_menu(slug: str):
                     section = virtual.setdefault(key, {"id": f"{kind}-{format_slug}", "nome": f"{title} · {format_name}",
                         "prodotti": [], "pizzeria_kind": kind, "pizzeria_format": format_name})
                     section["virtual"] = True
-                    item = dict(source); item["prezzo"] = f"{price:.2f}".replace(".", ",")
-                    item["pizzeria_kind"], item["pizzeria_format"] = kind, format_name
-                    section["prodotti"].append(item)
+                    group = derivative_groups.setdefault(key, {"source": source, "prices": []})
+                    group["prices"].append(price)
+                for key, group in derivative_groups.items():
+                    kind, _, format_name = key
+                    item = dict(group["source"])
+                    title = "Calzone" if kind == "calzone" else "Panino"
+                    item.update({"nome": f"{title} gusto pizza", "descrizione": "Scegli il gusto tra le pizze disponibili.",
+                                 "note": "", "immagine_url": None, "etichette": [], "allergeni": [],
+                                 "prezzo": f"{min(group['prices']):.2f}".replace(".", ","),
+                                 "pizzeria_kind": kind, "pizzeria_format": format_name,
+                                 "pizzeria_choose_taste": True, "pizzeria_price_from": True})
+                    virtual[key]["prodotti"].append(item)
                 cur.execute("SELECT frazioni FROM pizzeria_varianti_config WHERE id_negozio=%s", (shop["id"],))
                 fraction_row = cur.fetchone()
                 mixed_formats = {item["formato"].casefold() for item in (fraction_row[0] if fraction_row else []) if item.get("tagli")}
