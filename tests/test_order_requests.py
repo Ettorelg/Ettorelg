@@ -214,6 +214,7 @@ def test_public_menu_keeps_order_form_closed_until_products_are_selected():
     assert 'id="orderContinue"' in html
     assert "if(orderMode==='view')return" in html
     assert "orderAddButtons.forEach(button=>button.hidden=mode==='view')" in html
+    assert "openMenu({% if shop.ordini_attivi %}'asporto'{% elif shop.ordini_tavolo_attivi %}'tavolo'{% else %}'view'{% endif %})" in html
     assert "button.classList.toggle('selected',Boolean(selected))" in html
     assert "orderPanel.hidden=mode==='view'" not in html
 

@@ -576,7 +576,7 @@
       if (categoryLinks[0]) activateCategory(categoryLinks[0].dataset.categoryTarget);
       else menuContent.scrollIntoView({behavior: 'smooth', block: 'start'});
     }
-    showMenu.addEventListener('click', () => openMenu('view'));
+    showMenu.addEventListener('click', () => openMenu({% if shop.ordini_attivi %}'asporto'{% elif shop.ordini_tavolo_attivi %}'tavolo'{% else %}'view'{% endif %}));
     orderTakeawayStart?.addEventListener('click', () => openMenu('asporto'));
     orderTableStart?.addEventListener('click', () => openMenu('tavolo'));
     hideMenu.addEventListener('click', () => {
