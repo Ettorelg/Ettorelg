@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 9
+BRIDGE_VERSION = 10
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
@@ -49,7 +49,7 @@ def receipt(order, large_category_ids=None, summary=False):
         raise ValueError("Dati ordine non validi.")
     output = bytearray(b"\x1b@\x1bt\x02")
 
-    def line(value, large=False, centered=False, double_width=False, double_height=False):
+    def line(value, large=False, centered=False, double_width=False, double_height=False, bold=False):
         wide = large or double_width
         tall = large or double_height
         width = 21 if wide else 42
@@ -58,6 +58,7 @@ def receipt(order, large_category_ids=None, summary=False):
             output.extend(b"\x1ba\x01")
         for part in textwrap.wrap(clean(value, 500), width=width, break_long_words=True) or [""]:
             output.extend(b"\x1d!" + bytes([size]))
+            output.extend(b"\x1bE" + (b"\x01" if bold else b"\x00"))
             output.extend((part + "\n").encode("cp850", "replace"))
         if centered:
             output.extend(b"\x1ba\x00")
@@ -79,32 +80,38 @@ def receipt(order, large_category_ids=None, summary=False):
     if large_category_ids is not None and not summary:
         products = sorted(products, key=lambda product: (
             not isinstance(product, dict) or str(product.get("id_categoria")) not in large_category_ids))
+    summary_started = summary
     for product in products:
         if not isinstance(product, dict):
             continue
         name = clean(product.get("nome"), 200)
         is_weight = product.get("unita_prezzo") == "kg" or name.lower().endswith(" (kg)")
         is_large = not summary and large_category_ids is not None and str(product.get("id_categoria")) in large_category_ids
+        if large_category_ids is not None and not summary and not is_large and not summary_started:
+            line("-" * 42)
+            line("RIEPILOGO", centered=True, bold=True)
+            line("-" * 42)
+            summary_started = True
         print_config = product.get("configurazione", {}).get("_stampa") if isinstance(product.get("configurazione"), dict) else None
         if print_config and isinstance(print_config.get("gusti"), list):
             heading = format_quantity(product.get("quantita"), is_weight) + " x " + clean(print_config.get("tipo"), 40).upper()
             if print_config.get("formato"):
                 heading += " " + clean(print_config["formato"], 40).upper()
-            line(heading, is_large)
+            line(heading, double_height=True, bold=True)
             for taste in print_config["gusti"][:4]:
                 if not isinstance(taste, dict):
                     continue
                 prefix = (clean(taste.get("quota"), 10) + " ") if taste.get("quota") else ""
-                line("---| " + prefix + clean(taste.get("nome"), 100).upper(), is_large)
+                line("---| " + prefix + clean(taste.get("nome"), 100).upper(), double_height=True, bold=True)
                 for removed in taste.get("senza", [])[:40]:
-                    line("     -" + clean(removed, 100).upper())
+                    line("     -" + clean(removed, 100).upper(), double_width=True)
                 for addition in taste.get("aggiunte", [])[:20]:
-                    line("     +" + clean(addition, 100).upper())
+                    line("     +" + clean(addition, 100).upper(), double_width=True)
             if print_config.get("impasto") and clean(print_config["impasto"]).casefold() != "classico":
                 line("     IMPASTO: " + clean(print_config["impasto"], 80).upper())
         else:
             item = format_quantity(product.get("quantita"), is_weight) + " x " + name
-            line(item, is_large)
+            line(item, double_height=True, bold=True)
     line("-" * 42)
     if order.get("note"):
         line("NOTE: " + clean(order["note"], 500))
