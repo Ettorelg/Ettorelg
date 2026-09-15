@@ -115,6 +115,8 @@ def test_save_does_not_activate_public_module():
     assert all(params[0] == 7 for _, params in db.cur.statements)
     assert all("UPDATE ordini" not in query and "UPDATE negozi" not in query
                for query, _ in db.cur.statements)
+    product_query = next(query for query, _ in db.cur.statements if "FROM prodotti" in query)
+    assert "JOIN pizzeria_formati" in product_query
 
 
 def test_employee_cannot_edit_variants():

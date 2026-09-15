@@ -4973,7 +4973,11 @@ def api_pizzeria_varianti():
             with conn.cursor() as cur:
                 cur.execute("SELECT id,nome FROM categorie WHERE id_negozio=%s ORDER BY nome,id", (shop_id,))
                 categories = [{"id": row[0], "nome": row[1]} for row in cur.fetchall()]
-                cur.execute("SELECT id,nome,id_categoria FROM prodotti WHERE id_negozio=%s AND unita_prezzo='pezzo' ORDER BY nome,id", (shop_id,))
+                cur.execute("""SELECT DISTINCT p.id,p.nome,p.id_categoria
+                    FROM prodotti p JOIN pizzeria_formati f
+                      ON f.id_prodotto=p.id AND f.id_negozio=p.id_negozio
+                    WHERE p.id_negozio=%s AND p.unita_prezzo='pezzo'
+                    ORDER BY p.nome,p.id""", (shop_id,))
                 products = [{"id": row[0], "nome": row[1], "id_categoria": row[2]} for row in cur.fetchall()]
                 cur.execute("SELECT DISTINCT nome FROM pizzeria_formati WHERE id_negozio=%s ORDER BY nome", (shop_id,))
                 formats = [row[0] for row in cur.fetchall()]
