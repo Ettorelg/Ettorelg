@@ -19,7 +19,7 @@
     <div class="pizza-actions"><button id="pizzaActivation" type="button" disabled>Caricamento stato…</button></div>
     <p id="pizzaActivationMessage" class="pizza-message" role="status"></p>
   </div>
-  <div class="pizza-card">
+  <div class="pizza-card" hidden>
     <strong>Formati per singolo articolo</strong>
     <p>Ogni pizza può avere solo i formati che decidi tu. Per esempio, una pizza può avere soltanto “Singola”, un’altra “Singola” e “Gigante”. Il prezzo del catalogo attuale non viene cambiato.</p>
     <label>Articolo da configurare <select id="pizzaProduct"><option value="">Caricamento prodotti…</option></select></label>
@@ -27,7 +27,7 @@
     <div class="pizza-actions"><button id="pizzaAddFormat" type="button">+ Aggiungi formato</button><button id="pizzaSaveFormats" type="button">Salva formati</button></div>
     <p id="pizzaMessage" class="pizza-message" role="status"></p>
   </div>
-  <div class="pizza-card">
+  <div class="pizza-card" hidden>
     <strong>Ingredienti automatici · pizze, calzoni e panini con gusto</strong>
     <p>Le opzioni «senza» vengono lette dal campo Ingredienti di ogni prodotto, separate da virgola, punto e virgola o a capo. Farina e semola sono escluse. Per modificarle, aggiorna il prodotto nella sezione Prodotti. Togliere ingredienti non abbassa il prezzo e non garantisce l'assenza di allergeni: in caso di allergie occorre verificare con il locale.</p>
   </div>
@@ -48,14 +48,14 @@
     <div class="pizza-actions"><button id="pizzaAddAddition" type="button">+ Aggiungi opzione</button><button id="pizzaSaveVariants" type="button">Salva multigusto e aggiunte</button></div>
     <p id="pizzaVariantMessage" class="pizza-message" role="status"></p>
   </div>
-  <div class="pizza-card">
+  <div class="pizza-card" hidden>
     <strong>Calzoni e panini con gusto pizza</strong>
     <p>Scegli il gusto e uno dei suoi formati disponibili, anche Doppia o Familiare. Il prezzo segue quello della pizza dello stesso formato, oppure puoi indicarne uno personalizzato. Per Singola è prevista una panetta; il consumo dei formati maggiori sarà configurato prima dell'attivazione. La scorta non viene ancora scalata.</p>
     <div id="pizzaDerivatives" class="pizza-formats"></div>
     <div class="pizza-actions"><button id="pizzaAddDerivative" type="button">+ Aggiungi calzone o panino</button><button id="pizzaSaveDerivatives" type="button">Salva calzoni e panini</button></div>
     <p id="pizzaDerivativeMessage" class="pizza-message" role="status"></p>
   </div>
-  <div class="pizza-card">
+  <div class="pizza-card" hidden>
     <strong>Anteprima prezzo · calzoni, panini e pizze</strong>
     <p>Prova le regole salvate, comprese le rimozioni senza sconto. Il totale viene calcolato dal server e non cambia il menu, le scorte o gli ordini.</p>
     <div class="pizza-format">
