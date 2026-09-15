@@ -24,7 +24,7 @@
 <body class="{{ 'public' if public_slug else '' }}">
   <header><strong>🍕 Alpha Menu · {{ 'Configura il tuo ordine' if public_slug else 'Prova Pizzeria' }}</strong>{% if not public_slug %}<a href="/dashboard_user#pizzeria">← Torna alla configurazione</a>{% endif %}</header>
   <main>
-    <h1 id="pageTitle">{{ 'Personalizza il tuo prodotto' if public_slug else 'Prova il percorso del cliente' }}</h1>
+    <h1 id="pageTitle">{{ 'Personalizza il tuo prodotto' if public_slug else 'Prova il percorso del cliente' }}</h1>{% if public_slug %}<button id="combineHere" class="combine-here" type="button" hidden>Combina gusti</button>{% endif %}
     <p id="pageIntro">Scegli il gusto, indica gli ingredienti da togliere o aggiungere e controlla il prezzo prima di inserirlo nell’ordine.</p>
     {% if not public_slug %}<div class="notice"><strong>Solo simulazione privata.</strong> Questa pagina è visibile soltanto al titolare autenticato. Non crea ordini, non scala panette, non stampa comande e non attiva il menu pubblico.</div>{% endif %}
     <div class="card" id="optionsCard">
@@ -37,7 +37,7 @@
       </div>
     </div>
     <div id="tastes"></div>
-    <div class="card">{% if public_slug %}<button id="combineHere" class="combine-here" type="button" hidden>Combina gusti</button>{% endif %}<div class="quantity-stepper"><button id="quantityMinus" type="button" aria-label="Diminuisci quantità">−</button><input id="quantity" type="number" min="1" max="100" step="1" value="1" aria-label="Quantità"><button id="quantityPlus" type="button" aria-label="Aumenta quantità">+</button></div><br><button id="calculate" type="button" disabled{% if public_slug %} hidden{% endif %}>Calcola totale</button>{% if public_slug %}<button id="addOrder" type="button" hidden>Aggiungi all’ordine</button>{% endif %}<p id="result" role="status">Caricamento configurazione…</p><p class="muted">Gli ingredienti tolti non riducono il prezzo e non garantiscono l'assenza di allergeni. Per allergie, verificare sempre con il locale.</p></div>
+    <div class="card"><div class="quantity-stepper"><button id="quantityMinus" type="button" aria-label="Diminuisci quantità">−</button><input id="quantity" type="number" min="1" max="100" step="1" value="1" aria-label="Quantità"><button id="quantityPlus" type="button" aria-label="Aumenta quantità">+</button></div><br><button id="calculate" type="button" disabled{% if public_slug %} hidden{% endif %}>Calcola totale</button>{% if public_slug %}<button id="addOrder" type="button" hidden>Aggiungi all’ordine</button>{% endif %}<p id="result" role="status">Caricamento configurazione…</p><p class="muted">Gli ingredienti tolti non riducono il prezzo e non garantiscono l'assenza di allergeni. Per allergie, verificare sempre con il locale.</p></div>
   </main>
   <script>
   (()=>{
@@ -61,7 +61,7 @@
       const allowed=(fractions.find(f=>f.formato===chosenFormat())?.tagli||[]);
       const oldCut=cut.value;fill(cut,allowed.map(n=>({label:n===2?'Metà':n===3?'Terzi':'Quarti',value:String(n)})),'Scegli frazionamento');cut.value=allowed.includes(Number(oldCut))?oldCut:String(allowed[0]||'');
       el('cutWrap').hidden=!mixed||allowed.length<=1;
-      if(el('combineHere'))el('combineHere').hidden=mixed||!allowed.length;
+      if(el('combineHere')){const showCombine=!mixed&&Boolean(allowed.length);el('combineHere').hidden=!showCombine;el('pageTitle').hidden=showCombine}
       const denominator=Number(cut.value);count.value=String(denominator||1);
       el('doughWrap').hidden=kind.value!=='pizza'||chosenFormat().toLowerCase()!=='singola';
       fill(dough,doughs.filter(d=>d.disponibile&&(d.nome.toLowerCase()==='classico'||!el('doughWrap').hidden)).map(d=>({label:d.nome+(Number(d.supplemento)?' · +€ '+d.supplemento:''),value:d.nome})),'Scegli impasto');dough.value=doughs.some(d=>d.nome==='Classico'&&d.disponibile)?'Classico':dough.options[1]?.value||'';
@@ -104,7 +104,7 @@
     });
     kind.addEventListener('change',render);format.addEventListener('change',render);cut.addEventListener('change',render);dough.addEventListener('change',scheduleQuote);el('quantity').addEventListener('input',scheduleQuote);tastes.addEventListener('change',scheduleQuote);
     el('quantityMinus').onclick=()=>{el('quantity').value=Math.max(1,Number(el('quantity').value||1)-1);scheduleQuote()};el('quantityPlus').onclick=()=>{el('quantity').value=Math.min(100,Number(el('quantity').value||1)+1);scheduleQuote()};
-    if(el('combineHere'))el('combineHere').onclick=()=>{kind.value=kind.value==='pizza'?'multigusto':kind.value+'_multigusto';el('pageTitle').textContent='Combina i gusti · '+chosenFormat();el('pageIntro').hidden=true;render()};
+    if(el('combineHere'))el('combineHere').onclick=()=>{kind.value=kind.value==='pizza'?'multigusto':kind.value+'_multigusto';el('pageTitle').hidden=false;el('pageTitle').textContent='Combina i gusti · '+chosenFormat();el('pageIntro').hidden=true;render()};
     if(el('addOrder'))el('addOrder').onclick=()=>{if(lastChoice)window.parent.postMessage({type:'alphamenu-pizzeria-add',...lastChoice},location.origin)};
     const privateUrls=['/api/pizzeria/formati','/api/pizzeria/varianti','/api/pizzeria/derivati','/api/pizzeria/preparazione','/api/pizzeria/ingredienti'];
     Promise.all((publicSlug?[base]:privateUrls).map(async url=>{const response=await fetch(url,{credentials:'same-origin',cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Impossibile caricare la configurazione.');return data}))
