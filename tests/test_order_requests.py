@@ -241,7 +241,7 @@ def test_product_detail_price_is_below_content_and_right_aligned_on_mobile():
 
 def test_public_menu_view_mode_is_read_only_and_takeaway_mode_allows_ordering():
     html = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
-    assert "showMenu.addEventListener('click', () => openMenu('view'))" in html
+    assert "showMenu.addEventListener('click', () => openMenu({% if shop.ordini_attivi %}'asporto'{% elif shop.ordini_tavolo_attivi %}'tavolo'{% else %}'view'{% endif %}))" in html
     assert "orderTakeawayStart?.addEventListener('click', () => openMenu('asporto'))" in html
     assert "orderAddButtons.forEach(button=>button.hidden=mode==='view')" in html
     assert "if(orderMode==='view')return" in html
