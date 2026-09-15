@@ -86,6 +86,7 @@ class FakeCursor:
         if "data_richiesta=%s" in self.query: return (self.limit,)
         if "telefono_cliente=%s" in self.query: return (0,)
         if "origine='tavolo'" in self.query: return (0,)
+        if "RETURNING ultimo_numero" in self.query: return (1,)
         if "RETURNING id" in self.query: return (123,)
         raise AssertionError(self.query)
 
@@ -143,7 +144,8 @@ def test_online_customer_email_is_saved_for_search_when_opted_in():
     saved = next(params for sql, params in db.cur.statements if "INSERT INTO clienti_ordini_salvati" in sql)
     assert saved[-1] == "mario@example.it"
     order = next(params for sql, params in db.cur.statements if "INSERT INTO ordini_menu" in sql)
-    assert order[-1] == "mario@example.it"
+    assert order[-2] == "mario@example.it"
+    assert order[-1] == 1
 
 
 def test_google_email_is_saved_only_after_takeaway_customer_opts_in():
@@ -530,7 +532,7 @@ def test_fulfillment_api_returns_shop_scoped_open_and_completed_orders():
             assert "o.stato IN ('da_evadere','in_lavorazione','evaso')" in sql
             assert params[0] == 7
         def fetchall(self):
-                return [(19, day, "12:15", "Mario Rossi", "+39123456", "", "", "da_evadere", Decimal("6.00"), "cliente", "12/09/2026 09:00", "Articolo", Decimal("1.5"), Decimal("6.00"), 3, 2, "Primi", 1, 4)]
+                return [(19, 4, day, "12:15", "Mario Rossi", "+39123456", "", "", "da_evadere", Decimal("6.00"), "cliente", "12/09/2026 09:00", "Articolo", Decimal("1.5"), Decimal("6.00"), 3, 2, "Primi", 1, 4)]
 
     db = SimpleNamespace(cursor=lambda: Cursor(), close=lambda: None)
     scope = {
@@ -545,6 +547,7 @@ def test_fulfillment_api_returns_shop_scoped_open_and_completed_orders():
         session["user_id"] = 11
         result = scope["api_ordini_evasione"]().get_json()
     assert result["ordini"][0]["ora_richiesta"] == "12:15"
+    assert result["ordini"][0]["numero"] == 4
     assert result["ordini"][0]["prodotti"][0]["quantita"] == "1.5"
 
 

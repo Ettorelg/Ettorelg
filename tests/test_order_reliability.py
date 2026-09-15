@@ -10,7 +10,7 @@ class RetryCursor(FakeCursor):
     def execute(self, query, params=None):
         super().execute(query, params)
         if 'SET chiave_richiesta=' in query:
-            self.existing = (123, Decimal('4.00'), params[1])
+            self.existing = (123, Decimal('4.00'), params[1], 1)
     def fetchone(self):
         if 'SELECT id,totale,impronta_richiesta' in self.query:
             return self.existing

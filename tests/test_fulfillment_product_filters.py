@@ -13,8 +13,8 @@ class FulfillmentProductFiltersTests(unittest.TestCase):
     def test_order_lines_include_category_metadata(self):
         endpoint = APP[APP.index("def api_ordini_evasione():"):APP.index('@app.get("/api/ordini")')]
         self.assertIn("LEFT JOIN categorie c ON c.id=p.id_categoria", endpoint)
-        self.assertIn('"id_categoria": row[15]', endpoint)
-        self.assertIn('"ordine_categoria": row[17]', endpoint)
+        self.assertIn('"id_categoria": row[16]', endpoint)
+        self.assertIn('"ordine_categoria": row[18]', endpoint)
 
     def test_both_boards_filter_and_sort_products(self):
         for page in (OWNER, EMPLOYEE):

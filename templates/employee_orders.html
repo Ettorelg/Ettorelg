@@ -35,28 +35,28 @@ function render(){
         if(order.stato==='evaso'){
           const card=element(grid,'article',undefined,'order-card done compact-order');
           const row=element(card,'div',undefined,'compact-order-row');
-          element(row,'strong','#'+order.id+' · '+order.nome);
+          element(row,'strong','#'+(order.numero||order.id)+' · '+order.nome);
           element(row,'span','Evaso','compact-order-status');
           const details=element(row,'details',undefined,'compact-order-details');
           element(details,'summary','Dettagli ordine');
           element(details,'p',(order.ora_richiesta||'Solo giorno')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto'));
           const list=element(details,'ul');for(const item of visibleProducts(order))element(list,'li',fmt(Number(item.quantita))+' × '+item.nome);
           if(order.note)element(details,'p','Note: '+order.note);
-          const printDone=element(details,'button','🖨️');printDone.type='button';printDone.title='Stampa ordine';printDone.setAttribute('aria-label','Stampa ordine #'+order.id);printDone.onclick=()=>AlphaOrderPrint.direct(order);
+          const printDone=element(details,'button','🖨️');printDone.type='button';printDone.title='Stampa ordine';printDone.setAttribute('aria-label','Stampa ordine #'+(order.numero||order.id));printDone.onclick=()=>AlphaOrderPrint.direct(order);
           continue;
         }
         const card=element(grid,'article',undefined,'order-card'+(order.stato==='evaso'?' done':''));
-        element(card,'h3','#'+order.id+' · '+order.nome+' · '+(order.stato==='in_lavorazione'?'Pronto':'Da evadere'));
+        element(card,'h3','#'+(order.numero||order.id)+' · '+order.nome+' · '+(order.stato==='in_lavorazione'?'Pronto':'Da evadere'));
         element(card,'p',(order.ora_richiesta||'Solo giorno')+' · '+(order.origine==='tavolo'?'Al tavolo':'Da asporto'));
         const list=element(card,'ul');for(const item of visibleProducts(order))element(list,'li',fmt(Number(item.quantita))+' × '+item.nome);
         if(order.note)element(card,'p','Note: '+order.note);
         if(order.stato!=='evaso'){
           const actions=element(card,'div',undefined,'actions');
-          const printButton=element(actions,'button','🖨️');printButton.type='button';printButton.title='Stampa ordine';printButton.setAttribute('aria-label','Stampa ordine #'+order.id);printButton.onclick=()=>AlphaOrderPrint.direct(order);
+          const printButton=element(actions,'button','🖨️');printButton.type='button';printButton.title='Stampa ordine';printButton.setAttribute('aria-label','Stampa ordine #'+(order.numero||order.id));printButton.onclick=()=>AlphaOrderPrint.direct(order);
           for(const [target,label] of [['evaso','Segna evaso'],['annullato','Annulla']]){
             const button=element(actions,'button',label,target==='evaso'?'finish':'cancel');button.type='button';
             button.onclick=async()=>{
-              if(target==='annullato'&&!confirm('Annullare l’ordine #'+order.id+'?'))return;
+              if(target==='annullato'&&!confirm('Annullare l’ordine #'+(order.numero||order.id)+'?'))return;
               button.disabled=true;
               try{const response=await fetch('/api/ordini/'+order.id,{method:'PATCH',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({stato:target})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Aggiornamento non riuscito.');await load()}
               catch(error){status.textContent=error.message;button.disabled=false}
@@ -90,5 +90,5 @@ function renderSlots(){return employeeAvailability.refresh()}
 orderDate.addEventListener('change',renderSlots);
 document.getElementById('addOrder').onclick=async()=>{orderMessage.textContent='Caricamento articoli…';orderDialog.showModal();orderDate.value=dateField.value;orderDate.min=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});try{const [p,c]=await Promise.all([fetch('/api/prodotti'),fetch('/api/ordini/configurazione')]);if(!p.ok||!c.ok)throw new Error('Impossibile caricare gli articoli o le fasce.');products=(await p.json()).items.filter(item=>item.disponibile);pickupConfig=await c.json();renderSlots();orderLines.replaceChildren();addOrderLine();orderMessage.textContent=''}catch(e){orderMessage.textContent=e.message}};
 document.getElementById('closeOrder').onclick=()=>orderDialog.close();document.getElementById('addLine').onclick=addOrderLine;
-orderForm.onsubmit=async event=>{event.preventDefault();const rows=[...orderLines.querySelectorAll('.line')];const items=rows.map(row=>({id:Number(row.dataset.productId),quantita:row.querySelector('input[type=number]').value}));if(!items.length||items.some(x=>!x.id)||new Set(items.map(x=>x.id)).size!==items.length){orderMessage.textContent='Scegli almeno un articolo dai risultati, senza duplicati.';return}const form=new FormData(orderForm);const payload={nome:form.get('nome'),telefono:form.get('telefono'),email:form.get('email'),data_richiesta:form.get('data_richiesta'),ora_richiesta:form.get('ora_richiesta'),riferimento:form.get('riferimento'),note:form.get('note'),salva_cliente:form.has('salva_cliente'),prodotti:items};const submit=orderForm.querySelector('[type=submit]');submit.disabled=true;orderMessage.textContent='Registrazione in corso…';try{const response=await AlphaOrders.send('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)}),result=await response.json();if(!response.ok)throw new Error(result.error||'Ordine non registrato.');orderForm.reset();orderLines.replaceChildren();dateField.value=payload.data_richiesta;orderDialog.close();await load();status.textContent='Ordine #'+result.ordine_id+' registrato.'}catch(e){orderMessage.textContent=e.message}finally{submit.disabled=false}};
+orderForm.onsubmit=async event=>{event.preventDefault();const rows=[...orderLines.querySelectorAll('.line')];const items=rows.map(row=>({id:Number(row.dataset.productId),quantita:row.querySelector('input[type=number]').value}));if(!items.length||items.some(x=>!x.id)||new Set(items.map(x=>x.id)).size!==items.length){orderMessage.textContent='Scegli almeno un articolo dai risultati, senza duplicati.';return}const form=new FormData(orderForm);const payload={nome:form.get('nome'),telefono:form.get('telefono'),email:form.get('email'),data_richiesta:form.get('data_richiesta'),ora_richiesta:form.get('ora_richiesta'),riferimento:form.get('riferimento'),note:form.get('note'),salva_cliente:form.has('salva_cliente'),prodotti:items};const submit=orderForm.querySelector('[type=submit]');submit.disabled=true;orderMessage.textContent='Registrazione in corso…';try{const response=await AlphaOrders.send('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)}),result=await response.json();if(!response.ok)throw new Error(result.error||'Ordine non registrato.');orderForm.reset();orderLines.replaceChildren();dateField.value=payload.data_richiesta;orderDialog.close();await load();status.textContent='Ordine #'+(result.numero_ordine||result.ordine_id)+' registrato.'}catch(e){orderMessage.textContent=e.message}finally{submit.disabled=false}};
 </script><script src="{{ url_for('static', filename='order-notifications.js') }}?v=1"></script></body></html>

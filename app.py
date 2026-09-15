@@ -1265,7 +1265,13 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS email_cliente TEXT")
                 cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS chiave_richiesta TEXT")
                 cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS impronta_richiesta TEXT")
+                cur.execute("ALTER TABLE ordini_menu ADD COLUMN IF NOT EXISTS numero_progressivo INTEGER")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ordini_menu_chiave_unica ON ordini_menu (id_negozio, chiave_richiesta) WHERE chiave_richiesta IS NOT NULL")
+                cur.execute("DROP INDEX IF EXISTS ordini_menu_numero_giornaliero")
+                cur.execute("""CREATE TABLE IF NOT EXISTS contatori_ordini_menu (
+                    id_negozio INTEGER PRIMARY KEY REFERENCES negozi(id) ON DELETE CASCADE,
+                    ultimo_numero INTEGER NOT NULL CHECK (ultimo_numero BETWEEN 1 AND 200)
+                )""")
                 cur.execute("CREATE INDEX IF NOT EXISTS ordini_menu_evasione ON ordini_menu (id_negozio, data_richiesta, ora_richiesta) WHERE stato IN ('da_evadere','in_lavorazione')")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS sito_web TEXT")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS instagram_url TEXT")
@@ -5072,12 +5078,12 @@ def api_crea_ordine_menu(slug: str | None = None):
                     return jsonify({"error": "Questa modalità d'ordine non è disponibile per il locale."}), 403
                 shop_id = shop[0]
                 if request_key:
-                    cur.execute("SELECT id,totale,impronta_richiesta FROM ordini_menu WHERE id_negozio=%s AND chiave_richiesta=%s", (shop_id, request_key))
+                    cur.execute("SELECT id,totale,impronta_richiesta,COALESCE(numero_progressivo,id) FROM ordini_menu WHERE id_negozio=%s AND chiave_richiesta=%s", (shop_id, request_key))
                     existing = cur.fetchone()
                     if existing:
                         if existing[2] != request_fingerprint:
                             return jsonify({"error": "La richiesta è già stata utilizzata per un ordine diverso."}), 409
-                        return jsonify({"ok": True, "ordine_id": existing[0], "totale": str(existing[1]), "messaggio": "Ordine ricevuto."}), 200
+                        return jsonify({"ok": True, "ordine_id": existing[0], "numero_ordine": existing[3], "totale": str(existing[1]), "messaggio": "Ordine ricevuto."}), 200
                 if mode == "asporto":
                     if shop[4]:
                         if not requested_time:
@@ -5201,10 +5207,16 @@ def api_crea_ordine_menu(slug: str | None = None):
                                             "name": pizza_line["name"] if pizza_line else product[1] + (" (kg)" if product[3] == "kg" else ""),
                                             "config": pizza_line["config"] if pizza_line else None})
                 total = sum((line["total"] for line in validated_lines), Decimal("0.00"))
+                cur.execute("""INSERT INTO contatori_ordini_menu (id_negozio,ultimo_numero) VALUES (%s,1)
+                               ON CONFLICT (id_negozio) DO UPDATE SET ultimo_numero=
+                                 CASE WHEN contatori_ordini_menu.ultimo_numero>=200 THEN 1
+                                      ELSE contatori_ordini_menu.ultimo_numero+1 END
+                               RETURNING ultimo_numero""", (shop_id,))
+                progressive_number = cur.fetchone()[0]
                 cur.execute("""
-                    INSERT INTO ordini_menu (id_negozio,nome_cliente,telefono_cliente,riferimento,note,totale,data_richiesta,ora_richiesta,origine,google_sub_cliente,email_cliente)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
-                """, (shop_id, name, phone, reference, notes, total, requested, requested_time or None, "titolare" if manual else mode, customer_google.get("sub") if customer_google else None, email or None))
+                    INSERT INTO ordini_menu (id_negozio,nome_cliente,telefono_cliente,riferimento,note,totale,data_richiesta,ora_richiesta,origine,google_sub_cliente,email_cliente,numero_progressivo)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+                """, (shop_id, name, phone, reference, notes, total, requested, requested_time or None, "titolare" if manual else mode, customer_google.get("sub") if customer_google else None, email or None, progressive_number))
                 order_id = cur.fetchone()[0]
                 if request_key:
                     cur.execute("UPDATE ordini_menu SET chiave_richiesta=%s,impronta_richiesta=%s WHERE id=%s", (request_key, request_fingerprint, order_id))
@@ -5226,7 +5238,7 @@ def api_crea_ordine_menu(slug: str | None = None):
         push_executor = globals().get("PUSH_EXECUTOR")
         if push_executor:
             push_executor.submit(send_order_push, shop_id, order_id, mode)
-        return jsonify({"ok": True, "ordine_id": order_id, "totale": str(total), "messaggio": "Ordine registrato." if manual else ("Ordine al tavolo inviato." if mode == "tavolo" else "Ordine ricevuto dal locale.")}), 201
+        return jsonify({"ok": True, "ordine_id": order_id, "numero_ordine": progressive_number, "totale": str(total), "messaggio": "Ordine registrato." if manual else ("Ordine al tavolo inviato." if mode == "tavolo" else "Ordine ricevuto dal locale.")}), 201
     finally:
         conn.close()
 
@@ -5313,7 +5325,7 @@ def api_ordine_per_stampa(order_id: int):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT o.id, COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date),
+                SELECT COALESCE(o.numero_progressivo,o.id), COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date),
                        TO_CHAR(o.ora_richiesta,'HH24:MI'),o.nome_cliente,o.telefono_cliente,
                        o.riferimento,o.note,o.totale,o.origine,
                        TO_CHAR(o.creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
@@ -5456,7 +5468,8 @@ def api_ordini_evasione():
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT o.id, COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date),
+                SELECT o.id,COALESCE(o.numero_progressivo,o.id),
+                       COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date),
                        TO_CHAR(o.ora_richiesta,'HH24:MI'), o.nome_cliente,o.telefono_cliente,
                        o.riferimento,o.note,o.stato,o.totale,o.origine,
                        TO_CHAR(o.creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
@@ -5481,18 +5494,18 @@ def api_ordini_evasione():
             order = orders_by_id.get(row[0])
             if order is None:
                 order = {
-                    "id": row[0], "data_richiesta": row[1].isoformat(), "ora_richiesta": row[2],
-                    "nome": row[3], "telefono": row[4], "riferimento": row[5],
-                    "note": row[6], "stato": row[7], "totale": str(row[8]),
-                    "origine": row[9], "creato_il": row[10], "prodotti": [],
+                    "id": row[0], "numero": row[1], "data_richiesta": row[2].isoformat(), "ora_richiesta": row[3],
+                    "nome": row[4], "telefono": row[5], "riferimento": row[6],
+                    "note": row[7], "stato": row[8], "totale": str(row[9]),
+                    "origine": row[10], "creato_il": row[11], "prodotti": [],
                 }
                 orders_by_id[row[0]] = order
-            if row[11] is not None:
-                order["prodotti"].append({"nome": row[11], "quantita": str(row[12]), "totale": str(row[13]),
-                                          "id_prodotto": row[14], "id_categoria": row[15],
-                                          "categoria": row[16] or "Senza categoria",
-                                          "ordine_categoria": row[17] if row[17] is not None else 999999,
-                                          "ordine_prodotto": row[18] if row[18] is not None else 999999})
+            if row[12] is not None:
+                order["prodotti"].append({"nome": row[12], "quantita": str(row[13]), "totale": str(row[14]),
+                                          "id_prodotto": row[15], "id_categoria": row[16],
+                                          "categoria": row[17] or "Senza categoria",
+                                          "ordine_categoria": row[18] if row[18] is not None else 999999,
+                                          "ordine_prodotto": row[19] if row[19] is not None else 999999})
         return jsonify({"ordini": list(orders_by_id.values()), "da": start.isoformat(), "a": (end - timedelta(days=1)).isoformat()})
     finally:
         conn.close()
@@ -5541,7 +5554,7 @@ def api_elenco_ordini():
             """, (shop_id, start, end))
             summary = {row[0]: {"numero": row[1], "totale": str(row[2])} for row in cur.fetchall()}
             cur.execute("""
-                SELECT id,nome_cliente,telefono_cliente,riferimento,note,stato,totale,
+                SELECT id,COALESCE(numero_progressivo,id),nome_cliente,telefono_cliente,riferimento,note,stato,totale,
                        TO_CHAR(creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
                        COALESCE(data_richiesta,(creato_il AT TIME ZONE 'Europe/Rome')::date),origine,email_cliente,
                        TO_CHAR(ora_richiesta,'HH24:MI')
@@ -5551,7 +5564,7 @@ def api_elenco_ordini():
                 ORDER BY CASE WHEN stato IN ('da_evadere','in_lavorazione') THEN 0 ELSE 1 END,
                          data_richiesta ASC NULLS LAST, ora_richiesta ASC NULLS LAST, creato_il DESC LIMIT %s OFFSET %s
             """, (shop_id, start, end, page_size, (page - 1) * page_size))
-            orders = [dict(zip(("id","nome","telefono","riferimento","note","stato","totale","creato_il","data_richiesta","origine","email_cliente","ora_richiesta"), row)) for row in cur.fetchall()]
+            orders = [dict(zip(("id","numero","nome","telefono","riferimento","note","stato","totale","creato_il","data_richiesta","origine","email_cliente","ora_richiesta"), row)) for row in cur.fetchall()]
             for order in orders:
                 order["totale"] = str(order["totale"])
                 order["data_richiesta"] = order["data_richiesta"].isoformat()

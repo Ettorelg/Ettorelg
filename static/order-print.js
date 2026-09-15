@@ -43,7 +43,7 @@ window.AlphaOrderPrint = (() => {
       const routes = await routesResponse.json();
       const currentOrder = (await orderResponse.json()).ordine;
       if (!routes.stampante_ip && !routes.stampante_riepilogo_ip && !(routes.categorie || []).length) throw new Error('Imposta una stampante generale, di riepilogo o per categoria.');
-      const mode = automatic || quiet ? 'all' : await chooseMode(order.id, Boolean(routes.stampante_riepilogo_ip), Boolean(routes.stampante_ip || (routes.categorie || []).length));
+      const mode = automatic || quiet ? 'all' : await chooseMode(currentOrder.id, Boolean(routes.stampante_riepilogo_ip), Boolean(routes.stampante_ip || (routes.categorie || []).length));
       if (!mode) return false;
       const healthResponse = await fetch('http://127.0.0.1:17891/health', {signal: AbortSignal.timeout(5000)});
       const health = await healthResponse.json();
@@ -55,7 +55,7 @@ window.AlphaOrderPrint = (() => {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || 'Stampa diretta non riuscita.');
-      if (!quiet) window.alert(result.message || ('Ordine #' + order.id + ' inviato alla stampante.'));
+      if (!quiet) window.alert(result.message || ('Ordine #' + (order.numero || order.id) + ' inviato alla stampante.'));
       return result.printed || 0;
     } catch (error) {
       const message = (error instanceof TypeError || error.name === 'TimeoutError'

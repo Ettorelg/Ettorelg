@@ -496,8 +496,8 @@
           orderFeedback.textContent = '';
           orderPanel.close();
           orderSuccessMessage.textContent = completedMode==='tavolo'
-            ? menuText('Ordine #')+result.ordine_id+menuText(' inviato al locale per il tuo tavolo.')
-            : menuText('Ordine #')+result.ordine_id+menuText(' ricevuto dal locale. Nessun pagamento effettuato online.');
+            ? menuText('Ordine #')+(result.numero_ordine||result.ordine_id)+menuText(' inviato al locale per il tuo tavolo.')
+            : menuText('Ordine #')+(result.numero_ordine||result.ordine_id)+menuText(' ricevuto dal locale. Nessun pagamento effettuato online.');
           orderSuccess.showModal();
           if(completedMode==='asporto')checkOrderDate();
         } catch (error) {
