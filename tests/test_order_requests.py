@@ -269,6 +269,16 @@ def test_public_product_details_hint_sits_beside_add_button():
     assert '.product-actions{grid-column:1/-1;display:flex' in html
 
 
+def test_public_pizzeria_formats_are_visible_subpages_with_exact_product_prices():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
+    assert 'class="pizzeria-format-nav"' in html
+    assert 'data-format-target="{{ format_name|e }}"' in html
+    assert 'data-pizzeria-page-format="{{ product.pizzeria_format or \'\' }}"' in html
+    assert "function activateFormat(section, formatName)" in html
+    assert "card.classList.toggle('format-hidden', Boolean(productFormat) && productFormat !== formatName)" in html
+    assert "combine.dataset.pizzeriaFormat = formatName" in html
+
+
 def test_kilogram_product_uses_weight_and_labels_order_line():
     db = FakeConnection(product_unit="kg")
     with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=payload("1,5")):

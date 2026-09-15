@@ -24,7 +24,7 @@
     .menu-tools{position:sticky;top:103px;z-index:4;display:grid;grid-template-columns:minmax(220px,1fr) repeat(2,minmax(150px,220px));gap:9px;width:min(1120px,calc(100% - 24px));margin:12px auto;padding:10px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.94);box-shadow:0 8px 24px rgba(70,48,33,.08);backdrop-filter:blur(10px)}.menu-tools[hidden]{display:none}.menu-tools>input{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--text);font:600 .86rem system-ui}.filter-dropdown{position:relative;min-width:0;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--text);font:600 .86rem system-ui}.filter-dropdown summary{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:39px;padding:9px 12px;cursor:pointer;list-style:none}.filter-dropdown summary::-webkit-details-marker{display:none}.filter-dropdown summary::after{content:"▾";font-size:.72rem}.filter-dropdown[open] summary::after{transform:rotate(180deg)}.filter-count{display:none;min-width:20px;padding:2px 6px;border-radius:999px;background:var(--accent);color:#fff;text-align:center;font-size:.7rem}.filter-count.active{display:inline-block}.filter-options{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:8;display:grid;gap:3px;max-height:260px;overflow:auto;padding:8px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow)}.filter-options label{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:.8rem}.filter-options label:hover{background:var(--bg)}.filter-options input{width:17px;height:17px;margin:0;accent-color:var(--accent)}.filter-hidden{display:none!important}.filter-empty{grid-column:1/-1;padding:24px;text-align:center;color:var(--muted)}
     main{width:min(1120px,100%);margin:auto;padding:18px 20px 52px}.intro{display:grid;grid-template-columns:1.2fr .8fr;gap:10px;max-width:900px;margin:0 auto 12px}.intro-card{padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.72)}
     .intro-card h2{margin:0 0 5px;font-size:.92rem}.intro-card p{display:-webkit-box;margin:0;overflow:hidden;color:var(--muted);font-size:.82rem;line-height:1.35;white-space:pre-line;-webkit-box-orient:vertical;-webkit-line-clamp:3}.contacts{display:grid;gap:4px}.contacts a,.contacts span{color:var(--muted);font-size:.78rem;line-height:1.3;text-decoration:none;overflow-wrap:anywhere}
-    .menu-section{scroll-margin-top:76px;margin-top:34px}.menu-section h2{margin:0 0 15px;font-family:Georgia,serif;font-size:2rem}.products{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .menu-section{scroll-margin-top:76px;margin-top:34px}.menu-section h2{margin:0;font-family:Georgia,serif;font-size:2rem}.menu-section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px}.pizzeria-format-nav{display:flex;gap:8px;overflow-x:auto;margin:0 0 16px;padding:3px 1px 7px;scrollbar-width:thin}.pizzeria-format-button{flex:0 0 auto;min-width:112px;padding:10px 16px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--text);font:800 .88rem system-ui;cursor:pointer;box-shadow:0 3px 10px rgba(70,48,33,.05)}.pizzeria-format-button:hover,.pizzeria-format-button:focus-visible{border-color:var(--accent);outline:2px solid color-mix(in srgb,var(--accent) 22%,transparent)}.pizzeria-format-button.active{border-color:var(--accent);background:var(--accent);color:#fff}.format-hidden{display:none!important}.products{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
     .product{display:grid;grid-template-columns:1fr auto;gap:9px;padding:12px;border:1px solid var(--line);border-radius:15px;background:var(--card);box-shadow:0 5px 18px rgba(70,48,33,.05)}
     .product.with-image{grid-template-columns:96px 1fr auto}.product img{width:96px;height:96px;border-radius:11px;object-fit:cover}.product h3{margin:0 0 4px;font-size:1.02rem}.subcat{display:block;margin-bottom:5px;color:var(--accent);font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}.products>.product .subcat{display:none}.print-subcategory-separator{grid-column:1/-1;margin:12px 0 0;padding:11px 14px;border-left:5px solid var(--accent);border-radius:10px;background:color-mix(in srgb,var(--accent) 10%,#fff);color:var(--accent);font-size:.82rem;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.product-dialog .subcat{display:block}
     .product p{margin:0;color:var(--muted);line-height:1.45;font-size:.9rem}.price{white-space:nowrap;font-weight:850;color:var(--accent)}.product.sold-out{opacity:.58;filter:saturate(.45)}.sold-out-badge{display:block;margin-top:6px;padding:3px 6px;border:1px solid currentColor;border-radius:999px;font-size:.62rem;text-align:center;text-transform:uppercase;letter-spacing:.04em}.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}.chip{padding:4px 7px;border-radius:999px;background:#f4ece6;color:#6f3d2f;font-size:.7rem;font-weight:700}.allergen{background:#fff2c9;color:#725713}.allergen-line{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);color:#725713;font-size:.76rem}.allergen-line strong{margin-right:2px}.note{display:block;margin-top:8px;color:#86786e;font-size:.78rem;font-style:italic}
@@ -128,14 +128,15 @@
     {% if categories %}
       {% for category in categories %}
       <section class="menu-section" id="categoria-{{ category.id }}" data-category-section data-track-url="{% if not category.virtual %}{{ url_for('track_category_open', slug=shop.slug, category_id=category.id, lang=language) }}{% endif %}" hidden>
-        <h2>{{ category.nome }}{% if category.combina_gusti %} <button type="button" class="order-add combine-tastes" data-pizzeria-kind="{{ 'multigusto' if category.pizzeria_kind == 'pizza' else category.pizzeria_kind ~ '_multigusto' }}" data-pizzeria-format="{{ category.pizzeria_format }}">Combina gusti</button>{% endif %}</h2>
+        <div class="menu-section-title"><h2>{{ category.nome }}</h2>{% if category.combina_gusti %}<button type="button" class="order-add combine-tastes" data-pizzeria-kind="{{ 'multigusto' if category.pizzeria_kind == 'pizza' else category.pizzeria_kind ~ '_multigusto' }}" data-pizzeria-format="" data-mixed-formats="{{ category.pizzeria_mixed_formats|join('|')|e }}">Combina gusti</button>{% endif %}</div>
+        {% if category.pizzeria_formats %}<nav class="pizzeria-format-nav" aria-label="Formati di {{ category.nome }}">{% for format_name in category.pizzeria_formats %}<button type="button" class="pizzeria-format-button{% if loop.first %} active{% endif %}" data-format-target="{{ format_name|e }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ format_name }}</button>{% endfor %}</nav>{% endif %}
         <div class="products">
           {% set subcategory_state = namespace(current='') %}
           {% for product in category.prodotti %}
           {% set product_subcategory = product.sottocategoria or '' %}
           {% if product_subcategory and product_subcategory != subcategory_state.current %}<div class="print-subcategory-separator">{{ product_subcategory }}</div>{% endif %}
           {% set subcategory_state.current = product_subcategory %}
-          <article class="product{% if product.immagine_url %} with-image{% endif %}{% if not product.disponibile %} sold-out{% endif %}" role="button" tabindex="0" aria-label="Apri dettagli di {{ product.nome }}" data-product-open data-track-url="{{ url_for('track_product_open', slug=shop.slug, product_id=product.id, lang=language) }}" data-search="{{ (product.nome ~ ' ' ~ product.descrizione ~ ' ' ~ product.note)|lower|e }}" data-labels="{{ product.etichette|join('|')|lower|e }}" data-allergens="{{ product.allergeni|join('|')|lower|e }}" data-available="{{ 'true' if product.disponibile else 'false' }}" data-order-id="{{ product.id }}" data-order-name="{{ product.nome|e }}" data-order-price="{{ product.prezzo|replace(',', '.') }}" data-order-unit="{{ product.unita_prezzo }}" data-pizzeria-kind="{{ product.pizzeria_kind or '' }}" data-pizzeria-format="{{ product.pizzeria_format or '' }}" data-pizzeria-choose-taste="{{ 'true' if product.pizzeria_choose_taste else 'false' }}">
+          <article class="product{% if product.immagine_url %} with-image{% endif %}{% if not product.disponibile %} sold-out{% endif %}" role="button" tabindex="0" aria-label="Apri dettagli di {{ product.nome }}" data-product-open data-track-url="{{ url_for('track_product_open', slug=shop.slug, product_id=product.id, lang=language) }}" data-search="{{ (product.nome ~ ' ' ~ product.descrizione ~ ' ' ~ product.note)|lower|e }}" data-labels="{{ product.etichette|join('|')|lower|e }}" data-allergens="{{ product.allergeni|join('|')|lower|e }}" data-available="{{ 'true' if product.disponibile else 'false' }}" data-order-id="{{ product.id }}" data-order-name="{{ product.nome|e }}" data-order-price="{{ product.prezzo|replace(',', '.') }}" data-order-unit="{{ product.unita_prezzo }}" data-pizzeria-kind="{{ product.pizzeria_kind or '' }}" data-pizzeria-format="{{ product.pizzeria_format or '' }}" data-pizzeria-page-format="{{ product.pizzeria_format or '' }}" data-pizzeria-choose-taste="{{ 'true' if product.pizzeria_choose_taste else 'false' }}">
             {% if product.immagine_url %}<img src="{{ product.immagine_url }}" alt="{{ product.nome }}" loading="lazy">{% endif %}
             <div>
               {% if product.sottocategoria %}<span class="subcat">{{ product.sottocategoria }}</span>{% endif %}
@@ -235,11 +236,37 @@
         if (!item.classList.contains('print-subcategory-separator')) return;
         let hasVisibleProduct = false;
         for (let next = index + 1; next < children.length && !children[next].classList.contains('print-subcategory-separator'); next++) {
-          if (children[next].classList.contains('product') && !children[next].classList.contains('filter-hidden')) hasVisibleProduct = true;
+          if (children[next].classList.contains('product') && !children[next].classList.contains('filter-hidden') && !children[next].classList.contains('format-hidden')) hasVisibleProduct = true;
         }
         item.classList.toggle('filter-hidden', !hasVisibleProduct);
       });
     }
+
+    function activateFormat(section, formatName){
+      if (!section || !formatName) return;
+      section.querySelectorAll('[data-format-target]').forEach(button => {
+        const active = button.dataset.formatTarget === formatName;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      section.querySelectorAll('[data-product-open]').forEach(card => {
+        const productFormat = card.dataset.pizzeriaPageFormat || '';
+        card.classList.toggle('format-hidden', Boolean(productFormat) && productFormat !== formatName);
+      });
+      const combine = section.querySelector('.combine-tastes');
+      if (combine) {
+        combine.dataset.pizzeriaFormat = formatName;
+        const allowed = (combine.dataset.mixedFormats || '').split('|').filter(Boolean);
+        combine.hidden = orderMode === 'view' || !allowed.includes(formatName);
+      }
+      updateSubcategorySeparators(section);
+    }
+
+    document.querySelectorAll('[data-format-target]').forEach(button => button.addEventListener('click', () => {
+      const section = button.closest('[data-category-section]');
+      activateFormat(section, button.dataset.formatTarget);
+      filterMenu();
+    }));
 
     function selectedFilterValues(container){
       return [...container.querySelectorAll('input:checked')].map(input => input.value.toLowerCase());
@@ -263,7 +290,7 @@
           const productAllergens = card.dataset.allergens.split('|');
           const visible = (!query || card.dataset.search.includes(query)) && labels.every(label => productLabels.includes(label)) && excludedAllergens.every(allergen => !productAllergens.includes(allergen));
           card.classList.toggle('filter-hidden', filtering && !visible);
-          if (!filtering || visible) matches++;
+          if ((!filtering || visible) && !card.classList.contains('format-hidden')) matches++;
         });
         updateSubcategorySeparators(section);
         section.hidden = filtering ? matches === 0 : section.id !== activeCategoryId;
@@ -458,7 +485,11 @@
         orderForm.querySelector('input[name="tavolo"]').required=mode==='tavolo';
         orderPrivacyField.querySelector('input').required=mode==='asporto';
         orderAddButtons.forEach(button=>button.hidden=mode==='view');
-        document.querySelectorAll('.combine-tastes').forEach(button=>button.hidden=mode==='view');
+        document.querySelectorAll('[data-category-section]').forEach(section=>{
+          const selected=section.querySelector('[data-format-target].active');
+          if(selected)activateFormat(section,selected.dataset.formatTarget);
+          else section.querySelectorAll('.combine-tastes').forEach(button=>button.hidden=mode==='view');
+        });
         orderFeedback.textContent='';
         orderDateAvailable=mode!=='asporto';
         renderOrderCart();
@@ -563,6 +594,8 @@
       productCards.forEach(card => card.classList.remove('filter-hidden'));
       categorySections.forEach(section => { updateSubcategorySeparators(section); section.hidden = section.id !== targetId; });
       categoryLinks.forEach(link => link.classList.toggle('active', link.dataset.categoryTarget === targetId));
+      const selectedFormat = activeSection?.querySelector('[data-format-target].active') || activeSection?.querySelector('[data-format-target]');
+      if (selectedFormat) activateFormat(activeSection, selectedFormat.dataset.formatTarget);
       document.getElementById(targetId)?.scrollIntoView({behavior: 'smooth', block: 'start'});
     }
 
