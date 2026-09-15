@@ -4618,14 +4618,11 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
             raise ValueError("Questo frazionamento non è abilitato per il formato.")
         if not isinstance(tastes, list) or not 2 <= len(tastes) <= denominator:
             raise ValueError("Scegli da 2 gusti fino al numero dei tagli.")
-        priced_tastes, chosen_ids = [], set()
+        priced_tastes = []
         for taste in tastes:
             if not isinstance(taste, dict):
                 raise ValueError("Gusto non valido.")
             pizza, selected_format = pizza_and_format(taste.get("id_pizza"))
-            if pizza["id"] in chosen_ids:
-                raise ValueError("Ogni gusto va indicato una sola volta, con la sua frazione totale.")
-            chosen_ids.add(pizza["id"])
             removed.append(removed_ingredients(taste.get("senza", []), pizza))
             taste_price = selected_format["prezzo"]
             if derivative_kind in ("calzone", "panino"):

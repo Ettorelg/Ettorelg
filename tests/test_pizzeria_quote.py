@@ -158,7 +158,6 @@ def test_multitaste_shares_must_always_make_one_whole_item():
 @pytest.mark.parametrize("payload", [
     {"tipo": "multigusto", "formato": "Singola", "taglio": 2, "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 11, "quota": 1}]},
     {"tipo": "multigusto", "formato": "Gigante", "taglio": 3, "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 11, "quota": 1}]},
-    {"tipo": "multigusto", "formato": "Gigante", "taglio": 2, "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 10, "quota": 1}]},
     {"tipo": "pizza", "id_pizza": 10, "formato": "Singola", "aggiunte": [0, 0]},
     {"tipo": "pizza", "id_pizza": 10, "formato": "Gigante", "impasto": "Integrale"},
     {"tipo": "pizza", "id_pizza": 99, "formato": "Singola"},
@@ -174,6 +173,14 @@ def test_unknown_ingredient_cannot_be_removed():
     with pytest.raises(ValueError):
         quote({"tipo": "pizza", "id_pizza": 10, "formato": "Singola", "senza": [1]},
               *settings(), {10: ["Mozzarella"]})
+
+
+def test_same_taste_can_fill_multiple_parts_with_distinct_customizations():
+    result = quote({"tipo": "multigusto", "formato": "Gigante", "taglio": 2,
+                    "gusti": [{"id_pizza": 10, "quota": 1, "senza": [0]},
+                              {"id_pizza": 10, "quota": 1, "aggiunte": [0]}]},
+                   *settings(), {10: ["Mozzarella"]})
+    assert result["ingredienti_tolti_per_gusto"] == [["Mozzarella"], []]
 
 
 def test_owner_quote_is_read_only_and_scoped_to_shop():
