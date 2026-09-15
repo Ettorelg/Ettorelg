@@ -40,7 +40,7 @@
     <div class="pizza-actions"><button id="pizzaAddStock" type="button">+ Aggiungi scorta</button><button id="pizzaSavePreparation" type="button">Salva impasti e panette</button></div>
     <p id="pizzaPreparationMessage" class="pizza-message" role="status"></p>
   </div>
-  <div class="pizza-card">
+  <div class="pizza-card" hidden>
     <strong>Prodotti multigusto e aggiunte</strong>
     <p>Ogni pizza, calzone o panino rimane sempre un prodotto intero. Metà, terzi e quarti indicano soltanto come distribuire i gusti: per esempio 2/3 Margherita e 1/3 Rianata. La somma deve sempre formare un intero. Prezzi e aggiunte sono ponderati per la quota di ogni gusto (3 € su 1/3 = 1 €).</p>
     <h3>Divisioni dei gusti per formato</h3><div id="pizzaFractions" class="pizza-formats"></div>
@@ -279,7 +279,7 @@
       const toppingLabel=document.createElement('label');toppingLabel.textContent='Una aggiunta (facoltativa)';
       const toppingSelect=document.createElement('select');toppingSelect.className='quote-topping';
       const updateToppings=()=>{const chosen=variantProducts.find(p=>String(p.id)===pizzaSelect.value);const format=quoteFormat.value;
-        fillSelect(toppingSelect,quoteAdditions.flatMap((a,index)=>a.disponibile&&chosen&&(a.id_prodotto===chosen.id||a.id_categoria===chosen.id_categoria)&&a.prezzi[format]!=null?[{label:a.nome+' · € '+a.prezzi[format],value:String(index)}]:[]),'Nessuna')};
+        fillSelect(toppingSelect,quoteAdditions.flatMap((a,index)=>a.disponibile&&chosen&&((a.id_prodotti||[]).includes(chosen.id)||a.id_prodotto===chosen.id||a.id_categoria===chosen.id_categoria)&&a.prezzi[format]!=null?[{label:a.nome+' · € '+a.prezzi[format],value:String(index)}]:[]),'Nessuna')};
       pizzaSelect.onchange=updateToppings;updateToppings();toppingLabel.append(toppingSelect);
       const removals=document.createElement('div');removals.className='pizza-removals';
       const updateRemovals=()=>{const pizza=ingredientPizzas.find(p=>String(p.id)===pizzaSelect.value);removals.replaceChildren();(pizza?.ingredienti_rimovibili||[]).forEach((name,index)=>{const label=document.createElement('label');const input=document.createElement('input');input.type='checkbox';input.dataset.remove=String(index);label.append(input,document.createTextNode('Senza '+name));removals.append(label)})};

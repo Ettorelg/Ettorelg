@@ -69,7 +69,7 @@ def test_formats_are_optional_per_product_and_prices_are_normalized():
     product_id, formats = functions(Connection())["normalize_pizzeria_formats"]({
         "id_prodotto": 10, "formati": [{"nome": "Singola", "prezzo": "8,50"}]})
     assert product_id == 10
-    assert formats == [{"nome": "Singola", "prezzo": "8.50", "disponibile": True}]
+    assert formats == [{"nome": "Singola", "prezzo": "8.50", "disponibile": True, "impasti": ["Classico"]}]
 
 
 @pytest.mark.parametrize("formats", [

@@ -126,6 +126,16 @@
   </div>
 
   <div class="actions" style="margin:10px 0"><button class="btn" type="button" id="toggleProductSchedule">🕒 Programma visibilità (opzionale)</button></div>
+  <div class="field" style="margin:12px 0">
+    <label class="tag-option"><input id="prodotto_pizzeria" type="checkbox"> 🍕 Prodotto Pizzeria</label>
+    <div class="muted">Abilita formati, prezzi specifici e impasti. Se non selezionato, il prodotto rimane invariato.</div>
+  </div>
+  <div id="productPizzeriaFields" class="hidden" style="padding:14px;border:1px solid rgba(110,168,254,.45);border-radius:12px;margin-bottom:14px">
+    <strong>Formati e impasti del prodotto</strong>
+    <p class="muted">Ogni formato abilitato deve avere il proprio prezzo. Seleziona anche gli impasti disponibili per quel formato.</p>
+    <div id="productPizzaFormats"></div>
+    <button class="btn" id="addProductPizzaFormat" type="button">+ Aggiungi formato</button>
+  </div>
   <div id="productScheduleFields" class="row hidden" style="margin:0 0 12px;padding:12px;border:1px dashed rgba(110,168,254,.45);border-radius:12px">
     <div class="field"><label>Dal giorno</label><input id="visibile_da" type="date"></div><div class="field"><label>Al giorno</label><input id="visibile_fino" type="date"></div><div class="field"><label>Dalle ore</label><input id="ora_inizio" type="time"></div><div class="field"><label>Alle ore</label><input id="ora_fine" type="time"></div>
   </div>
@@ -289,6 +299,19 @@
   const toast = document.getElementById("toast");
   const tbody = document.getElementById("tbody");
   const form = document.getElementById("productForm");
+  const pizzaProductToggle=document.getElementById("prodotto_pizzeria"),pizzaProductFields=document.getElementById("productPizzeriaFields"),pizzaFormatBox=document.getElementById("productPizzaFormats");
+  let pizzaDoughOptions=["Classico"];
+  fetch('/api/pizzeria/preparazione',{cache:'no-store'}).then(r=>r.json()).then(data=>{pizzaDoughOptions=(data.impasti||[]).filter(i=>i.disponibile).map(i=>i.nome);if(!pizzaDoughOptions.some(n=>n.toLowerCase()==='classico'))pizzaDoughOptions.unshift('Classico')}).catch(()=>{});
+  function addProductPizzaFormat(item={nome:'',prezzo:'',disponibile:true,impasti:['Classico']}){
+    const row=document.createElement('div');row.className='row';row.style.cssText='align-items:end;margin:10px 0;padding:10px;background:rgba(255,255,255,.035);border-radius:10px';
+    const name=document.createElement('input');name.placeholder='Formato (es. Singola)';name.maxLength=80;name.value=item.nome||'';name.dataset.pizzaFormat='name';
+    const price=document.createElement('input');price.type='number';price.min='0';price.max='10000';price.step='0.01';price.placeholder='Prezzo €';price.value=item.prezzo??'';price.dataset.pizzaFormat='price';
+    const doughs=document.createElement('div');doughs.className='tag-options';pizzaDoughOptions.forEach(value=>{const label=document.createElement('label');label.className='tag-option';const input=document.createElement('input');input.type='checkbox';input.value=value;input.dataset.pizzaDough='1';input.checked=(item.impasti||['Classico']).includes(value);label.append(input,document.createTextNode(' '+value));doughs.append(label)});
+    const remove=document.createElement('button');remove.type='button';remove.className='btn danger';remove.textContent='Rimuovi';remove.onclick=()=>row.remove();row.append(name,price,doughs,remove);pizzaFormatBox.append(row);
+  }
+  pizzaProductToggle.onchange=()=>{pizzaProductFields.classList.toggle('hidden',!pizzaProductToggle.checked);if(pizzaProductToggle.checked&&!pizzaFormatBox.children.length)addProductPizzaFormat()};
+  document.getElementById("addProductPizzaFormat").onclick=()=>addProductPizzaFormat();
+  function collectProductPizzaFormats(){return [...pizzaFormatBox.children].map(row=>({nome:row.querySelector('[data-pizza-format=name]').value.trim(),prezzo:row.querySelector('[data-pizza-format=price]').value,disponibile:true,impasti:[...row.querySelectorAll('[data-pizza-dough]:checked')].map(i=>i.value)}))}
   const modeHint = document.getElementById("modeHint");
 
   const f = (id) => document.getElementById(id);
@@ -451,6 +474,7 @@
       f("imagePreview").style.display = "none";
       f("imagePreview").removeAttribute("src");
       f("disponibile").value = "true";
+      pizzaProductToggle.checked=false;pizzaProductFields.classList.add('hidden');pizzaFormatBox.replaceChildren();
       f("id_categoria").value = categoryId;
       f("id_sottocategoria").innerHTML = `<option value="">—</option>`;
       f("id_sottocategoria").disabled = !categoryId;
@@ -496,6 +520,8 @@
       if (removeCb) removeCb.checked = false;
       const fileInput = document.getElementById("immagine");
       if (fileInput) fileInput.value = "";
+
+      try{const response=await fetch('/api/pizzeria/formati',{cache:'no-store'});const data=await response.json();const configured=(data.prodotti||[]).find(item=>item.id===p.id);pizzaFormatBox.replaceChildren();(configured?.formati||[]).forEach(addProductPizzaFormat);pizzaProductToggle.checked=Boolean(configured?.formati?.length);pizzaProductFields.classList.toggle('hidden',!pizzaProductToggle.checked)}catch(_){pizzaProductToggle.checked=false;pizzaProductFields.classList.add('hidden')}
 
     }
   
@@ -858,6 +884,8 @@
       return;
     }
   
+    const requestedPizzaFormats=pizzaProductToggle.checked?collectProductPizzaFormats():[];
+    if(pizzaProductToggle.checked&&(!requestedPizzaFormats.length||requestedPizzaFormats.some(item=>!item.nome||item.prezzo===''||!item.impasti.length))){showToast('Completa formato, prezzo e almeno un impasto.');return}
     const fd = new FormData();
     fd.append("nome", f("nome").value.trim());
     fd.append("prezzo_euro", f("prezzo_euro").value.trim());
@@ -893,6 +921,11 @@
     }
   
     const saved = await res.json();
+    const savedId=id||saved.id;
+    if(savedId){
+      const pizzaResponse=await fetch('/api/pizzeria/formati',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_prodotto:savedId,formati:requestedPizzaFormats})});
+      if(!pizzaResponse.ok){const error=await pizzaResponse.json().catch(()=>({}));showToast(error.error||'Prodotto salvato, ma configurazione Pizzeria non valida.');return}
+    }
     await loadProducts();
     showToast(id ? "Prodotto aggiornato." : (saved.traduzione_avviata ? "Prodotto creato. Traduzione automatica avviata." : "Prodotto creato."));
 

@@ -126,15 +126,15 @@
     <div class="menu-content" id="menuContent" hidden>
     {% if categories %}
       {% for category in categories %}
-      <section class="menu-section" id="categoria-{{ category.id }}" data-category-section data-track-url="{{ url_for('track_category_open', slug=shop.slug, category_id=category.id, lang=language) }}" hidden>
-        <h2>{{ category.nome }}</h2>
+      <section class="menu-section" id="categoria-{{ category.id }}" data-category-section data-track-url="{% if not category.virtual %}{{ url_for('track_category_open', slug=shop.slug, category_id=category.id, lang=language) }}{% endif %}" hidden>
+        <h2>{{ category.nome }}{% if category.combina_gusti %} <button type="button" class="order-add combine-tastes" data-pizzeria-kind="{{ category.pizzeria_kind }}_multigusto" data-pizzeria-format="{{ category.pizzeria_format }}">Combina gusti</button>{% endif %}</h2>
         <div class="products">
           {% set subcategory_state = namespace(current='') %}
           {% for product in category.prodotti %}
           {% set product_subcategory = product.sottocategoria or '' %}
           {% if product_subcategory and product_subcategory != subcategory_state.current %}<div class="print-subcategory-separator">{{ product_subcategory }}</div>{% endif %}
           {% set subcategory_state.current = product_subcategory %}
-          <article class="product{% if product.immagine_url %} with-image{% endif %}{% if not product.disponibile %} sold-out{% endif %}" role="button" tabindex="0" aria-label="Apri dettagli di {{ product.nome }}" data-product-open data-track-url="{{ url_for('track_product_open', slug=shop.slug, product_id=product.id, lang=language) }}" data-search="{{ (product.nome ~ ' ' ~ product.descrizione ~ ' ' ~ product.note)|lower|e }}" data-labels="{{ product.etichette|join('|')|lower|e }}" data-allergens="{{ product.allergeni|join('|')|lower|e }}" data-available="{{ 'true' if product.disponibile else 'false' }}" data-order-id="{{ product.id }}" data-order-name="{{ product.nome|e }}" data-order-price="{{ product.prezzo|replace(',', '.') }}" data-order-unit="{{ product.unita_prezzo }}">
+          <article class="product{% if product.immagine_url %} with-image{% endif %}{% if not product.disponibile %} sold-out{% endif %}" role="button" tabindex="0" aria-label="Apri dettagli di {{ product.nome }}" data-product-open data-track-url="{{ url_for('track_product_open', slug=shop.slug, product_id=product.id, lang=language) }}" data-search="{{ (product.nome ~ ' ' ~ product.descrizione ~ ' ' ~ product.note)|lower|e }}" data-labels="{{ product.etichette|join('|')|lower|e }}" data-allergens="{{ product.allergeni|join('|')|lower|e }}" data-available="{{ 'true' if product.disponibile else 'false' }}" data-order-id="{{ product.id }}" data-order-name="{{ product.nome|e }}" data-order-price="{{ product.prezzo|replace(',', '.') }}" data-order-unit="{{ product.unita_prezzo }}" data-pizzeria-kind="{{ product.pizzeria_kind or '' }}" data-pizzeria-format="{{ product.pizzeria_format or '' }}">
             {% if product.immagine_url %}<img src="{{ product.immagine_url }}" alt="{{ product.nome }}" loading="lazy">{% endif %}
             <div>
               {% if product.sottocategoria %}<span class="subcat">{{ product.sottocategoria }}</span>{% endif %}
@@ -379,7 +379,7 @@
           });
           const remove=document.createElement('button');
           remove.type='button'; remove.textContent='×'; remove.setAttribute('aria-label',menuText('Rimuovi ')+item.nome);
-          remove.addEventListener('click',()=>{orderCart.delete(item.id);renderOrderCart();if(orderMode==='asporto')checkOrderDate()});
+          remove.addEventListener('click',()=>{orderCart.delete(item.cartKey ?? item.id);renderOrderCart();if(orderMode==='asporto')checkOrderDate()});
           controls.append(quantity,remove);
           row.append(name, controls);
           orderLines.appendChild(row);
@@ -413,7 +413,7 @@
       fetch({{ url_for('api_public_pizzeria_config',slug=shop.slug)|tojson }},{credentials:'same-origin',cache:'no-store'}).then(r=>r.json()).then(data=>(data.pizze||[]).forEach(p=>configuredPizzas.add(p.id))).catch(()=>{});
       document.getElementById('pizzeriaConfiguratorClose').onclick=()=>pizzaDialog.close();
       pizzaDialog.addEventListener('click',event=>{if(event.target===pizzaDialog)pizzaDialog.close()});
-      window.addEventListener('message',event=>{if(event.origin!==location.origin||event.data?.type!=='alphamenu-pizzeria-add')return;const choice=event.data,anchor=choice.payload.tipo==='multigusto'?choice.payload.gusti?.[0]?.id_pizza:choice.payload.id_pizza;if(!anchor)return;orderCart.set(Number(anchor),{id:Number(anchor),nome:choice.label,prezzoCentesimi:Math.round(Number(choice.result.prezzo_unitario)*100),unita:'pezzo',quantita:Number(choice.result.quantita)||1,pizzeria:choice.payload});pizzaDialog.close();renderOrderCart();if(orderMode==='asporto')checkOrderDate()});
+      window.addEventListener('message',event=>{if(event.origin!==location.origin||event.data?.type!=='alphamenu-pizzeria-add')return;const choice=event.data,anchor=String(choice.payload.tipo||'').endsWith('multigusto')?choice.payload.gusti?.[0]?.id_pizza:choice.payload.id_pizza;if(!anchor)return;const cartKey=`pizzeria-${anchor}-${Date.now()}-${Math.random()}`;orderCart.set(cartKey,{cartKey,id:Number(anchor),nome:choice.label,prezzoCentesimi:Math.round(Number(choice.result.prezzo_unitario)*100),unita:'pezzo',quantita:Number(choice.result.quantita)||1,pizzeria:choice.payload});pizzaDialog.close();renderOrderCart();if(orderMode==='asporto')checkOrderDate()});
       {% endif %}
       productCards.forEach(card => {
         if (card.dataset.available !== 'true') return;
@@ -426,7 +426,7 @@
           event.stopPropagation();
           if(orderMode==='view')return;
           const id = Number(card.dataset.orderId);
-          {% if shop.modulo_pizzeria_attivo %}if(configuredPizzas.has(id)){pizzaFrame.src={{ url_for('public_pizzeria_configurator',slug=shop.slug)|tojson }}+'?product='+id;pizzaDialog.showModal();return}{% endif %}
+          {% if shop.modulo_pizzeria_attivo %}if(card.dataset.pizzeriaKind){pizzaFrame.src={{ url_for('public_pizzeria_configurator',slug=shop.slug)|tojson }}+'?product='+id+'&kind='+encodeURIComponent(card.dataset.pizzeriaKind||'pizza')+'&format='+encodeURIComponent(card.dataset.pizzeriaFormat||'');pizzaDialog.showModal();return}{% endif %}
           const current = orderCart.get(id);
           if (current) current.quantita = Math.min(current.quantita + 1, 999);
           else orderCart.set(id, {id, nome:card.dataset.orderName, prezzoCentesimi:Math.round(Number(card.dataset.orderPrice)*100), unita:card.dataset.orderUnit, quantita:1});
@@ -437,6 +437,7 @@
         card.querySelector('.product-actions').appendChild(button);
         orderAddButtons.push(button);
       });
+      {% if shop.modulo_pizzeria_attivo %}document.querySelectorAll('.combine-tastes').forEach(button=>button.addEventListener('click',event=>{event.stopPropagation();if(orderMode==='view')return;pizzaFrame.src={{ url_for('public_pizzeria_configurator',slug=shop.slug)|tojson }}+'?kind='+encodeURIComponent(button.dataset.pizzeriaKind)+'&format='+encodeURIComponent(button.dataset.pizzeriaFormat);pizzaDialog.showModal()}));{% endif %}
       setOrderMode = mode => {
         orderMode=mode;
         orderCart.clear();
@@ -456,6 +457,7 @@
         orderForm.querySelector('input[name="tavolo"]').required=mode==='tavolo';
         orderPrivacyField.querySelector('input').required=mode==='asporto';
         orderAddButtons.forEach(button=>button.hidden=mode==='view');
+        document.querySelectorAll('.combine-tastes').forEach(button=>button.hidden=mode==='view');
         orderFeedback.textContent='';
         orderDateAvailable=mode!=='asporto';
         renderOrderCart();

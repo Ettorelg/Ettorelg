@@ -49,6 +49,7 @@
     const chosenFormat=()=>format.value;
     const availableProducts=()=>products.filter(p=>p.formati.some(f=>f.nome===chosenFormat()&&f.disponibile));
     const validDerivatives=()=>derivatives.filter(d=>d.tipo===kind.value.replace('_multigusto','')&&d.formato===chosenFormat()&&d.disponibile);
+    function syncDoughs(){if(el('doughWrap').hidden)return;const selected=Number(tastes.querySelector('.taste-product')?.value),product=products.find(p=>p.id===selected),allowed=product?.formati.find(f=>f.nome===chosenFormat())?.impasti||['Classico'];const old=dough.value;fill(dough,doughs.filter(d=>d.disponibile&&allowed.some(name=>name.toLowerCase()===d.nome.toLowerCase())).map(d=>({label:d.nome+(Number(d.supplemento)?' · +€ '+d.supplemento:''),value:d.nome})),'Scegli impasto');dough.value=[...dough.options].some(o=>o.value===old)?old:(dough.options[1]?.value||'')}
     function render(){
       const currentFormat=format.value,mixed=kind.value.endsWith('multigusto'),derivativeKind=kind.value.replace('_multigusto',''),derived=derivativeKind==='calzone'||derivativeKind==='panino';
       let formats=[...new Set(products.flatMap(p=>p.formati.filter(f=>f.disponibile).map(f=>f.nome)))];
@@ -79,10 +80,10 @@
       const removals=document.createElement('div');removals.className='choices taste-removals';box.append(removals);
       const refresh=()=>{
         const p=products.find(item=>String(item.id)===product.value);
-        const allowed=additions.flatMap((a,i)=>a.disponibile&&p&&(a.id_prodotto===p.id||a.id_categoria===p.id_categoria)&&a.prezzi[chosenFormat()]!=null?[{label:a.nome+' · +€ '+a.prezzi[chosenFormat()],value:String(i)}]:[]);
+        const allowed=additions.flatMap((a,i)=>a.disponibile&&p&&((a.id_prodotti||[]).includes(p.id)||a.id_prodotto===p.id||a.id_categoria===p.id_categoria)&&a.prezzi[chosenFormat()]!=null?[{label:a.nome+' · +€ '+a.prezzi[chosenFormat()],value:String(i)}]:[]);
         fill(addition,allowed,'Nessuna aggiunta');removals.replaceChildren();
         (ingredients.find(item=>item.id===p?.id)?.ingredienti_rimovibili||[]).forEach((name,i)=>{const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=String(i);label.append(input,document.createTextNode('Senza '+name));removals.append(label)})
-      };product.addEventListener('change',refresh);refresh();tastes.append(box);
+      };product.addEventListener('change',()=>{refresh();syncDoughs()});refresh();tastes.append(box);if(index===0)syncDoughs();
     }
     el('calculate').addEventListener('click',async()=>{
       const rows=[...tastes.children],parts=rows.map(row=>({id_pizza:Number(row.querySelector('.taste-product').value),quota:Number(row.querySelector('.taste-share')?.value),aggiunte:row.querySelector('.taste-addition').value?[Number(row.querySelector('.taste-addition').value)]:[],senza:[...row.querySelectorAll('.taste-removals input:checked')].map(input=>Number(input.value))}));
@@ -100,7 +101,7 @@
     if(el('addOrder'))el('addOrder').onclick=()=>{if(lastChoice)window.parent.postMessage({type:'alphamenu-pizzeria-add',...lastChoice},location.origin)};
     const privateUrls=['/api/pizzeria/formati','/api/pizzeria/varianti','/api/pizzeria/derivati','/api/pizzeria/preparazione','/api/pizzeria/ingredienti'];
     Promise.all((publicSlug?[base]:privateUrls).map(async url=>{const response=await fetch(url,{credentials:'same-origin',cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Impossibile caricare la configurazione.');return data}))
-      .then(data=>{if(publicSlug){const cfg=data[0];products=cfg.pizze.map(p=>({...p,formati:Object.values(p.formati)}));fractions=cfg.frazioni;additions=cfg.aggiunte;derivatives=cfg.derivati;doughs=cfg.impasti;ingredients=cfg.ingredienti.map(i=>({id:i.id,ingredienti_rimovibili:i.valori}))}else{const [formats,variants,derived,preparation,removable]=data;products=formats.prodotti.filter(p=>p.formati?.length&&p.unita_prezzo==='pezzo').map(p=>({...p,id_categoria:variants.prodotti.find(v=>v.id===p.id)?.id_categoria}));fractions=variants.frazioni;additions=variants.aggiunte;derivatives=derived.derivati;doughs=preparation.impasti;ingredients=removable.pizze}render()})
+      .then(data=>{if(publicSlug){const cfg=data[0];products=cfg.pizze.map(p=>({...p,formati:Object.values(p.formati)}));fractions=cfg.frazioni;additions=cfg.aggiunte;derivatives=cfg.derivati;doughs=cfg.impasti;ingredients=cfg.ingredienti.map(i=>({id:i.id,ingredienti_rimovibili:i.valori}))}else{const [formats,variants,derived,preparation,removable]=data;products=formats.prodotti.filter(p=>p.formati?.length&&p.unita_prezzo==='pezzo').map(p=>({...p,id_categoria:variants.prodotti.find(v=>v.id===p.id)?.id_categoria}));fractions=variants.frazioni;additions=variants.aggiunte;derivatives=derived.derivati;doughs=preparation.impasti;ingredients=removable.pizze}const params=new URLSearchParams(location.search),requestedKind=params.get('kind'),requestedFormat=params.get('format');if([...kind.options].some(o=>o.value===requestedKind))kind.value=requestedKind;render();if([...format.options].some(o=>o.value===requestedFormat)){format.value=requestedFormat;render()}})
       .catch(error=>message(error.message,true));
   })();
   </script>
