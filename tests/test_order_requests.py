@@ -216,6 +216,8 @@ def test_public_menu_keeps_order_form_closed_until_products_are_selected():
     assert "orderAddButtons.forEach(button=>button.hidden=mode==='view')" in html
     assert "openMenu({% if shop.ordini_attivi %}'asporto'{% elif shop.ordini_tavolo_attivi %}'tavolo'{% else %}'view'{% endif %})" in html
     assert "if(location.hash==='#orderPanel' && orderForm){openMenu('asporto');restoreOrderDraft();}" in html
+    assert "#orderFeedback.is-error" in html
+    assert "orderFeedback.scrollIntoView({behavior:'smooth',block:'center'})" in html
     assert "button.classList.toggle('selected',Boolean(selected))" in html
     assert "orderPanel.hidden=mode==='view'" not in html
 
@@ -227,7 +229,7 @@ def test_public_order_confirmation_is_a_dialog_and_home_is_always_available():
     assert '<dialog class="order-success" id="orderSuccess"' in html
     assert "orderPanel.close();" in html
     assert "orderSuccess.showModal();" in html
-    assert "orderFeedback.scrollIntoView" not in html
+    assert "orderFeedback.scrollIntoView({behavior:'smooth',block:'center'})" in html
     assert "ricevuto dal locale. Nessun pagamento effettuato online." in html
     assert "potrà contattarti per confermarla" not in html
     assert html.index('id="orderPickupField"') < html.index('id="orderGoogleInfo"') < html.index('name="nome"')
