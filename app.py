@@ -6029,20 +6029,16 @@ def public_menu(slug: str):
                     FROM pizzeria_formati f JOIN prodotti p ON p.id=f.id_prodotto
                     WHERE f.id_negozio=%s AND f.disponibile=TRUE ORDER BY f.posizione,f.nome,p.nome""", (shop["id"],))
                 format_rows = cur.fetchall()
-                configured_ids = {row[0] for row in format_rows}
-                virtual = {}
+                formats_by_product = {}
                 for product_id, category_id, format_name, price, available in format_rows:
-                    source, source_category = product_lookup.get(product_id), category_lookup.get(category_id)
-                    if not source or not source_category:
+                    formats_by_product.setdefault(product_id, []).append((format_name, price))
+                for product_id, formats in formats_by_product.items():
+                    source = product_lookup.get(product_id)
+                    if not source:
                         continue
-                    key = ("pizza", category_id, format_name)
-                    format_slug = re.sub(r"[^a-z0-9]+", "-", format_name.casefold()).strip("-")
-                    section = virtual.setdefault(key, {"id": f"pizza-{category_id}-{format_slug}",
-                        "nome": f"{source_category['nome']} · {format_name}", "prodotti": [],
-                        "pizzeria_kind": "pizza", "pizzeria_format": format_name, "virtual": True})
-                    item = dict(source); item["prezzo"] = f"{price:.2f}".replace(".", ",")
-                    item["pizzeria_kind"], item["pizzeria_format"] = "pizza", format_name
-                    section["prodotti"].append(item)
+                    source["prezzo"] = f"{min(price for _, price in formats):.2f}".replace(".", ",")
+                    source["pizzeria_kind"], source["pizzeria_format"] = "pizza", ""
+                    source["pizzeria_price_from"] = len(formats) > 1
                 cur.execute("SELECT id_pizza,tipo,formato,prezzo_override,disponibile FROM pizzeria_derivati WHERE id_negozio=%s AND disponibile=TRUE", (shop["id"],))
                 format_prices = {(row[0], row[2].casefold()): row[3] for row in format_rows}
                 derivative_groups = {}
@@ -6051,32 +6047,35 @@ def public_menu(slug: str):
                     price = override if override is not None else format_prices.get((product_id, format_name.casefold()))
                     if not source or price is None:
                         continue
-                    key = (kind, 0, format_name)
-                    title = "CALZONI" if kind == "calzone" else "PANINI"
-                    format_slug = re.sub(r"[^a-z0-9]+", "-", format_name.casefold()).strip("-")
-                    section = virtual.setdefault(key, {"id": f"{kind}-{format_slug}", "nome": f"{title} · {format_name}",
-                        "prodotti": [], "pizzeria_kind": kind, "pizzeria_format": format_name})
-                    section["virtual"] = True
-                    group = derivative_groups.setdefault(key, {"source": source, "prices": []})
-                    group["prices"].append(price)
-                for key, group in derivative_groups.items():
-                    kind, _, format_name = key
+                    group = derivative_groups.setdefault(kind, {"source": source, "prices": [], "formats": set()})
+                    group["prices"].append(price); group["formats"].add(format_name.casefold())
+                for kind, group in derivative_groups.items():
                     item = dict(group["source"])
                     title = "Calzone" if kind == "calzone" else "Panino"
                     item.update({"nome": f"{title} gusto pizza", "descrizione": "Scegli il gusto tra le pizze disponibili.",
                                  "note": "", "immagine_url": None, "etichette": [], "allergeni": [],
                                  "prezzo": f"{min(group['prices']):.2f}".replace(".", ","),
-                                 "pizzeria_kind": kind, "pizzeria_format": format_name,
+                                 "pizzeria_kind": kind, "pizzeria_format": "",
                                  "pizzeria_choose_taste": True, "pizzeria_price_from": True})
-                    virtual[key]["prodotti"].append(item)
+                    stem = "calzon" if kind == "calzone" else "panin"
+                    section = next((category for category in categories if stem in category["nome"].casefold()), None)
+                    if section is None:
+                        section = {"id": kind, "nome": "CALZONI" if kind == "calzone" else "PANINI",
+                                   "prodotti": [], "virtual": True}
+                        categories.append(section)
+                    section["prodotti"].append(item)
+                    section["pizzeria_kind"], section["pizzeria_format"] = kind, ""
                 cur.execute("SELECT frazioni FROM pizzeria_varianti_config WHERE id_negozio=%s", (shop["id"],))
                 fraction_row = cur.fetchone()
                 mixed_formats = {item["formato"].casefold() for item in (fraction_row[0] if fraction_row else []) if item.get("tagli")}
-                for section in virtual.values():
-                    section["combina_gusti"] = section["pizzeria_format"].casefold() in mixed_formats
                 for category in categories:
-                    category["prodotti"] = [product for product in category["prodotti"] if product["id"] not in configured_ids]
-                categories = [category for category in categories if category["prodotti"]] + list(virtual.values())
+                    configured_formats = {fmt.casefold() for product in category["prodotti"]
+                                          for fmt, _ in formats_by_product.get(product["id"], [])}
+                    derivative_formats = derivative_groups.get(category.get("pizzeria_kind"), {}).get("formats", set())
+                    category["combina_gusti"] = bool((configured_formats | derivative_formats) & mixed_formats)
+                    if category["combina_gusti"] and not category.get("pizzeria_kind"):
+                        category["pizzeria_kind"], category["pizzeria_format"] = "pizza", ""
+                categories = [category for category in categories if category["prodotti"]]
 
             ui = MENU_UI.get(language, MENU_UI["it"])
             shop["whatsapp_digits"] = re.sub(r"\D", "", shop["whatsapp"] or shop["telefono"])
