@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex,nofollow">
   <title>{{ 'Configura il prodotto' if public_slug else 'Prova modulo Pizzeria' }} · Alpha Menu</title>
   <style>
-    :root{color-scheme:dark;font-family:system-ui,sans-serif;background:#101a2b;color:#f4f6fc}
+    :root{color-scheme:dark;font-family:system-ui,sans-serif;background:#101a2b;color:#f4f6fc}[hidden]{display:none!important}
     body{margin:0}header{background:#17253b;border-bottom:1px solid #40516c;padding:16px max(18px,calc((100vw - 1080px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px}
     a{color:#aaceff}header a{white-space:nowrap}main{max-width:1080px;margin:auto;padding:24px 18px 70px}
     h1{margin:0 0 8px;font-size:clamp(1.5rem,4vw,2.3rem)}p{line-height:1.5;color:#c9d5e7}
@@ -76,7 +76,7 @@
       const title=document.createElement('h3'),partTitle=mixed?'Gusto '+(index+1)+' · 1/'+denominator:'Gusto pizza';title.textContent=partTitle;box.append(title);
       const productLabel=document.createElement('label');productLabel.textContent='Pizza di riferimento';
       const product=document.createElement('select');product.className='taste-product';
-      const choices=derived?availableProducts().filter(p=>validDerivatives().some(d=>d.id_pizza===p.id)):availableProducts();
+      let choices=derived?availableProducts().filter(p=>validDerivatives().some(d=>d.id_pizza===p.id)):availableProducts();if(publicSlug&&requestedProduct&&!mixed)choices=choices.filter(p=>String(p.id)===requestedProduct);
       fill(product,choices.map(p=>({label:p.nome,value:String(p.id)})),'Scegli pizza');if(index===0&&choices.some(p=>String(p.id)===requestedProduct))product.value=requestedProduct;else if(choices.length===1)product.value=String(choices[0].id);productLabel.append(product);box.append(productLabel);const summary=document.createElement('div');summary.className='ingredients-summary';box.append(summary);
       if(mixed){const share=document.createElement('input');share.type='hidden';share.className='taste-share';share.value='1';box.style.gridColumn='span 1';box.append(share)}
       const additionLabel=document.createElement('strong');additionLabel.textContent='Ingredienti da aggiungere (facoltativi)';box.append(additionLabel);const addition=document.createElement('div');addition.className='choices taste-additions';box.append(addition);
