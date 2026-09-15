@@ -1,9 +1,9 @@
 <style>
   .pizza-panel{max-width:950px;color:#e7ecff}.pizza-panel h2{margin:0 0 8px}.pizza-panel p{color:#b9c8df;line-height:1.5}
-  .pizza-card{padding:18px;margin:14px 0;border:1px solid #455877;border-radius:15px;background:#18253b}
+  .pizza-card{padding:12px;margin:8px 0;border:1px solid #455877;border-radius:12px;background:#18253b}.pizza-card>p{margin:5px 0 8px;font-size:.86rem}.pizza-card h3{margin:10px 0 6px;font-size:1rem}
   .pizza-notice{border-color:#907b47;background:#302b21}.pizza-card label{display:grid;gap:6px;margin:12px 0;color:#dbe6f5}
   .pizza-card select,.pizza-card input,.pizza-card textarea{min-height:42px;padding:9px;border:1px solid #6a7d9d;border-radius:9px;background:#101d31;color:#fff;font:inherit}
-  .pizza-formats{display:grid;gap:9px}.pizza-format{display:grid;grid-template-columns:minmax(120px,1fr) 130px auto auto;gap:9px;align-items:end;padding:10px;border:1px solid #405575;border-radius:10px}
+  .pizza-formats{display:grid;gap:6px}.pizza-format{display:grid;grid-template-columns:minmax(120px,1fr) 130px auto auto;gap:7px;align-items:end;padding:7px;border:1px solid #405575;border-radius:8px}.pizza-preparation details{border:1px solid rgba(255,255,255,.13);border-radius:9px;padding:8px;margin-top:7px}.pizza-preparation summary{cursor:pointer;font-weight:800;color:#dbe6f5}.pizza-preparation #pizzaStocks{margin-top:5px}
   .pizza-format label{margin:0}.pizza-format .available{display:flex;align-items:center;gap:7px}.pizza-format .available input{min-height:auto;width:18px;height:18px}
   .pizza-card button{padding:10px 14px;border:1px solid #7297cc;border-radius:9px;background:#244f82;color:#fff;font:700 .9rem system-ui;cursor:pointer}.pizza-card button:disabled{opacity:.5;cursor:not-allowed}
   .pizza-test-link{display:inline-block;padding:10px 14px;border:1px solid #7297cc;border-radius:9px;background:#244f82;color:#fff;font:700 .9rem system-ui;text-decoration:none}
@@ -31,12 +31,12 @@
     <strong>Ingredienti automatici · pizze, calzoni e panini con gusto</strong>
     <p>Le opzioni «senza» vengono lette dal campo Ingredienti di ogni prodotto, separate da virgola, punto e virgola o a capo. Farina e semola sono escluse. Per modificarle, aggiorna il prodotto nella sezione Prodotti. Togliere ingredienti non abbassa il prezzo e non garantisce l'assenza di allergeni: in caso di allergie occorre verificare con il locale.</p>
   </div>
-  <div class="pizza-card">
+  <div class="pizza-card pizza-preparation">
     <strong>Impasti e panette · bozza</strong>
     <p>Gli impasti alternativi sono previsti solo per un formato chiamato “Singola”. Il supplemento si applicherà una volta alla pizza intera. Le scorte sono condivise tra le pizze con la stessa coppia formato/impasto; se non imposti una scorta, la disponibilità resterà illimitata. Le quantità non vengono ancora scalate dagli ordini.</p>
-    <h3>Tipi di impasto</h3><div id="pizzaDoughs" class="pizza-formats"></div>
-    <div class="pizza-actions"><button id="pizzaAddDough" type="button">+ Aggiungi impasto</button></div>
-    <h3>Scorte di panette</h3><div id="pizzaStocks" class="pizza-formats"></div>
+    <details><summary>Impostazioni impasti (modifica occasionale)</summary><h3>Tipi di impasto</h3><div id="pizzaDoughs" class="pizza-formats"></div>
+    <div class="pizza-actions"><button id="pizzaAddDough" type="button">+ Aggiungi impasto</button></div></details>
+    <h3>Panetti disponibili oggi</h3><div id="pizzaStocks" class="pizza-formats"></div>
     <div class="pizza-actions"><button id="pizzaAddStock" type="button">+ Aggiungi scorta</button><button id="pizzaSavePreparation" type="button">Salva impasti e panette</button></div>
     <p id="pizzaPreparationMessage" class="pizza-message" role="status"></p>
   </div>
