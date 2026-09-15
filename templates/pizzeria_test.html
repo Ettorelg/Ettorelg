@@ -47,6 +47,10 @@
     const message=(text,error=false)=>{result.textContent=text;result.classList.toggle('error',error)};
     let quoteTimer,quoteVersion=0;const scheduleQuote=()=>{if(!publicSlug)return;quoteVersion++;lastChoice=null;if(el('addOrder'))el('addOrder').hidden=true;clearTimeout(quoteTimer);quoteTimer=setTimeout(()=>{const productSelectors=[...tastes.querySelectorAll('.taste-product')];if(chosenFormat()&&productSelectors.length&&productSelectors.every(select=>select.value))el('calculate').click()},180)};
     const fill=(select,options,placeholder)=>{select.replaceChildren(new Option(placeholder,''));options.forEach(item=>select.add(new Option(item.label,item.value)))};
+    const displayedAdditionPrice=(price,share,denominator)=>{
+      const value=Number(price)*(denominator?share/denominator:1);
+      return value.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});
+    };
     const chosenFormat=()=>format.value;
     const availableProducts=()=>products.filter(p=>p.formati.some(f=>f.nome===chosenFormat()&&f.disponibile));
     const validDerivatives=()=>derivatives.filter(d=>d.tipo===kind.value.replace('_multigusto','')&&d.formato===chosenFormat()&&d.disponibile);
@@ -83,7 +87,8 @@
       const removalLabel=document.createElement('strong');removalLabel.textContent='Ingredienti da togliere (facoltativi)';box.append(removalLabel);const removals=document.createElement('div');removals.className='choices taste-removals';box.append(removals);
       const refresh=()=>{
         const p=products.find(item=>String(item.id)===product.value);
-        const allowed=additions.flatMap((a,i)=>a.disponibile&&p&&((a.id_prodotti||[]).includes(p.id)||a.id_prodotto===p.id||a.id_categoria===p.id_categoria)&&a.prezzi[chosenFormat()]!=null?[{label:a.nome+' · +€ '+a.prezzi[chosenFormat()],value:String(i)}]:[]);
+        const share=mixed?Number(box.querySelector('.taste-share')?.value||1):1;
+        const allowed=additions.flatMap((a,i)=>a.disponibile&&p&&((a.id_prodotti||[]).includes(p.id)||a.id_prodotto===p.id||a.id_categoria===p.id_categoria)&&a.prezzi[chosenFormat()]!=null?[{label:a.nome+' · +€ '+displayedAdditionPrice(a.prezzi[chosenFormat()],share,mixed?denominator:0),value:String(i)}]:[]);
         addition.replaceChildren();additionSearch.value='';allowed.forEach(option=>{const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=option.value;label.append(input,document.createTextNode(option.label));addition.append(label)});additionHead.hidden=!allowed.length;addition.hidden=!allowed.length;removals.replaceChildren();const productIngredients=ingredients.find(item=>item.id===p?.id)?.ingredienti_rimovibili||[];const summaryTitle=document.createElement('strong');summaryTitle.textContent='Ingredienti della pizza';summary.replaceChildren(summaryTitle);if(!productIngredients.length)summary.append(document.createTextNode('Nessun ingrediente indicato'));productIngredients.forEach((name,i)=>{if(i)summary.append(document.createTextNode(', '));const ingredient=document.createElement('span');ingredient.dataset.ingredient=String(i);ingredient.textContent=name;summary.append(ingredient)});
         productIngredients.forEach((name,i)=>{const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=String(i);input.onchange=()=>summary.querySelector('[data-ingredient="'+i+'"]').classList.toggle('ingredient-removed',input.checked);label.append(input,document.createTextNode('Senza '+name));removals.append(label)})
         removalLabel.hidden=!productIngredients.length;removals.hidden=!productIngredients.length;title.replaceChildren(document.createTextNode(partTitle));if(p){const tasteName=document.createElement('span');tasteName.className='taste-name';tasteName.textContent=p.nome.toLocaleUpperCase('it');title.append(tasteName)}productLabel.hidden=Boolean(p)&&(choices.length===1||Boolean(requestedProduct&&!mixed));
