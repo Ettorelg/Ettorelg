@@ -6041,8 +6041,9 @@ def public_menu(slug: str):
 
         customer_phone = ""
         if session.get("user_id") and not session.get("is_admin"):
-            cur.execute("SELECT COALESCE(telefono,'') FROM utenti WHERE id=%s", (session["user_id"],))
-            phone_row = cur.fetchone()
+            with conn.cursor() as phone_cur:
+                phone_cur.execute("SELECT COALESCE(telefono,'') FROM utenti WHERE id=%s", (session["user_id"],))
+                phone_row = phone_cur.fetchone()
             customer_phone = phone_row[0] if phone_row else ""
         return render_template("public_menu.html", shop=shop, categories=categories, hours=hours, ui=ui, language=language, languages=languages, customer_google=session.get("customer_google"), customer_phone=customer_phone)
     finally:
