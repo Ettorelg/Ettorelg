@@ -61,6 +61,7 @@
       el('cutWrap').hidden=!mixed;
       const allowed=(fractions.find(f=>f.formato===chosenFormat())?.tagli||[]);
       const oldCut=cut.value;fill(cut,allowed.map(n=>({label:n===2?'Metà':n===3?'Terzi':'Quarti',value:String(n)})),'Scegli frazionamento');cut.value=allowed.includes(Number(oldCut))?oldCut:String(allowed[0]||'');
+      el('cutWrap').hidden=!mixed||allowed.length<=1;
       const denominator=Number(cut.value);count.value=String(denominator||1);
       el('doughWrap').hidden=kind.value!=='pizza'||chosenFormat().toLowerCase()!=='singola';
       fill(dough,doughs.filter(d=>d.disponibile&&(d.nome.toLowerCase()==='classico'||!el('doughWrap').hidden)).map(d=>({label:d.nome+(Number(d.supplemento)?' · +€ '+d.supplemento:''),value:d.nome})),'Scegli impasto');dough.value=doughs.some(d=>d.nome==='Classico'&&d.disponibile)?'Classico':dough.options[1]?.value||'';
@@ -71,19 +72,20 @@
     }
     function addTaste(index,total,denominator,derived,mixed){
       const box=document.createElement('section');box.className='card taste';
-      const title=document.createElement('h3');title.textContent=mixed?'Gusto '+(index+1):'Gusto pizza';box.append(title);
+      const title=document.createElement('h3'),partTitle=mixed?'Gusto '+(index+1)+' · 1/'+denominator:'Gusto pizza';title.textContent=partTitle;box.append(title);
       const productLabel=document.createElement('label');productLabel.textContent='Pizza di riferimento';
       const product=document.createElement('select');product.className='taste-product';
       const choices=derived?availableProducts().filter(p=>validDerivatives().some(d=>d.id_pizza===p.id)):availableProducts();
-      fill(product,choices.map(p=>({label:p.nome,value:String(p.id)})),'Scegli pizza');if(index===0&&choices.some(p=>String(p.id)===requestedProduct))product.value=requestedProduct;productLabel.append(product);box.append(productLabel);const summary=document.createElement('div');summary.className='ingredients-summary';box.append(summary);
-      if(mixed){const share=document.createElement('input');share.type='hidden';share.className='taste-share';share.value='1';title.textContent='Gusto '+(index+1)+' · 1/'+denominator;box.style.gridColumn='span 1';box.append(share)}
+      fill(product,choices.map(p=>({label:p.nome,value:String(p.id)})),'Scegli pizza');if(index===0&&choices.some(p=>String(p.id)===requestedProduct))product.value=requestedProduct;else if(choices.length===1)product.value=String(choices[0].id);productLabel.append(product);box.append(productLabel);const summary=document.createElement('div');summary.className='ingredients-summary';box.append(summary);
+      if(mixed){const share=document.createElement('input');share.type='hidden';share.className='taste-share';share.value='1';box.style.gridColumn='span 1';box.append(share)}
       const additionLabel=document.createElement('strong');additionLabel.textContent='Ingredienti da aggiungere (facoltativi)';box.append(additionLabel);const addition=document.createElement('div');addition.className='choices taste-additions';box.append(addition);
       const removalLabel=document.createElement('strong');removalLabel.textContent='Ingredienti da togliere (facoltativi)';box.append(removalLabel);const removals=document.createElement('div');removals.className='choices taste-removals';box.append(removals);
       const refresh=()=>{
         const p=products.find(item=>String(item.id)===product.value);
         const allowed=additions.flatMap((a,i)=>a.disponibile&&p&&((a.id_prodotti||[]).includes(p.id)||a.id_prodotto===p.id||a.id_categoria===p.id_categoria)&&a.prezzi[chosenFormat()]!=null?[{label:a.nome+' · +€ '+a.prezzi[chosenFormat()],value:String(i)}]:[]);
-        addition.replaceChildren();allowed.forEach(option=>{const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=option.value;label.append(input,document.createTextNode(option.label));addition.append(label)});removals.replaceChildren();const productIngredients=ingredients.find(item=>item.id===p?.id)?.ingredienti_rimovibili||[];const summaryTitle=document.createElement('strong');summaryTitle.textContent='Ingredienti della pizza';summary.replaceChildren(summaryTitle);if(!productIngredients.length)summary.append(document.createTextNode('Nessun ingrediente indicato'));productIngredients.forEach((name,i)=>{if(i)summary.append(document.createTextNode(', '));const ingredient=document.createElement('span');ingredient.dataset.ingredient=String(i);ingredient.textContent=name;summary.append(ingredient)});
+        addition.replaceChildren();allowed.forEach(option=>{const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=option.value;label.append(input,document.createTextNode(option.label));addition.append(label)});additionLabel.hidden=!allowed.length;addition.hidden=!allowed.length;removals.replaceChildren();const productIngredients=ingredients.find(item=>item.id===p?.id)?.ingredienti_rimovibili||[];const summaryTitle=document.createElement('strong');summaryTitle.textContent='Ingredienti della pizza';summary.replaceChildren(summaryTitle);if(!productIngredients.length)summary.append(document.createTextNode('Nessun ingrediente indicato'));productIngredients.forEach((name,i)=>{if(i)summary.append(document.createTextNode(', '));const ingredient=document.createElement('span');ingredient.dataset.ingredient=String(i);ingredient.textContent=name;summary.append(ingredient)});
         productIngredients.forEach((name,i)=>{const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=String(i);input.onchange=()=>summary.querySelector('[data-ingredient="'+i+'"]').classList.toggle('ingredient-removed',input.checked);label.append(input,document.createTextNode('Senza '+name));removals.append(label)})
+        removalLabel.hidden=!productIngredients.length;removals.hidden=!productIngredients.length;title.textContent=partTitle+(p?' — '+p.nome:'');productLabel.hidden=Boolean(p)&&(choices.length===1||Boolean(requestedProduct&&!mixed));
       };product.addEventListener('change',()=>{refresh();syncDoughs()});refresh();tastes.append(box);if(index===0)syncDoughs();
     }
     el('calculate').addEventListener('click',async()=>{
