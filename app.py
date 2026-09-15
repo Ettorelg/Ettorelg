@@ -3604,6 +3604,7 @@ def dashboard_user_section(section: str):
         "attivita",
         "menu_online",
         "ordini",
+        "clienti",
         "pizzeria",
         "prodotti",
         "varianti",
@@ -3631,7 +3632,7 @@ def dashboard_user_section(section: str):
 
     shop_required_sections = {
         "prodotti", "varianti", "categorie", "sottocategorie", "allergeni",
-        "menu_online", "ordini", "pizzeria", "qrcode", "anteprima", "lingue", "statistiche",
+        "menu_online", "ordini", "clienti", "pizzeria", "qrcode", "anteprima", "lingue", "statistiche",
     }
     if section in shop_required_sections and not get_user_shop_id(session["user_id"]):
         return (
@@ -3905,7 +3906,7 @@ def api_statistiche():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi FROM negozi WHERE id=%s", (shop_id,))
+            cur.execute("SELECT ordini_attivi,ordini_tavolo_attivi,COALESCE(modulo_pizzeria_attivo,FALSE) FROM negozi WHERE id=%s", (shop_id,))
             order_modes = cur.fetchone()
             cur.execute("""
                 SELECT COUNT(*),
@@ -3954,6 +3955,7 @@ def api_statistiche():
             "scansioni_qr_30_giorni": qr30, "lingue": languages, "giorni": days,
             "articoli_piu_aperti": top_products, "categorie_piu_aperte": top_categories,
             "moduli_ordini_attivi": bool(order_modes and (order_modes[0] or order_modes[1])),
+            "modulo_pizzeria_attivo": bool(order_modes and len(order_modes) > 2 and order_modes[2]),
         })
     finally:
         conn.close()
@@ -4155,6 +4157,184 @@ def api_ordini_configurazione():
                 row = cur.fetchone()
                 legacy_windows = [[{"dalle": row[4], "alle": row[5]}] if row[4] and row[5] else [] for _ in range(7)]
                 return jsonify({"attivi": bool(row[0]), "asporto_attivi": bool(row[0]), "tavolo_attivi": bool(row[1]), "limite_giornaliero": row[2], "fasce_ritiro_attive": bool(row[3]), "ritiro_dalle": row[4], "ritiro_alle": row[5], "minuti_fascia_ritiro": row[6], "limite_fascia_ritiro": str(row[7]), "criterio_limite_fascia": row[8], "fasce_settimanali": row[9] if row[9] is not None else legacy_windows, "stampante_ip": row[10], "stampante_riepilogo_ip": row[11], "shop_id": shop_id})
+    finally:
+        conn.close()
+
+
+@app.get("/api/statistiche/pizzeria")
+def api_statistiche_pizzeria():
+    if "user_id" not in session:
+        return jsonify({"error": "Accesso richiesto."}), 401
+    if get_user_license_plan(session["user_id"]) != "professional":
+        return jsonify({"error": "Le statistiche richiedono la licenza Professional."}), 403
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    period = request.args.get("periodo", "mese")
+    if period not in {"giorno", "settimana", "mese", "anno"}:
+        return jsonify({"error": "Periodo non valido."}), 400
+    try:
+        selected = date.fromisoformat(request.args.get("data", datetime.now(ZoneInfo("Europe/Rome")).date().isoformat()))
+    except ValueError:
+        return jsonify({"error": "Data non valida."}), 400
+    if not 2000 <= selected.year <= 2099:
+        return jsonify({"error": "Data non valida."}), 400
+    if period == "giorno":
+        start, end = selected, selected + timedelta(days=1)
+    elif period == "settimana":
+        start, end = selected - timedelta(days=selected.weekday()), selected - timedelta(days=selected.weekday()) + timedelta(days=7)
+    elif period == "mese":
+        start = selected.replace(day=1)
+        end = date(start.year + (start.month == 12), start.month % 12 + 1, 1)
+    else:
+        start, end = date(selected.year, 1, 1), date(selected.year + 1, 1, 1)
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COALESCE(modulo_pizzeria_attivo,FALSE) FROM negozi WHERE id=%s", (shop_id,))
+            row = cur.fetchone()
+            if not row or not row[0]:
+                return jsonify({"error": "Attiva il modulo Pizzeria per visualizzare queste statistiche."}), 403
+            cur.execute("""SELECT o.id,o.stato,o.origine,
+                                  COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date),
+                                  TO_CHAR(o.ora_richiesta,'HH24:MI'),r.quantita,r.totale_riga,r.configurazione
+                           FROM ordini_menu o JOIN righe_ordini_menu r ON r.id_ordine=o.id
+                           WHERE o.id_negozio=%s
+                             AND COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date)>=%s
+                             AND COALESCE(o.data_richiesta,(o.creato_il AT TIME ZONE 'Europe/Rome')::date)<%s
+                             AND r.configurazione IS NOT NULL
+                           ORDER BY o.id,r.id LIMIT 50001""", (shop_id, start, end))
+            records = cur.fetchall()
+        if len(records) > 50000:
+            return jsonify({"error": "Troppi dati nel periodo: seleziona un intervallo più breve."}), 413
+        counters = {name: {} for name in ("prodotti", "formati", "varianti", "rimozioni", "impasti", "tipi", "fasce", "andamento", "canali")}
+        orders, completed_orders, cancelled_orders, slotted_orders = set(), set(), set(), set()
+        requested_value = Decimal("0")
+        collected_value = Decimal("0")
+        mixed_items = Decimal("0")
+
+        def add(bucket, label, amount):
+            label = str(label or "Non indicato").strip()[:120] or "Non indicato"
+            counters[bucket][label] = counters[bucket].get(label, Decimal("0")) + amount
+
+        for order_id, status, origin, requested_day, requested_time, quantity, line_total, configuration in records:
+            if not isinstance(configuration, dict):
+                continue
+            print_data = configuration.get("_stampa") or {}
+            if not isinstance(print_data, dict):
+                continue
+            if status == "annullato":
+                cancelled_orders.add(order_id)
+                continue
+            quantity = Decimal(str(quantity))
+            line_total = Decimal(str(line_total))
+            orders.add(order_id)
+            requested_value += line_total
+            if status == "evaso":
+                completed_orders.add(order_id)
+                collected_value += line_total
+            kind = print_data.get("tipo") or configuration.get("tipo") or "Prodotto pizzeria"
+            format_name = print_data.get("formato") or configuration.get("formato") or "Non indicato"
+            dough = print_data.get("impasto") or configuration.get("impasto") or "Classico"
+            add("tipi", kind, quantity)
+            add("formati", format_name, quantity)
+            add("impasti", dough, quantity)
+            add("canali", "Al tavolo" if origin == "tavolo" else "Da asporto", quantity)
+            slot_key = (order_id, requested_time or "Senza orario")
+            if slot_key not in slotted_orders:
+                add("fasce", slot_key[1], Decimal(1))
+                slotted_orders.add(slot_key)
+            add("andamento", requested_day.isoformat(), quantity)
+            tastes = print_data.get("gusti") if isinstance(print_data.get("gusti"), list) else []
+            if str(configuration.get("tipo", "")).endswith("multigusto"):
+                mixed_items += quantity
+            for taste in tastes:
+                if not isinstance(taste, dict):
+                    continue
+                share = Decimal("1")
+                quota = str(taste.get("quota") or "")
+                if "/" in quota:
+                    try:
+                        numerator, denominator = quota.split("/", 1)
+                        share = Decimal(numerator) / Decimal(denominator)
+                    except (ArithmeticError, ValueError):
+                        share = Decimal("1")
+                weighted = quantity * share
+                add("prodotti", taste.get("nome"), weighted)
+                for variant in taste.get("aggiunte", []) if isinstance(taste.get("aggiunte"), list) else []:
+                    add("varianti", variant, weighted)
+                for removed in taste.get("senza", []) if isinstance(taste.get("senza"), list) else []:
+                    add("rimozioni", removed, weighted)
+
+        def ranked(bucket, label="nome", limit=20):
+            return [{label: name, "quantita": str(value.quantize(Decimal("0.001")).normalize())}
+                    for name, value in sorted(counters[bucket].items(), key=lambda item: (-item[1], item[0].casefold()))[:limit]]
+
+        order_count = len(orders)
+        return jsonify({
+            "periodo": period, "da": start.isoformat(), "a": (end - timedelta(days=1)).isoformat(),
+            "ordini": order_count, "ordini_evasi": len(completed_orders), "ordini_annullati": len(cancelled_orders),
+            "valore_richieste": str(requested_value.quantize(Decimal("0.01"))),
+            "incassi_evasi": str(collected_value.quantize(Decimal("0.01"))),
+            "valore_medio": str((requested_value / order_count if order_count else Decimal("0")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            "prodotti_multigusto": str(mixed_items.normalize()),
+            "prodotti": ranked("prodotti"), "formati": ranked("formati"),
+            "varianti": ranked("varianti"), "rimozioni": ranked("rimozioni"),
+            "impasti": ranked("impasti"), "tipi": ranked("tipi"), "canali": ranked("canali"),
+            "fasce": ranked("fasce", "nome"),
+            "andamento": [{"data": name, "quantita": str(value.quantize(Decimal("0.001")).normalize())}
+                           for name, value in sorted(counters["andamento"].items())],
+        })
+    finally:
+        conn.close()
+
+
+@app.get("/api/clienti/statistiche")
+def api_clienti_statistiche():
+    if "user_id" not in session:
+        return jsonify({"error": "Accesso richiesto."}), 401
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        return jsonify({"error": "Configura prima il negozio."}), 409
+    search = request.args.get("q", "").strip()[:80]
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""WITH valid_orders AS (
+                             SELECT o.*,REGEXP_REPLACE(o.telefono_cliente,'[^0-9]','','g') AS phone_key
+                             FROM ordini_menu o WHERE o.id_negozio=%s AND o.origine<>'tavolo'
+                           ), totals AS (
+                             SELECT phone_key,COUNT(*) FILTER (WHERE stato<>'annullato') AS orders,
+                                    COUNT(*) FILTER (WHERE stato='evaso') AS completed,
+                                    COUNT(*) FILTER (WHERE stato='annullato') AS cancelled,
+                                    COALESCE(SUM(totale) FILTER (WHERE stato<>'annullato'),0) AS value,
+                                    COALESCE(AVG(totale) FILTER (WHERE stato<>'annullato'),0) AS average,
+                                    MAX(creato_il) FILTER (WHERE stato<>'annullato') AS last_order
+                             FROM valid_orders GROUP BY phone_key
+                           ), favorites AS (
+                             SELECT DISTINCT ON (v.phone_key) v.phone_key,r.nome_prodotto,SUM(r.quantita) AS quantity
+                             FROM valid_orders v JOIN righe_ordini_menu r ON r.id_ordine=v.id
+                             WHERE v.stato<>'annullato' GROUP BY v.phone_key,r.nome_prodotto
+                             ORDER BY v.phone_key,quantity DESC,r.nome_prodotto
+                           )
+                           SELECT c.id,c.nome,c.telefono,c.email,COALESCE(t.orders,0),COALESCE(t.completed,0),
+                                  COALESCE(t.cancelled,0),COALESCE(t.value,0),COALESCE(t.average,0),
+                                  TO_CHAR(t.last_order AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
+                                  f.nome_prodotto,COALESCE(f.quantity,0),TO_CHAR(c.aggiornato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI')
+                           FROM clienti_ordini_salvati c
+                           LEFT JOIN totals t ON t.phone_key=c.telefono_chiave
+                           LEFT JOIN favorites f ON f.phone_key=c.telefono_chiave
+                           WHERE c.id_negozio=%s AND (%s='' OR c.nome ILIKE %s OR c.telefono ILIKE %s OR c.email ILIKE %s)
+                           ORDER BY t.last_order DESC NULLS LAST,LOWER(c.nome) LIMIT 500""",
+                        (shop_id, shop_id, search, f"%{search}%", f"%{search}%", f"%{search}%"))
+            rows = cur.fetchall()
+        customers = [{"id": row[0], "nome": row[1], "telefono": row[2], "email": row[3] or "",
+                      "ordini": row[4], "evasi": row[5], "annullati": row[6], "valore": str(row[7]),
+                      "media": str(row[8]), "ultimo_ordine": row[9], "prodotto_preferito": row[10] or "—",
+                      "quantita_preferita": str(row[11]), "aggiornato_il": row[12]} for row in rows]
+        return jsonify({"clienti": customers, "totale": len(customers),
+                        "con_ordini": sum(1 for item in customers if item["ordini"]),
+                        "valore_totale": str(sum((Decimal(item["valore"]) for item in customers), Decimal("0")))})
     finally:
         conn.close()
 

@@ -10,7 +10,7 @@
   .stats-tabs{display:flex;gap:9px;flex-wrap:wrap;margin:0 0 22px}.stats-tabs button{min-height:46px;padding:10px 17px;border:1px solid #6ea8fe;border-radius:10px;background:#1d3555;color:#e7efff;font-weight:800;cursor:pointer}.stats-tabs button[aria-selected="true"]{background:#2e65a2;color:#fff;box-shadow:0 0 0 2px #8abfff55}.stats-tabs[hidden],.stats-section[hidden]{display:none!important}
   .order-stats-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:14px 0 18px;padding:15px;border:1px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(255,255,255,.04)}.order-stats-controls label{display:grid;gap:5px;font-size:.84rem;color:#c7d7f2}.order-stats-controls select,.order-stats-controls input{min-height:41px;padding:8px 10px;border:1px solid #5e80aa;border-radius:8px;background:#15223a;color:#fff}.order-stats-controls button{min-height:41px;padding:8px 14px;border:1px solid #6ea8fe;border-radius:8px;background:#234e86;color:#fff;font-weight:750;cursor:pointer}.order-stats-message{min-height:20px;color:#b9e5c5}.order-stats-split{display:flex;gap:9px;flex-wrap:wrap}.order-stats-split span{padding:9px 12px;border-radius:8px;background:#23456c;font-weight:700}
 </style>
-<div id="statsTabs" class="stats-tabs" role="tablist" aria-label="Tipo di statistiche" hidden><button id="statsMenuTab" type="button" role="tab" aria-selected="true" aria-controls="menuStats">1 · Statistiche menu</button><button id="statsOrdersTab" type="button" role="tab" aria-selected="false" aria-controls="ordersStats">2 · Statistiche ordini</button></div>
+<div id="statsTabs" class="stats-tabs" role="tablist" aria-label="Tipo di statistiche" hidden><button id="statsMenuTab" type="button" role="tab" aria-selected="true" aria-controls="menuStats">1 · Statistiche menu</button><button id="statsOrdersTab" type="button" role="tab" aria-selected="false" aria-controls="ordersStats">2 · Statistiche ordini</button><button id="statsPizzaTab" type="button" role="tab" aria-selected="false" aria-controls="pizzaStats" hidden>3 · Statistiche pizzeria</button></div>
 <section id="menuStats" class="stats-section" role="tabpanel" aria-labelledby="statsMenuTab">
 <h2>Statistiche del menu</h2>
 <p class="muted">Dati aggregati e anonimi del menu pubblico, aggiornati in tempo reale.</p>
@@ -41,6 +41,19 @@
     <div class="stats-panel full"><h3>Composizione degli ordini</h3><div id="orderStatsSplit" class="order-stats-split">—</div></div>
   </div>
 </section>
+<section id="pizzaStats" class="stats-section" role="tabpanel" aria-labelledby="statsPizzaTab" hidden>
+  <h2>Statistiche Pizzeria</h2><p class="muted">Analisi degli articoli configurati con il modulo Pizzeria. Gli incassi conteggiano soltanto gli ordini segnati come evasi; il valore richieste esclude gli annullati.</p>
+  <div class="order-stats-controls"><label>Periodo<select id="pizzaStatsPeriod"><option value="giorno">Giorno</option><option value="settimana">Settimana</option><option value="mese" selected>Mese</option><option value="anno">Anno</option></select></label><label>Data di riferimento<input id="pizzaStatsDate" type="date"></label><button id="pizzaStatsRefresh" type="button">Aggiorna statistiche</button></div>
+  <p id="pizzaStatsMessage" class="order-stats-message" role="status"></p>
+  <div class="stats-grid"><div class="stat-card">Ordini con prodotti pizzeria<strong id="pizzaStatsOrders">—</strong></div><div class="stat-card">Incassi ordini evasi<strong id="pizzaStatsRevenue">—</strong></div><div class="stat-card">Valore richieste<strong id="pizzaStatsRequested">—</strong></div><div class="stat-card">Valore medio per ordine<strong id="pizzaStatsAverage">—</strong></div></div>
+  <div class="stats-panels">
+    <div class="stats-panel"><h3>Gusti più venduti</h3><div id="pizzaStatsProducts">—</div></div><div class="stats-panel"><h3>Formati più scelti</h3><div id="pizzaStatsFormats">—</div></div>
+    <div class="stats-panel"><h3>Varianti più aggiunte</h3><div id="pizzaStatsVariants">—</div></div><div class="stats-panel"><h3>Ingredienti più rimossi</h3><div id="pizzaStatsRemovals">—</div></div>
+    <div class="stats-panel"><h3>Tipi di preparazione</h3><div id="pizzaStatsTypes">—</div></div><div class="stats-panel"><h3>Impasti scelti</h3><div id="pizzaStatsDoughs">—</div></div>
+    <div class="stats-panel"><h3>Fasce più richieste</h3><div id="pizzaStatsSlots">—</div></div><div class="stats-panel"><h3>Andamento prodotti</h3><div id="pizzaStatsTrend">—</div></div>
+    <div class="stats-panel"><h3>Canale degli ordini</h3><div id="pizzaStatsChannels">—</div></div><div class="stats-panel"><h3>Indicatori operativi</h3><div id="pizzaStatsMixed" class="order-stats-split">—</div></div>
+  </div>
+</section>
 <script>
 (async () => {
   const escapeHtml=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
@@ -60,21 +73,23 @@
   document.getElementById('statsCategories').innerHTML=rows(data.categorie_piu_aperte||[],'aperture','Nessuna apertura categoria registrata.');
   const days=data.giorni||[];const maxDay=Math.max(1,...days.map(item=>Number(item.visite)||0));
   document.getElementById('statsDays').innerHTML=days.length?days.map(item=>`<div class="day-row"><span>${escapeHtml(item.data.slice(5))}</span><div class="day-bars"><div class="bar"><i style="width:${item.visite/maxDay*100}%"></i></div><div class="bar"><i class="qr" style="width:${item.qr/maxDay*100}%"></i></div></div><b>${item.visite}</b></div>`).join(''):'Nessuna visita registrata.';
-  if(!data.moduli_ordini_attivi)return;
-  const tabs=document.getElementById('statsTabs'),menuTab=document.getElementById('statsMenuTab'),ordersTab=document.getElementById('statsOrdersTab');
-  const menuStats=document.getElementById('menuStats'),ordersStats=document.getElementById('ordersStats');
+  if(!data.moduli_ordini_attivi&&!data.modulo_pizzeria_attivo)return;
+  const tabs=document.getElementById('statsTabs'),menuTab=document.getElementById('statsMenuTab'),ordersTab=document.getElementById('statsOrdersTab'),pizzaTab=document.getElementById('statsPizzaTab');
+  const menuStats=document.getElementById('menuStats'),ordersStats=document.getElementById('ordersStats'),pizzaStats=document.getElementById('pizzaStats');
   const dateField=document.getElementById('orderStatsDate'),periodField=document.getElementById('orderStatsPeriod');
   const message=document.getElementById('orderStatsMessage');
   dateField.value=new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Rome'});
   tabs.hidden=false;
-  let loaded=false,requestNumber=0;
+  let loaded=false,pizzaLoaded=false,requestNumber=0,pizzaRequestNumber=0;
   function showTab(which){
-    const orders=which==='ordini';menuStats.hidden=orders;ordersStats.hidden=!orders;
-    menuTab.setAttribute('aria-selected',String(!orders));ordersTab.setAttribute('aria-selected',String(orders));
+    const orders=which==='ordini',pizza=which==='pizzeria';menuStats.hidden=orders||pizza;ordersStats.hidden=!orders;pizzaStats.hidden=!pizza;
+    menuTab.setAttribute('aria-selected',String(!orders&&!pizza));ordersTab.setAttribute('aria-selected',String(orders));pizzaTab.setAttribute('aria-selected',String(pizza));
     if(orders&&!loaded)loadOrderStats();
+    if(pizza&&!pizzaLoaded)loadPizzaStats();
   }
   menuTab.addEventListener('click',()=>showTab('menu'));
   ordersTab.addEventListener('click',()=>showTab('ordini'));
+  ordersTab.hidden=!data.moduli_ordini_attivi;pizzaTab.hidden=!data.modulo_pizzeria_attivo;pizzaTab.addEventListener('click',()=>showTab('pizzeria'));
   const fmt=new Intl.NumberFormat('it-IT',{maximumFractionDigits:3});
   const money=new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'});
   function statRows(items,label,value,empty){
@@ -105,5 +120,8 @@
   document.getElementById('orderStatsRefresh').addEventListener('click',loadOrderStats);
   periodField.addEventListener('change',loadOrderStats);
   dateField.addEventListener('change',loadOrderStats);
+  const pizzaDate=document.getElementById('pizzaStatsDate'),pizzaPeriod=document.getElementById('pizzaStatsPeriod'),pizzaMessage=document.getElementById('pizzaStatsMessage');pizzaDate.value=dateField.value;
+  async function loadPizzaStats(){const current=++pizzaRequestNumber;pizzaMessage.textContent='Caricamento statistiche Pizzeria…';try{const params=new URLSearchParams({periodo:pizzaPeriod.value,data:pizzaDate.value}),response=await fetch('/api/statistiche/pizzeria?'+params),result=await response.json();if(current!==pizzaRequestNumber)return;if(!response.ok)throw new Error(result.error||'Statistiche Pizzeria non disponibili.');pizzaLoaded=true;document.getElementById('pizzaStatsOrders').textContent=fmt.format(result.ordini);document.getElementById('pizzaStatsRevenue').textContent=money.format(Number(result.incassi_evasi));document.getElementById('pizzaStatsRequested').textContent=money.format(Number(result.valore_richieste));document.getElementById('pizzaStatsAverage').textContent=money.format(Number(result.valore_medio));for(const [id,items,empty] of [['pizzaStatsProducts',result.prodotti,'Nessun gusto venduto.'],['pizzaStatsFormats',result.formati,'Nessun formato venduto.'],['pizzaStatsVariants',result.varianti,'Nessuna variante aggiunta.'],['pizzaStatsRemovals',result.rimozioni,'Nessun ingrediente rimosso.'],['pizzaStatsTypes',result.tipi,'Nessuna preparazione venduta.'],['pizzaStatsDoughs',result.impasti,'Nessun impasto registrato.'],['pizzaStatsSlots',result.fasce,'Nessuna fascia registrata.'],['pizzaStatsChannels',result.canali,'Nessun canale registrato.']])document.getElementById(id).innerHTML=statRows(items||[],item=>item.nome,item=>item.quantita,empty);document.getElementById('pizzaStatsTrend').innerHTML=statRows(result.andamento||[],item=>item.data,item=>item.quantita,'Nessuna vendita nel periodo.');document.getElementById('pizzaStatsMixed').textContent='Multigusto: '+fmt.format(Number(result.prodotti_multigusto))+' · Evasi: '+fmt.format(result.ordini_evasi)+' · Annullati: '+fmt.format(result.ordini_annullati);pizzaMessage.textContent='Dal '+result.da+' al '+result.a}catch(error){if(current===pizzaRequestNumber)pizzaMessage.textContent=error.message}}
+  document.getElementById('pizzaStatsRefresh').addEventListener('click',loadPizzaStats);pizzaPeriod.addEventListener('change',loadPizzaStats);pizzaDate.addEventListener('change',loadPizzaStats);
 })();
 </script>

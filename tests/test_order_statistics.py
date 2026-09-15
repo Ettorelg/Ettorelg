@@ -98,4 +98,5 @@ def test_order_statistics_year_uses_monthly_trend():
 def test_order_statistics_tab_is_conditional_in_page():
     html = (Path(__file__).resolve().parents[1] / "templates" / "sections" / "statistiche.html").read_text(encoding="utf-8")
     assert 'id="statsTabs"' in html and 'id="statsOrdersTab"' in html
-    assert "if(!data.moduli_ordini_attivi)return" in html
+    assert "if(!data.moduli_ordini_attivi&&!data.modulo_pizzeria_attivo)return" in html
+    assert "ordersTab.hidden=!data.moduli_ordini_attivi" in html
