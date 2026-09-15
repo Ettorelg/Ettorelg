@@ -15,8 +15,8 @@
   <h2>Modulo Pizzeria</h2>
   <div class="pizza-card pizza-notice">
     <strong>Modulo separato · formati, impasti, varianti e panette</strong>
-    <p>Il modulo Pizzeria resta indipendente dalla licenza e dal modulo Ordinazioni. Prima configuralo e verificalo nella prova; poi puoi abilitarlo per il menu pubblico.</p>
-    <div class="pizza-actions"><a class="pizza-test-link" href="/pizzeria/prova">Apri la prova interattiva</a><button id="pizzaActivation" type="button" disabled>Caricamento stato…</button></div>
+    <p>Il modulo Pizzeria resta indipendente dalla licenza e dal modulo Ordinazioni. Configura qui formati, ingredienti automatici, gusti per calzoni e panini e controlla il prezzo prima di abilitarlo nel menu pubblico.</p>
+    <div class="pizza-actions"><button id="pizzaActivation" type="button" disabled>Caricamento stato…</button></div>
     <p id="pizzaActivationMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card">
@@ -28,7 +28,7 @@
     <p id="pizzaMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card">
-    <strong>Ingredienti rimovibili · automatici</strong>
+    <strong>Ingredienti automatici · pizze, calzoni e panini con gusto</strong>
     <p>Le opzioni «senza» vengono lette dal campo Ingredienti di ogni prodotto, separate da virgola, punto e virgola o a capo. Farina e semola sono escluse. Per modificarle, aggiorna il prodotto nella sezione Prodotti. Togliere ingredienti non abbassa il prezzo e non garantisce l'assenza di allergeni: in caso di allergie occorre verificare con il locale.</p>
   </div>
   <div class="pizza-card">
@@ -49,14 +49,14 @@
     <p id="pizzaVariantMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card">
-    <strong>Calzoni e panini con gusto pizza · bozza</strong>
+    <strong>Calzoni e panini con gusto pizza</strong>
     <p>Scegli il gusto e uno dei suoi formati disponibili, anche Doppia o Familiare. Il prezzo segue quello della pizza dello stesso formato, oppure puoi indicarne uno personalizzato. Per Singola è prevista una panetta; il consumo dei formati maggiori sarà configurato prima dell'attivazione. La scorta non viene ancora scalata.</p>
     <div id="pizzaDerivatives" class="pizza-formats"></div>
     <div class="pizza-actions"><button id="pizzaAddDerivative" type="button">+ Aggiungi calzone o panino</button><button id="pizzaSaveDerivatives" type="button">Salva calzoni e panini</button></div>
     <p id="pizzaDerivativeMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card">
-    <strong>Anteprima prezzo · senza inviare ordini</strong>
+    <strong>Anteprima prezzo · calzoni, panini e pizze</strong>
     <p>Prova le regole salvate, comprese le rimozioni senza sconto. Il totale viene calcolato dal server e non cambia il menu, le scorte o gli ordini.</p>
     <div class="pizza-format">
       <label>Tipo <select id="pizzaQuoteType"><option value="pizza">Pizza · un gusto</option><option value="multigusto">Pizza · più gusti</option><option value="calzone">Calzone · un gusto</option><option value="calzone_multigusto">Calzone · più gusti</option><option value="panino">Panino · un gusto</option><option value="panino_multigusto">Panino · più gusti</option></select></label>
