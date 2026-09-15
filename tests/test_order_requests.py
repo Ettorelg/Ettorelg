@@ -207,7 +207,9 @@ def test_public_menu_keeps_order_form_closed_until_products_are_selected():
     assert 'id="orderCartPreviewLines"' in html
     assert 'id="orderCartPreviewTotal"' in html
     assert 'id="orderCartOpen" type="button">Prenota un ordine' in html
-    assert "if(orderCart.size&&!orderPanel.open){orderPanel.showModal()" in html
+    assert "if(orderCart.size&&!orderPanel.open){showOrderStep('review');orderPanel.showModal()" in html
+    assert 'id="orderForm" hidden' in html
+    assert 'id="orderContinue"' in html
     assert "if(orderMode==='view')return" in html
     assert "orderAddButtons.forEach(button=>button.hidden=mode==='view')" in html
     assert "button.classList.toggle('selected',Boolean(selected))" in html
