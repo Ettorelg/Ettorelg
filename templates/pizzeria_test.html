@@ -77,6 +77,7 @@
       if(!formats.length)message('Nessun formato disponibile per questa preparazione. Configuralo nella dashboard.',true);else if(publicSlug){el('pageIntro').hidden=mixed;message('Il totale si aggiorna automaticamente.');scheduleQuote()}else message('Scegli i gusti e calcola il totale.');
     }
     function addTaste(index,total,denominator,derived,mixed){
+      const derivativeKind=kind.value.replace('_multigusto','');
       const box=document.createElement('section');box.className='card taste';
       const title=document.createElement('h3'),partTitle=mixed?'Gusto '+(index+1)+' · 1/'+denominator:(kind.value==='pizza'?'Gusto pizza':derived?'Gusto intero':'Prodotto');title.textContent=partTitle;box.append(title);
       const productLabel=document.createElement('label');productLabel.textContent=derived?'Scegli il gusto':'Prodotto';
