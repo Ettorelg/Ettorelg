@@ -781,3 +781,13 @@ def test_manual_dough_stock_updates_from_selected_cart_items_before_submission()
     assert "quantity-reserved" in html
     assert "reserved?'residue':'disponibili'" in html
     assert "Quantità residue previste dopo gli articoli selezionati" in html
+
+
+def test_manual_dough_stock_spans_above_catalog_and_cart_in_a_compact_row():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    stock = html.index('id="manualDoughStock"')
+    workspace = html.index('<div class="manual-order-workspace">')
+    catalog = html.index('<section class="manual-catalog">')
+    assert stock < workspace < catalog
+    assert ".manual-dough-stock-card{display:flex;align-items:center;justify-content:space-between;flex:0 0 180px" in html
+    assert ".manual-dough-stock{margin:0;padding:7px 9px" in html
