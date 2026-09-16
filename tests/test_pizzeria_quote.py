@@ -55,9 +55,9 @@ def endpoint(db):
 
 def settings():
     pizzas = {
-        10: {"id": 10, "id_categoria": 2, "formati": {"singola": {"prezzo": "8.00", "disponibile": True}, "gigante": {"prezzo": "20.00", "disponibile": True}}},
-        11: {"id": 11, "id_categoria": 2, "formati": {"gigante": {"prezzo": "26.00", "disponibile": True}}},
-        12: {"id": 12, "id_categoria": 3, "formati": {"gigante": {"prezzo": "22.00", "disponibile": True}}},
+        10: {"id": 10, "id_categoria": 2, "formati": {"singola": {"prezzo": "8.00", "disponibile": True, "impasti": ["Classico", "Integrale"]}, "gigante": {"prezzo": "20.00", "disponibile": True, "impasti": ["Classico"]}}},
+        11: {"id": 11, "id_categoria": 2, "formati": {"gigante": {"prezzo": "26.00", "disponibile": True, "impasti": ["Classico"]}}},
+        12: {"id": 12, "id_categoria": 3, "formati": {"gigante": {"prezzo": "22.00", "disponibile": True, "impasti": ["Classico"]}}},
     }
     fractions = {"gigante": [2, 3]}
     additions = [{"id_categoria": 2, "id_prodotto": None, "prezzi": {"Singola": "1.50", "Gigante": "3.00"}, "disponibile": True}]

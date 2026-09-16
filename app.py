@@ -4588,26 +4588,60 @@ def normalize_pizzeria_preparation(payload, available_formats):
     format_names = {name.casefold(): name for name in available_formats}
     normalized_stocks = []
     keys = set()
+    linked_formats = set()
     for stock in stocks:
-        if not isinstance(stock, dict) or not isinstance(stock.get("formato"), str) or not isinstance(stock.get("impasto"), str):
+        if not isinstance(stock, dict) or not isinstance(stock.get("impasto"), str):
             raise ValueError("Scorta panette non valida.")
-        format_name = format_names.get(stock["formato"].strip().casefold())
         dough_name = dough_names.get(stock["impasto"].strip().casefold())
-        if not format_name or not dough_name:
-            raise ValueError("La scorta deve usare un formato e un impasto configurati.")
-        if format_name.casefold() != "singola" and dough_name.casefold() != "classico":
-            raise ValueError("Gli impasti alternativi sono disponibili solo per la Singola.")
-        key = (format_name.casefold(), dough_name.casefold())
+        raw_formats = stock.get("formati", [stock.get("formato")])
+        if not dough_name or not isinstance(raw_formats, list) or not raw_formats or len(raw_formats) > len(format_names):
+            raise ValueError("La scorta deve usare almeno un formato configurato.")
+        stock_formats = []
+        for value in raw_formats:
+            if not isinstance(value, str) or value.strip().casefold() not in format_names:
+                raise ValueError("La scorta deve usare formati configurati.")
+            canonical = format_names[value.strip().casefold()]
+            if canonical.casefold() not in {item.casefold() for item in stock_formats}:
+                stock_formats.append(canonical)
+        name = str(stock.get("nome") or stock.get("formato") or stock_formats[0]).strip()
+        if not 1 <= len(name) <= 80:
+            raise ValueError("Indica il nome della panetta, ad esempio Piccolo, Medio o Grande.")
+        key = (name.casefold(), dough_name.casefold())
         if key in keys:
-            raise ValueError("Ogni coppia formato/impasto può avere una sola scorta.")
+            raise ValueError("Ogni gruppo di panette deve avere un nome univoco per impasto.")
         keys.add(key)
+        for format_name in stock_formats:
+            link = (format_name.casefold(), dough_name.casefold())
+            if link in linked_formats:
+                raise ValueError("Ogni formato può scaricare da un solo gruppo per ciascun impasto.")
+            linked_formats.add(link)
         unlimited = stock.get("illimitate", False)
         quantity = stock.get("quantita", 0)
         if not isinstance(unlimited, bool) or type(quantity) is not int or not 0 <= quantity <= 100000:
             raise ValueError("Quantità panette non valida.")
-        normalized_stocks.append({"formato": format_name, "impasto": dough_name,
+        normalized_stocks.append({"nome": name, "formati": stock_formats, "impasto": dough_name,
                                   "quantita": 0 if unlimited else quantity, "illimitate": unlimited})
     return normalized_doughs, normalized_stocks
+
+
+def consume_pizzeria_stocks(stocks, stock_consumption):
+    """Consume every ordered format from its shared dough/size stock group."""
+    normalized_stocks = []
+    for stock in stocks if isinstance(stocks, list) else []:
+        if not isinstance(stock, dict):
+            continue
+        item = dict(stock)
+        item_formats = item.get("formati") if isinstance(item.get("formati"), list) else [item.get("formato")]
+        dough_key = str(item.get("impasto") or "Classico").strip().casefold()
+        required = sum((stock_consumption.get((str(format_name or "").strip().casefold(), dough_key), Decimal(0)) for format_name in item_formats), Decimal(0))
+        if required and not item.get("illimitate"):
+            available = Decimal(str(item.get("quantita") or 0))
+            if available < required:
+                stock_name = item.get("nome") or item.get("formato") or ", ".join(str(value) for value in item_formats)
+                raise ValueError(f"Panette insufficienti per {stock_name} · {item.get('impasto')}. Disponibili: {available:.0f}.")
+            item["quantita"] = int(available - required)
+        normalized_stocks.append(item)
+    return normalized_stocks
 
 
 def derive_pizzeria_removable_ingredients(description):
@@ -4866,6 +4900,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
         return [configured[index] for index in indexes]
 
     removed = []
+    selected_formats = []
     if mixed:
         denominator, tastes = payload.get("taglio"), payload.get("gusti")
         if type(denominator) is not int or denominator not in fractions.get(format_name.casefold(), []):
@@ -4877,6 +4912,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
             if not isinstance(taste, dict):
                 raise ValueError("Gusto non valido.")
             pizza, selected_format = pizza_and_format(taste.get("id_pizza"))
+            selected_formats.append(selected_format)
             removed.append(removed_ingredients(taste.get("senza", []), pizza))
             taste_price = selected_format["prezzo"]
             if derivative_kind in ("calzone", "panino") and pizza.get("tipo_pizzeria") != derivative_kind:
@@ -4890,6 +4926,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
         unit = calculate_pizzeria_multigusto_price(format_name, denominator, priced_tastes)
     else:
         pizza, selected_format = pizza_and_format(payload.get("id_pizza"))
+        selected_formats.append(selected_format)
         removed.append(removed_ingredients(payload.get("senza", []), pizza))
         if derivative_kind in ("calzone", "panino") and pizza.get("tipo_pizzeria") != derivative_kind:
             derivative = derivatives.get((pizza["id"], derivative_kind, format_name.casefold()))
@@ -4903,10 +4940,8 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
     dough_name = payload.get("impasto", "Classico")
     if not isinstance(dough_name, str) or dough_name.casefold() not in doughs or not doughs[dough_name.casefold()]["disponibile"]:
         raise ValueError("Impasto non disponibile.")
-    if not mixed and "impasti" in selected_format and dough_name.casefold() not in {name.casefold() for name in selected_format["impasti"]}:
+    if any(dough_name.casefold() not in {name.casefold() for name in item.get("impasti", ["Classico"])} for item in selected_formats):
         raise ValueError("Questo impasto non è abilitato per il formato selezionato.")
-    if dough_name.casefold() != "classico" and (kind != "pizza" or format_name.casefold() != "singola"):
-        raise ValueError("Gli impasti alternativi sono disponibili solo per la pizza Singola.")
     unit = (unit + Decimal(doughs[dough_name.casefold()]["supplemento"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     result = {"prezzo_unitario": f"{unit:.2f}", "quantita": quantity,
               "totale": f"{(unit * quantity):.2f}", "solo_anteprima": True}
@@ -5489,20 +5524,10 @@ def api_crea_ordine_menu(slug: str | None = None):
                     cur.execute("SELECT panette FROM pizzeria_preparazione_config WHERE id_negozio=%s FOR UPDATE", (shop_id,))
                     stock_row = cur.fetchone()
                     stocks = stock_row[0] if stock_row else []
-                    normalized_stocks = []
-                    for stock in stocks if isinstance(stocks, list) else []:
-                        if not isinstance(stock, dict):
-                            continue
-                        item = dict(stock)
-                        key = (str(item.get("formato") or "").strip().casefold(),
-                               str(item.get("impasto") or "Classico").strip().casefold())
-                        required = stock_consumption.get(key, Decimal(0))
-                        if required and not item.get("illimitate"):
-                            available = Decimal(str(item.get("quantita") or 0))
-                            if available < required:
-                                return jsonify({"error": f"Panette insufficienti per {item.get('formato')} · {item.get('impasto')}. Disponibili: {available:.0f}."}), 409
-                            item["quantita"] = int(available - required)
-                        normalized_stocks.append(item)
+                    try:
+                        normalized_stocks = consume_pizzeria_stocks(stocks, stock_consumption)
+                    except ValueError as exc:
+                        return jsonify({"error": str(exc)}), 409
                     # Una coppia formato/impasto senza scorta esplicita resta illimitata.
                     cur.execute("UPDATE pizzeria_preparazione_config SET panette=%s::jsonb,aggiornato_il=NOW() WHERE id_negozio=%s", (json.dumps(normalized_stocks), shop_id))
                 cur.execute("""INSERT INTO contatori_ordini_menu (id_negozio,ultimo_numero) VALUES (%s,1)

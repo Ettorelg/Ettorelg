@@ -47,7 +47,7 @@ class Connection:
 def functions(db):
     nodes = [copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef)
                                 and item.name == name))
-             for name in ("normalize_pizzeria_preparation", "api_pizzeria_preparazione")]
+             for name in ("normalize_pizzeria_preparation", "consume_pizzeria_stocks", "api_pizzeria_preparazione")]
     for node in nodes: node.decorator_list = []
     scope = {"Decimal": Decimal, "json": json, "request": request, "session": session,
              "jsonify": jsonify, "get_user_shop_id": lambda _: 7,
@@ -67,14 +67,38 @@ def payload():
 def test_doughs_and_stocks_normalized():
     doughs, stocks = functions(Connection())["normalize_pizzeria_preparation"](payload(), ["Singola"])
     assert doughs[1]["supplemento"] == "2.50"
-    assert stocks == [{"formato": "Singola", "impasto": "Integrale", "quantita": 30,
+    assert stocks == [{"nome": "Singola", "formati": ["Singola"], "impasto": "Integrale", "quantita": 30,
                        "illimitate": False}]
+
+
+def test_one_stock_group_can_supply_multiple_product_formats():
+    item = payload()
+    item["panette"] = [{"nome": "Piccolo", "formati": ["Singola", "STANDARD"],
+                        "impasto": "Classico", "quantita": 25, "illimitate": False}]
+    _, stocks = functions(Connection())["normalize_pizzeria_preparation"](item, ["Singola", "STANDARD"])
+    assert stocks[0]["nome"] == "Piccolo"
+    assert stocks[0]["formati"] == ["Singola", "STANDARD"]
+
+
+def test_shared_stock_is_consumed_by_pizza_and_calzone_formats_together():
+    stock = [{"nome": "Piccolo", "formati": ["Singola", "STANDARD"], "impasto": "Classico",
+              "quantita": 10, "illimitate": False}]
+    result = functions(Connection())["consume_pizzeria_stocks"](
+        stock, {("singola", "classico"): Decimal(2), ("standard", "classico"): Decimal(3)})
+    assert result[0]["quantita"] == 5
+
+
+def test_shared_stock_rejects_combined_consumption_over_available_quantity():
+    stock = [{"nome": "Piccolo", "formati": ["Singola", "STANDARD"], "impasto": "Classico",
+              "quantita": 4, "illimitate": False}]
+    with pytest.raises(ValueError, match="Piccolo"):
+        functions(Connection())["consume_pizzeria_stocks"](
+            stock, {("singola", "classico"): Decimal(2), ("standard", "classico"): Decimal(3)})
 
 
 @pytest.mark.parametrize("change", [
     lambda p: p["impasti"].pop(0),
     lambda p: p["panette"][0].update(formato="Non mio"),
-    lambda p: p["panette"][0].update(formato="Gigante"),
     lambda p: p["panette"][0].update(quantita=-1),
     lambda p: p["panette"].append(p["panette"][0].copy()),
 ])

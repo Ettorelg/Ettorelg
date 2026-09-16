@@ -43,12 +43,12 @@
     <p>Le opzioni «senza» vengono lette dal campo Ingredienti di ogni prodotto, separate da virgola, punto e virgola o a capo. Farina e semola sono escluse. Per modificarle, aggiorna il prodotto nella sezione Prodotti. Togliere ingredienti non abbassa il prezzo e non garantisce l'assenza di allergeni: in caso di allergie occorre verificare con il locale.</p>
   </div>
   <div class="pizza-card pizza-preparation">
-    <strong>Impasti e panette · bozza</strong>
-    <p>Gli impasti alternativi sono previsti solo per un formato chiamato “Singola”. Il supplemento si applicherà una volta alla pizza intera. Le scorte sono condivise tra le pizze con la stessa coppia formato/impasto; se non imposti una scorta, la disponibilità resterà illimitata. Le quantità non vengono ancora scalate dagli ordini.</p>
+    <strong>Impasti</strong>
+    <p>Crea qui i tipi di impasto e il relativo supplemento. I gruppi Piccolo, Medio e Grande e i formati che scaricano ciascuna panetta si gestiscono nella sezione Formati.</p>
     <details><summary>Impostazioni impasti (modifica occasionale)</summary><h3>Tipi di impasto</h3><div id="pizzaDoughs" class="pizza-formats"></div>
     <div class="pizza-actions"><button id="pizzaAddDough" type="button">+ Aggiungi impasto</button></div></details>
-    <h3>Panetti disponibili oggi</h3><p class="muted">Inserisci direttamente le quantità per ogni impasto e formato.</p><div id="pizzaStocks" class="pizza-formats"></div>
-    <div class="pizza-actions"><button id="pizzaAddStock" type="button">+ Aggiungi scorta</button><button id="pizzaSavePreparation" type="button">Salva impasti e panette</button></div>
+    <div id="pizzaStocks" class="pizza-formats" hidden></div>
+    <div class="pizza-actions"><button id="pizzaAddStock" type="button" hidden>+ Aggiungi scorta</button><button id="pizzaSavePreparation" type="button">Salva impasti</button></div>
     <p id="pizzaPreparationMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card" hidden>
@@ -133,7 +133,7 @@
 
   const doughBox=document.getElementById('pizzaDoughs'),stockBox=document.getElementById('pizzaStocks');
   const preparationMessage=document.getElementById('pizzaPreparationMessage');
-  let availableFormats=[],quoteDoughs=[];
+  let availableFormats=[],quoteDoughs=[],savedStocks=[];
   function field(labelText,value,type='text'){
     const label=document.createElement('label');label.textContent=labelText;
     const input=document.createElement('input');input.type=type;input.value=String(value);label.append(input);return [label,input];
@@ -159,7 +159,7 @@
   }
   async function loadPreparation(){
     try{const response=await fetch('/api/pizzeria/preparazione',{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');
-      availableFormats=data.formati_disponibili;quoteDoughs=data.impasti;doughBox.replaceChildren();stockBox.replaceChildren();data.impasti.forEach(addDough);
+      availableFormats=data.formati_disponibili;quoteDoughs=data.impasti;savedStocks=data.panette||[];doughBox.replaceChildren();stockBox.replaceChildren();data.impasti.forEach(addDough);
       const grouped=new Map();data.panette.forEach(item=>{const key=item.impasto||'Classico';const entry=grouped.get(key)||{impasto:key};const format=(item.formato||'').toLowerCase();if(format==='singola'){entry.quantitaSingola=item.quantita||0;entry.quantitaSingolaIllimitate=Boolean(item.illimitate)}else if(format==='doppia'){entry.quantitaDoppia=item.quantita||0;entry.quantitaDoppiaIllimitate=Boolean(item.illimitate)}else if(format==='familiare'){entry.quantitaFamiliare=item.quantita||0;entry.quantitaFamiliareIllimitate=Boolean(item.illimitate)}grouped.set(key,entry)});if(!grouped.size)data.impasti.forEach(item=>grouped.set(item.nome,{impasto:item.nome}));grouped.forEach(addStock);renderQuote();
       document.getElementById('pizzaAddStock').disabled=!availableFormats.length;
     }catch(error){preparationMessage.textContent=error.message}
@@ -169,7 +169,7 @@
   document.getElementById('pizzaSavePreparation').onclick=async()=>{
     const button=document.getElementById('pizzaSavePreparation');
     const impasti=[...doughBox.children].map(row=>({nome:row.querySelector('input[type=text]').value.trim(),supplemento:row.querySelector('input[type=number]').value,disponibile:row.querySelector('input[type=checkbox]').checked}));
-    const panette=[...stockBox.children].flatMap(row=>{const impasto=row.querySelector('select').value;return [...row.querySelectorAll('input[type=number]')].map(input=>({formato:input.dataset.formato,impasto,quantita:Number(input.value||0),illimitate:Boolean(row.querySelector(`input[type=checkbox][data-formato="${input.dataset.formato}"]`)?.checked)}))});
+    const panette=savedStocks;
     button.disabled=true;preparationMessage.textContent='Salvataggio…';
     try{const response=await fetch('/api/pizzeria/preparazione',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({impasti,panette})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Salvataggio non riuscito.');await loadPreparation();preparationMessage.textContent='Impasti e panette salvati in bozza; nessun ordine viene ancora scalato.'}
     catch(error){preparationMessage.textContent=error.message}finally{button.disabled=false}

@@ -314,8 +314,9 @@ def test_formats_page_configures_taste_sources_and_groups_stock_by_dough():
     configurator = (root / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
     assert 'class="taste-category"' in formats
     assert 'class="taste-product"' in formats
-    assert 'stock-format-enabled' in formats
+    assert 'stock-format-checks' in formats
     assert 'group.dataset.dough' in formats
+    assert 'Nome panetta' in formats
     assert 'data-category-id="{{ category.id }}"' in public_menu
     assert "requestedCategory=params.get('category')" in configurator
     assert 'cfg.selezioni_gusti||{}' in configurator
@@ -328,7 +329,7 @@ def test_formats_section_is_shared_with_pizzeria_and_replaces_quick_configuratio
     formats = (root / "templates" / "sections" / "formati.html").read_text(encoding="utf-8")
     pizzeria = (root / "templates" / "sections" / "pizzeria.html").read_text(encoding="utf-8")
     assert 'data-section="formati"' in dashboard
-    assert 'Panette disponibili per formato' in formats
+    assert 'Panette per impasto' in formats
     assert "fetch('/api/categorie_full'" in formats
     assert 'id="openFormatsSection"' in pizzeria
     assert 'Configurazione rapida prodotti' not in pizzeria
