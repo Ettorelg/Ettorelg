@@ -342,6 +342,8 @@ def test_formats_page_configures_taste_sources_and_groups_stock_by_dough():
     assert '(mixed||derived)?compatibleTastes' in configurator
     assert "limited?(categoryIds.includes(p.id_categoria)||productIds.includes(p.id))" in configurator
     assert "payload.id_categoria_configurazione=Number(requestedCategory)" in configurator
+    assert "cfg.equivalenze_formati||{}" in configurator
+    assert "const productFormat=" in configurator
     assert "kind.value==='multigusto'?'pizza'" in configurator
 
 

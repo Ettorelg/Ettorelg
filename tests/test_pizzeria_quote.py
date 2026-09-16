@@ -177,6 +177,19 @@ def test_calzone_can_use_explicitly_selected_pizza_tastes():
     assert result["totale"] == "23.00"
 
 
+def test_calzone_standard_uses_pizza_single_price_from_same_dough_group():
+    local = settings()
+    local[0][11]["formati"]["singola"] = {"nome": "Singola", "prezzo": "10.00", "disponibile": True,
+                                           "impasti": ["Classico"]}
+    selections = {3: {"tipo": "calzone", "combina_gusti": True, "categorie": [2], "prodotti": []}}
+    equivalents = {"classico": {"standard": ["standard", "singola"]}}
+    result = quote({"tipo": "calzone_multigusto", "formato": "STANDARD", "taglio": 2,
+                    "id_categoria_configurazione": 3,
+                    "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 11, "quota": 1}]},
+                   local[0], {"standard": [2]}, *local[2:], None, selections, equivalents)
+    assert result["totale"] == "9.00"
+
+
 def test_calzone_rejects_taste_not_selected_by_owner():
     selections = {3: {"tipo": "calzone", "combina_gusti": True, "categorie": [], "prodotti": [10]}}
     with pytest.raises(ValueError, match="non appartiene"):

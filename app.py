@@ -4852,7 +4852,8 @@ def calculate_pizzeria_multigusto_price(format_name, denominator, tastes):
     return (total / denominator).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, doughs, removables=None, taste_selections=None):
+def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, doughs, removables=None,
+                         taste_selections=None, format_equivalences=None):
     """Owner-only dry run. All amounts come from persisted shop settings, never the request."""
     valid_kinds = ("pizza", "multigusto", "calzone", "panino", "calzone_multigusto", "panino_multigusto",
                    "calzone_prodotto", "panino_prodotto")
@@ -4869,6 +4870,10 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
         raise ValueError("Scegli un formato valido.")
     removables = removables or {}
     taste_selections = taste_selections or {}
+    format_equivalences = format_equivalences or {}
+    dough_name = payload.get("impasto", "Classico")
+    if not isinstance(dough_name, str) or dough_name.casefold() not in doughs or not doughs[dough_name.casefold()]["disponibile"]:
+        raise ValueError("Impasto non disponibile.")
 
     selected_taste_config = None
     configured_category_id = payload.get("id_categoria_configurazione")
@@ -4893,11 +4898,15 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
             raise ValueError("Gusto pizza non valido.")
         pizza = pizzas[product_id]
         format_info = pizza["formati"].get(format_name.casefold())
+        if not format_info and selected_taste_config:
+            equivalent_names = format_equivalences.get(dough_name.casefold(), {}).get(format_name.casefold(), [])
+            format_info = next((pizza["formati"].get(name) for name in equivalent_names
+                                if pizza["formati"].get(name)), None)
         if not format_info or not format_info["disponibile"]:
             raise ValueError("Il gusto non è disponibile nel formato selezionato.")
         return pizza, format_info
 
-    def topping_total(indexes, pizza):
+    def topping_total(indexes, pizza, selected_format_name=None):
         if not isinstance(indexes, list) or len(indexes) > 20 or any(type(index) is not int for index in indexes) or len(indexes) != len(set(indexes)):
             raise ValueError("Aggiunte non valide.")
         if indexes and not pizza.get("varianti_abilitate", True):
@@ -4910,8 +4919,9 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
             targets = addition.get("id_prodotti") or ([addition.get("id_prodotto")] if addition.get("id_prodotto") else [])
             if not addition["disponibile"] or (pizza["id"] not in targets and addition.get("id_categoria") != pizza["id_categoria"]):
                 raise ValueError("Aggiunta non disponibile per questo gusto.")
+            addition_format = selected_format_name or format_name
             price = next((value for name, value in addition["prezzi"].items()
-                          if name.casefold() == format_name.casefold()), None)
+                          if name.casefold() == addition_format.casefold()), None)
             if price is None:
                 raise ValueError("Aggiunta non disponibile per questo formato.")
             total += Decimal(price)
@@ -4943,7 +4953,8 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
                 raise ValueError("Questo gusto non appartiene alla categoria scelta.")
             priced_tastes.append({"formato": format_name, "quota": taste.get("quota"),
                                   "prezzo_gusto": taste_price,
-                                  "aggiunte": [str(topping_total(taste.get("aggiunte", []), pizza))]})
+                                  "aggiunte": [str(topping_total(taste.get("aggiunte", []), pizza,
+                                                                  selected_format.get("nome", format_name)))]})
         unit = calculate_pizzeria_multigusto_price(format_name, denominator, priced_tastes)
     else:
         pizza, selected_format = pizza_and_format(payload.get("id_pizza"))
@@ -4954,9 +4965,6 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
         base = selected_format["prezzo"]
         unit = Decimal(base) + topping_total(payload.get("aggiunte", []), pizza)
 
-    dough_name = payload.get("impasto", "Classico")
-    if not isinstance(dough_name, str) or dough_name.casefold() not in doughs or not doughs[dough_name.casefold()]["disponibile"]:
-        raise ValueError("Impasto non disponibile.")
     if any(dough_name.casefold() not in {name.casefold() for name in item.get("impasti", ["Classico"])} for item in selected_formats):
         raise ValueError("Questo impasto non è abilitato per il formato selezionato.")
     unit = (unit + Decimal(doughs[dough_name.casefold()]["supplemento"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -4997,10 +5005,21 @@ def load_pizzeria_order_settings(cur, shop_id):
     cur.execute("SELECT id_pizza,tipo,formato,prezzo_override,disponibile FROM pizzeria_derivati WHERE id_negozio=%s", (shop_id,))
     derivatives = {(r[0], r[1], r[2].casefold()): {"formato": r[2], "prezzo_override": str(r[3]) if r[3] is not None else None,
                     "disponibile": bool(r[4])} for r in cur.fetchall()}
-    cur.execute("SELECT impasti FROM pizzeria_preparazione_config WHERE id_negozio=%s", (shop_id,))
+    cur.execute("SELECT impasti,panette FROM pizzeria_preparazione_config WHERE id_negozio=%s", (shop_id,))
     row = cur.fetchone()
     dough_list = row[0] if row else [{"nome": "Classico", "supplemento": "0.00", "disponibile": True}]
     doughs = {item["nome"].casefold(): item for item in dough_list}
+    stocks = row[1] if row and isinstance(row[1], list) else []
+    format_equivalences = {}
+    for stock in stocks:
+        if not isinstance(stock, dict) or not isinstance(stock.get("formati"), list):
+            continue
+        dough_key = str(stock.get("impasto") or "Classico").casefold()
+        normalized_formats = [str(name).casefold() for name in stock["formati"]
+                              if isinstance(name, str) and name.strip()]
+        for source_format in normalized_formats:
+            aliases = format_equivalences.setdefault(dough_key, {}).setdefault(source_format, [])
+            aliases.extend(name for name in normalized_formats if name not in aliases)
     cur.execute("""SELECT id_categoria,tipo,combina_gusti,categorie_gusti,prodotti_gusti
         FROM pizzeria_categorie_config WHERE id_negozio=%s""", (shop_id,))
     taste_selections = {
@@ -5009,7 +5028,7 @@ def load_pizzeria_order_settings(cur, shop_id):
                  "prodotti": row[4] if isinstance(row[4], list) else []}
         for row in cur.fetchall()
     }
-    return pizzas, fractions, additions, derivatives, doughs, removables, taste_selections
+    return pizzas, fractions, additions, derivatives, doughs, removables, taste_selections, format_equivalences
 
 
 @app.post("/api/pizzeria/preventivo")
@@ -5022,9 +5041,10 @@ def api_pizzeria_preventivo():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            pizzas, fractions, additions, derivatives, doughs, removables, taste_selections = load_pizzeria_order_settings(cur, shop_id)
+            pizzas, fractions, additions, derivatives, doughs, removables, taste_selections, format_equivalences = load_pizzeria_order_settings(cur, shop_id)
         try:
-            result = quote_pizzeria_draft(request.get_json(silent=True), pizzas, fractions, additions, derivatives, doughs, removables, taste_selections)
+            result = quote_pizzeria_draft(request.get_json(silent=True), pizzas, fractions, additions, derivatives,
+                                          doughs, removables, taste_selections, format_equivalences)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify(result)
@@ -5065,7 +5085,7 @@ def api_public_pizzeria_config(slug):
                 return jsonify({"error": "Locale non trovato."}), 404
             if not shop[1]:
                 return jsonify({"attivo": False})
-            pizzas, fractions, additions, derivatives, doughs, removables, taste_configs = load_pizzeria_order_settings(cur, shop[0])
+            pizzas, fractions, additions, derivatives, doughs, removables, taste_configs, format_equivalences = load_pizzeria_order_settings(cur, shop[0])
             taste_selections = {str(category_id): {"categorie": config["categorie"], "prodotti": config["prodotti"]}
                                 for category_id, config in taste_configs.items() if config["combina_gusti"]}
         return jsonify({"attivo": True, "pizze": list(pizzas.values()),
@@ -5073,6 +5093,7 @@ def api_public_pizzeria_config(slug):
             "aggiunte": additions,
             "impasti": list(doughs.values()),
             "selezioni_gusti": taste_selections,
+            "equivalenze_formati": format_equivalences,
             "ingredienti": [{"id": product_id, "valori": values} for product_id, values in removables.items()]})
     finally:
         conn.close()
