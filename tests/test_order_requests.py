@@ -318,6 +318,9 @@ def test_formats_page_configures_taste_sources_and_groups_stock_by_dough():
     assert 'group.dataset.dough' in formats
     assert 'Nome panetta' in formats
     assert "category.tipo_pizzeria==='pizza'?'Pizza'" in formats
+    assert 'data-cut="${number}"' in formats
+    assert "fetch('/api/pizzeria/varianti'" in formats
+    assert "${number} gusti" in formats and "[2,3,4]" in formats
     assert 'data-category-id="{{ category.id }}"' in public_menu
     assert "requestedCategory=params.get('category')" in configurator
     assert 'cfg.selezioni_gusti||{}' in configurator
