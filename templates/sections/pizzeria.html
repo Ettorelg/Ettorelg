@@ -255,7 +255,7 @@
       const toppingLabel=document.createElement('label');toppingLabel.textContent='Una aggiunta (facoltativa)';
       const toppingSelect=document.createElement('select');toppingSelect.className='quote-topping';
       const updateToppings=()=>{const chosen=variantProducts.find(p=>String(p.id)===pizzaSelect.value);const format=quoteFormat.value;
-        fillSelect(toppingSelect,quoteAdditions.flatMap((a,index)=>a.disponibile&&chosen&&((a.id_prodotti||[]).includes(chosen.id)||a.id_prodotto===chosen.id||a.id_categoria===chosen.id_categoria)&&a.prezzi[format]!=null?[{label:a.nome+' · € '+a.prezzi[format],value:String(index)}]:[]),'Nessuna')};
+        fillSelect(toppingSelect,quoteAdditions.flatMap((a,index)=>a.disponibile&&chosen&&((a.id_prodotti||[]).includes(chosen.id)||a.id_prodotto===chosen.id||(a.id_categorie||[]).includes(chosen.id_categoria)||a.id_categoria===chosen.id_categoria)&&a.prezzi[format]!=null?[{label:a.nome+' · € '+a.prezzi[format],value:String(index)}]:[]),'Nessuna')};
       pizzaSelect.onchange=updateToppings;updateToppings();toppingLabel.append(toppingSelect);
       const removals=document.createElement('div');removals.className='pizza-removals';
       const updateRemovals=()=>{const pizza=ingredientPizzas.find(p=>String(p.id)===pizzaSelect.value);removals.replaceChildren();(pizza?.ingredienti_rimovibili||[]).forEach((name,index)=>{const label=document.createElement('label');const input=document.createElement('input');input.type='checkbox';input.dataset.remove=String(index);label.append(input,document.createTextNode('Senza '+name));removals.append(label)})};

@@ -83,6 +83,13 @@ def test_product_variant_override_is_enforced_server_side():
         quote({"tipo": "pizza", "id_pizza": 10, "formato": "Singola", "aggiunte": [0]}, *local)
 
 
+def test_addition_assigned_to_multiple_categories_is_accepted():
+    local = settings()
+    local[2][0].update(id_categoria=None, id_categorie=[2, 3])
+    result = quote({"tipo": "calzone", "id_pizza": 12, "formato": "Singola", "aggiunte": [0]}, *local)
+    assert result["totale"] == "10.50"
+
+
 def test_removing_ingredient_never_reduces_price():
     settings_tuple = settings()
     base = quote({"tipo": "pizza", "id_pizza": 10, "formato": "Singola"}, *settings_tuple, {10: ["Mozzarella", "Basilico"]})

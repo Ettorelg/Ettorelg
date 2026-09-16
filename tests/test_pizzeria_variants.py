@@ -66,6 +66,15 @@ def test_valid_rules_have_normalized_prices():
     assert additions[0]["prezzi"] == {"Singola": "1.50", "Gigante": "3.00"}
 
 
+def test_one_addition_can_target_multiple_categories():
+    item = payload()
+    item["aggiunte"][0].update(id_categoria=None, id_categorie=[2, 3])
+    _, additions = functions(Connection())["normalize_pizzeria_variants"](
+        item, {2, 3}, {10: 2}, {"singola": "Singola", "gigante": "Gigante"})
+    assert additions[0]["id_categorie"] == [2, 3]
+    assert additions[0]["id_categoria"] is None
+
+
 def test_multigusto_price_weights_flavours_and_fractional_toppings():
     calculate = functions(Connection())["calculate_pizzeria_multigusto_price"]
     assert calculate("Gigante", 3, [

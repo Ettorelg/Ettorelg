@@ -4797,13 +4797,17 @@ def normalize_pizzeria_variants(payload, category_ids, product_categories, forma
             raise ValueError("Aggiunta non valida.")
         name = item["nome"].strip()
         category_id, product_id = item.get("id_categoria"), item.get("id_prodotto")
+        category_ids_target = item.get("id_categorie", [category_id] if category_id is not None else [])
+        if not isinstance(category_ids_target, list) or len(category_ids_target) > 100 or any(type(value) is not int for value in category_ids_target):
+            raise ValueError("Categorie della variante non valide.")
+        category_ids_target = list(dict.fromkeys(category_ids_target))
         product_ids = item.get("id_prodotti", [product_id] if product_id is not None else [])
         if not isinstance(product_ids, list) or len(product_ids) > 200 or any(type(value) is not int for value in product_ids):
             raise ValueError("Prodotti della variante non validi.")
         product_ids = list(dict.fromkeys(product_ids))
-        if not 1 <= len(name) <= 80 or (category_id is None) == (not product_ids):
-            raise ValueError("Indica nome e una sola destinazione per l'aggiunta.")
-        if category_id is not None and (type(category_id) is not int or category_id not in category_ids):
+        if not 1 <= len(name) <= 80 or bool(category_ids_target) == bool(product_ids):
+            raise ValueError("Indica il nome e scegli categorie oppure prodotti specifici.")
+        if category_ids_target and any(value not in category_ids for value in category_ids_target):
             raise ValueError("Categoria dell'aggiunta non valida.")
         if product_ids and any(value not in product_categories for value in product_ids):
             raise ValueError("Prodotto dell'aggiunta non valido.")
@@ -4824,7 +4828,9 @@ def normalize_pizzeria_variants(payload, category_ids, product_categories, forma
         available = item.get("disponibile", True)
         if not isinstance(available, bool):
             raise ValueError("Disponibilità dell'aggiunta non valida.")
-        additions.append({"nome": name, "id_categoria": category_id,
+        additions.append({"nome": name,
+                          "id_categoria": category_ids_target[0] if len(category_ids_target) == 1 else None,
+                          "id_categorie": category_ids_target,
                           "id_prodotto": product_ids[0] if len(product_ids) == 1 else None,
                           "id_prodotti": product_ids,
                           "prezzi": normalized_prices, "disponibile": available})
@@ -4926,7 +4932,8 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
                 raise ValueError("Aggiunta non valida.")
             addition = additions[index]
             targets = addition.get("id_prodotti") or ([addition.get("id_prodotto")] if addition.get("id_prodotto") else [])
-            if not addition["disponibile"] or (pizza["id"] not in targets and addition.get("id_categoria") != pizza["id_categoria"]):
+            target_categories = addition.get("id_categorie") or ([addition.get("id_categoria")] if addition.get("id_categoria") else [])
+            if not addition["disponibile"] or (pizza["id"] not in targets and pizza["id_categoria"] not in target_categories):
                 raise ValueError("Aggiunta non disponibile per questo gusto.")
             addition_format = selected_format_name or format_name
             price = next((value for name, value in addition["prezzi"].items()
