@@ -97,8 +97,8 @@ def test_empty_formats_disable_pizzeria_configuration_for_product():
 
 
 def test_category_owns_ordered_formats_and_product_type():
-    assert category_normalizer()({"tipo_pizzeria": "calzone", "formati": ["Normale", "Doppio"]}) == (
-        "calzone", ["Normale", "Doppio"])
+    assert category_normalizer()({"tipo_pizzeria": "calzone", "formati": ["Normale", "Doppio"], "combina_gusti": True}) == (
+        "calzone", ["Normale", "Doppio"], True)
 
 
 @pytest.mark.parametrize("payload", [
