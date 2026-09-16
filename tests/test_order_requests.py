@@ -304,7 +304,7 @@ def test_category_formats_drive_product_configuration_and_support_direct_calzone
     assert 'value="calzone_prodotto"' in configurator
 
 
-def test_category_can_enable_combine_tastes_for_calzone_gusto_pizza():
+def test_category_can_enable_combine_tastes_for_its_own_products():
     root = Path(__file__).resolve().parents[1]
     categories = (root / "templates" / "sections" / "categorie.html").read_text(encoding="utf-8")
     app_source = (root / "app.py").read_text(encoding="utf-8")
@@ -315,8 +315,11 @@ def test_category_can_enable_combine_tastes_for_calzone_gusto_pizza():
     assert 'section["pizzeria_combine_enabled"]' in app_source
     assert 'combine_enabled and category["pizzeria_mixed_formats"]' in app_source
     configurator = (root / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
-    assert 'p.tipo_pizzeria===derivativeKind' in configurator
-    assert "['pizza','calzone','panino'].includes(kind.value)" in configurator
+    assert "(p.tipo_pizzeria||'pizza')===categoryKind" in configurator
+    assert "Calzone gusto pizza" not in configurator
+    assert "Panino gusto pizza" not in configurator
+    assert "Calzoni e panini con gusto pizza" not in (root / "templates" / "sections" / "pizzeria.html").read_text(encoding="utf-8")
+    assert '"pizzeria_choose_taste": True' not in app_source
 
 
 def test_formats_page_configures_taste_sources_and_groups_stock_by_dough():

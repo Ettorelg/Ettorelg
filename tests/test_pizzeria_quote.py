@@ -55,9 +55,10 @@ def endpoint(db):
 
 def settings():
     pizzas = {
-        10: {"id": 10, "id_categoria": 2, "formati": {"singola": {"prezzo": "8.00", "disponibile": True, "impasti": ["Classico", "Integrale"]}, "gigante": {"prezzo": "20.00", "disponibile": True, "impasti": ["Classico"]}}},
-        11: {"id": 11, "id_categoria": 2, "formati": {"gigante": {"prezzo": "26.00", "disponibile": True, "impasti": ["Classico"]}}},
-        12: {"id": 12, "id_categoria": 3, "formati": {"gigante": {"prezzo": "22.00", "disponibile": True, "impasti": ["Classico"]}}},
+        10: {"id": 10, "id_categoria": 2, "tipo_pizzeria": "pizza", "formati": {"singola": {"prezzo": "8.00", "disponibile": True, "impasti": ["Classico", "Integrale"]}, "gigante": {"prezzo": "20.00", "disponibile": True, "impasti": ["Classico"]}}},
+        11: {"id": 11, "id_categoria": 2, "tipo_pizzeria": "pizza", "formati": {"gigante": {"prezzo": "26.00", "disponibile": True, "impasti": ["Classico"]}}},
+        12: {"id": 12, "id_categoria": 3, "tipo_pizzeria": "calzone", "formati": {"singola": {"prezzo": "9.00", "disponibile": True, "impasti": ["Classico"]}, "gigante": {"prezzo": "22.00", "disponibile": True, "impasti": ["Classico"]}}},
+        14: {"id": 14, "id_categoria": 4, "tipo_pizzeria": "panino", "formati": {"singola": {"prezzo": "9.50", "disponibile": True, "impasti": ["Classico"]}}},
     }
     fractions = {"gigante": [2, 3]}
     additions = [{"id_categoria": 2, "id_prodotto": None, "prezzi": {"Singola": "1.50", "Gigante": "3.00"}, "disponibile": True}]
@@ -140,29 +141,31 @@ def test_multigusto_tastes_use_format_rule_even_across_categories():
     assert result["prezzo_unitario"] == "21.00"
 
 
-def test_derivative_inherits_or_overrides_single_price():
-    assert quote({"tipo": "calzone", "id_pizza": 10}, *settings())["totale"] == "8.00"
-    assert quote({"tipo": "panino", "id_pizza": 10}, *settings())["totale"] == "9.50"
-    assert quote({"tipo": "calzone", "id_pizza": 10, "formato": "Gigante"}, *settings())["totale"] == "20.00"
+def test_calzone_and_panino_use_their_own_products_and_prices():
+    assert quote({"tipo": "calzone_prodotto", "id_pizza": 12}, *settings())["totale"] == "9.00"
+    assert quote({"tipo": "panino_prodotto", "id_pizza": 14}, *settings())["totale"] == "9.50"
+    with pytest.raises(ValueError, match="non appartiene"):
+        quote({"tipo": "calzone", "id_pizza": 10}, *settings())
 
 
 def test_calzone_and_panino_can_mix_tastes_but_remain_one_whole_item():
     local = settings()
-    local[3][(11, "calzone", "gigante")] = {"prezzo_override": "28.00", "disponibile": True}
+    local[0][13] = {"id": 13, "id_categoria": 3, "tipo_pizzeria": "calzone",
+                    "formati": {"gigante": {"prezzo": "18.00", "disponibile": True, "impasti": ["Classico"]}}}
     result = quote({"tipo": "calzone_multigusto", "formato": "Gigante", "taglio": 2,
-                    "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 11, "quota": 1}],
+                    "gusti": [{"id_pizza": 12, "quota": 1}, {"id_pizza": 13, "quota": 1}],
                     "quantita": 1}, *local)
     assert result["quantita"] == 1
-    assert result["totale"] == "24.00"
+    assert result["totale"] == "20.00"
 
 
-def test_calzone_can_mix_a_pizza_taste_with_a_direct_calzone_taste():
+def test_calzone_cannot_mix_a_pizza_with_a_calzone_product():
     local = settings()
     local[0][13] = {"id": 13, "id_categoria": 4, "tipo_pizzeria": "calzone",
-                    "formati": {"gigante": {"prezzo": "18.00", "disponibile": True}}}
-    result = quote({"tipo": "calzone_multigusto", "formato": "Gigante", "taglio": 2,
-                    "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 13, "quota": 1}]}, *local)
-    assert result["totale"] == "19.00"
+                    "formati": {"gigante": {"prezzo": "18.00", "disponibile": True, "impasti": ["Classico"]}}}
+    with pytest.raises(ValueError, match="non appartiene"):
+        quote({"tipo": "calzone_multigusto", "formato": "Gigante", "taglio": 2,
+               "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 13, "quota": 1}]}, *local)
 
 
 def test_multitaste_shares_must_always_make_one_whole_item():

@@ -60,13 +60,6 @@
     <p id="pizzaVariantMessage" class="pizza-message" role="status"></p>
   </div>
   <div class="pizza-card" hidden>
-    <strong>Calzoni e panini con gusto pizza</strong>
-    <p>Scegli il gusto e uno dei suoi formati disponibili, anche Doppia o Familiare. Il prezzo segue quello della pizza dello stesso formato, oppure puoi indicarne uno personalizzato. Per Singola è prevista una panetta; il consumo dei formati maggiori sarà configurato prima dell'attivazione. La scorta non viene ancora scalata.</p>
-    <div id="pizzaDerivatives" class="pizza-formats"></div>
-    <div class="pizza-actions"><button id="pizzaAddDerivative" type="button">+ Aggiungi calzone o panino</button><button id="pizzaSaveDerivatives" type="button">Salva calzoni e panini</button></div>
-    <p id="pizzaDerivativeMessage" class="pizza-message" role="status"></p>
-  </div>
-  <div class="pizza-card" hidden>
     <strong>Anteprima prezzo · calzoni, panini e pizze</strong>
     <p>Prova le regole salvate, comprese le rimozioni senza sconto. Il totale viene calcolato dal server e non cambia il menu, le scorte o gli ordini.</p>
     <div class="pizza-format">
@@ -126,7 +119,7 @@
       const response=await fetch('/api/pizzeria/formati',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_prodotto:productId,formati})});
       const data=await response.json();if(!response.ok)throw new Error(data.error||'Salvataggio non riuscito.');
       products=data.prodotti.filter(item=>item.unita_prezzo==='pezzo');productSelect.value=String(productId);
-      showProduct();message.textContent='Formati salvati. Non sono ancora visibili ai clienti.';loadPreparation();loadVariants();loadDerivatives();loadIngredients();
+      showProduct();message.textContent='Formati salvati. Non sono ancora visibili ai clienti.';loadPreparation();loadVariants();loadIngredients();
     }catch(error){message.textContent=error.message}finally{saveButton.disabled=false}
   };
   fetch('/api/pizzeria/formati',{cache:'no-store'}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');pizzeriaActive=data.attivo;showActivation();products=data.prodotti.filter(item=>item.unita_prezzo==='pezzo');productSelect.replaceChildren(new Option('Seleziona un articolo',''));products.forEach(item=>productSelect.add(new Option(item.nome+' · € '+item.prezzo_base,item.id)));showProduct()}).catch(error=>{message.textContent=error.message;activationMessage.textContent=error.message});
@@ -223,35 +216,7 @@
   };
   loadVariants();
 
-  const derivativeBox=document.getElementById('pizzaDerivatives');
-  const derivativeMessage=document.getElementById('pizzaDerivativeMessage');
-  let derivativePizzas=[],savedDerivatives=[],quoteAdditions=[];
-  function addDerivative(item={id_pizza:null,tipo:'calzone',formato:'Singola',prezzo_override:null,disponibile:true}){
-    if(derivativeBox.children.length>=100){derivativeMessage.textContent='Massimo 100 calzoni e panini.';return}
-    const row=document.createElement('div');row.className='pizza-format';
-    const typeLabel=document.createElement('label');typeLabel.textContent='Preparazione';const kind=document.createElement('select');kind.add(new Option('Calzone','calzone'));kind.add(new Option('Panino','panino'));kind.value=item.tipo;typeLabel.append(kind);
-    const pizzaLabel=document.createElement('label');pizzaLabel.textContent='Gusto pizza';const pizza=document.createElement('select');pizza.add(new Option('Scegli gusto',''));derivativePizzas.forEach(product=>pizza.add(new Option(product.nome,product.id)));pizza.value=item.id_pizza?String(item.id_pizza):'';pizzaLabel.append(pizza);
-    const formatLabel=document.createElement('label');formatLabel.textContent='Formato';const format=document.createElement('select');format.className='derivative-format';formatLabel.append(format);
-    const updateFormats=()=>{const product=derivativePizzas.find(p=>String(p.id)===pizza.value);const old=format.value;format.replaceChildren(new Option('Scegli formato',''));(product?.formati||[]).filter(f=>f.disponibile).forEach(f=>format.add(new Option(f.nome+' · € '+f.prezzo,f.nome)));format.value=(product?.formati||[]).some(f=>f.nome===old)?old:(item.formato||'')};pizza.onchange=updateFormats;updateFormats();
-    const [priceLabel,price]=field('Prezzo diverso € (vuoto = pizza)',item.prezzo_override??'','number');price.min='0';price.max='10000';price.step='0.01';price.placeholder='Prezzo del formato';
-    const [availableLabel]=check('Disponibile',item.disponibile!==false);
-    const remove=document.createElement('button');remove.type='button';remove.textContent='Rimuovi';remove.onclick=()=>row.remove();
-    row.append(typeLabel,pizzaLabel,formatLabel,priceLabel,availableLabel,remove);derivativeBox.append(row);
-  }
-  async function loadDerivatives(){
-    try{const response=await fetch('/api/pizzeria/derivati',{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Caricamento non riuscito.');
-      derivativePizzas=data.pizze;savedDerivatives=data.derivati;derivativeBox.replaceChildren();data.derivati.forEach(addDerivative);document.getElementById('pizzaAddDerivative').disabled=!derivativePizzas.length;renderQuote();
-    }catch(error){derivativeMessage.textContent=error.message}
-  }
-  document.getElementById('pizzaAddDerivative').onclick=()=>addDerivative();
-  document.getElementById('pizzaSaveDerivatives').onclick=async()=>{
-    const button=document.getElementById('pizzaSaveDerivatives');
-    const derivati=[...derivativeBox.children].map(row=>({tipo:row.querySelectorAll('select')[0].value,id_pizza:Number(row.querySelectorAll('select')[1].value),formato:row.querySelector('.derivative-format').value,prezzo_override:row.querySelector('input[type=number]').value||null,disponibile:row.querySelector('input[type=checkbox]').checked}));
-    button.disabled=true;derivativeMessage.textContent='Salvataggio…';
-    try{const response=await fetch('/api/pizzeria/derivati',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({derivati})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Salvataggio non riuscito.');await loadDerivatives();derivativeMessage.textContent='Calzoni e panini salvati in bozza; non sono ancora ordinabili.'}
-    catch(error){derivativeMessage.textContent=error.message}finally{button.disabled=false}
-  };
-  loadDerivatives();
+  let quoteAdditions=[];
 
   let ingredientPizzas=[];
   async function loadIngredients(){
@@ -285,7 +250,7 @@
       const row=document.createElement('div');row.className='pizza-format';
       const pizzaLabel=document.createElement('label');pizzaLabel.textContent=mixed?'Gusto '+(i+1):'Gusto pizza';
       const pizzaSelect=document.createElement('select');pizzaSelect.className='quote-pizza';
-      const choices=derivative?derivativePizzas.filter(p=>savedDerivatives.some(d=>d.tipo===derivativeKind&&d.id_pizza===p.id&&d.formato===quoteFormat.value&&d.disponibile)):products.filter(p=>p.formati.some(f=>f.nome===quoteFormat.value&&f.disponibile));
+      const choices=products.filter(p=>p.formati.some(f=>f.nome===quoteFormat.value&&f.disponibile));
       fillSelect(pizzaSelect,choices.map(p=>({label:p.nome,value:String(p.id)})),'Scegli gusto');pizzaLabel.append(pizzaSelect);
       const toppingLabel=document.createElement('label');toppingLabel.textContent='Una aggiunta (facoltativa)';
       const toppingSelect=document.createElement('select');toppingSelect.className='quote-topping';

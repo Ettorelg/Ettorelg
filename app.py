@@ -4921,10 +4921,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
             removed.append(removed_ingredients(taste.get("senza", []), pizza))
             taste_price = selected_format["prezzo"]
             if derivative_kind in ("calzone", "panino") and pizza.get("tipo_pizzeria") != derivative_kind:
-                derivative = derivatives.get((pizza["id"], derivative_kind, format_name.casefold()))
-                if not derivative or not derivative["disponibile"]:
-                    raise ValueError("Questo gusto non è disponibile per la preparazione scelta.")
-                taste_price = derivative["prezzo_override"] if derivative["prezzo_override"] is not None else taste_price
+                raise ValueError("Questo gusto non appartiene alla categoria scelta.")
             priced_tastes.append({"formato": format_name, "quota": taste.get("quota"),
                                   "prezzo_gusto": taste_price,
                                   "aggiunte": [str(topping_total(taste.get("aggiunte", []), pizza))]})
@@ -4934,12 +4931,8 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
         selected_formats.append(selected_format)
         removed.append(removed_ingredients(payload.get("senza", []), pizza))
         if derivative_kind in ("calzone", "panino") and pizza.get("tipo_pizzeria") != derivative_kind:
-            derivative = derivatives.get((pizza["id"], derivative_kind, format_name.casefold()))
-            if not derivative or not derivative["disponibile"]:
-                raise ValueError("Calzone o panino non configurato.")
-            base = derivative["prezzo_override"] if derivative["prezzo_override"] is not None else selected_format["prezzo"]
-        else:
-            base = selected_format["prezzo"]
+            raise ValueError("Il prodotto non appartiene alla categoria scelta.")
+        base = selected_format["prezzo"]
         unit = Decimal(base) + topping_total(payload.get("aggiunte", []), pizza)
 
     dough_name = payload.get("impasto", "Classico")
@@ -5051,7 +5044,6 @@ def api_public_pizzeria_config(slug):
         return jsonify({"attivo": True, "pizze": list(pizzas.values()),
             "frazioni": [{"formato": next((fmt["nome"] for pizza in pizzas.values() for key, fmt in pizza["formati"].items() if key == name), name), "tagli": cuts} for name, cuts in fractions.items()],
             "aggiunte": additions,
-            "derivati": [{"id_pizza": key[0], "tipo": key[1], **value} for key, value in derivatives.items()],
             "impasti": list(doughs.values()),
             "selezioni_gusti": taste_selections,
             "ingredienti": [{"id": product_id, "valori": values} for product_id, values in removables.items()]})
@@ -5457,7 +5449,7 @@ def api_crea_ordine_menu(slug: str | None = None):
                         except ValueError as exc:
                             return jsonify({"error": str(exc)}), 400
                         kind = config["tipo"]
-                        label = {"pizza": "Pizza", "multigusto": "Pizza multigusto", "calzone": "Calzone gusto pizza", "panino": "Panino gusto pizza", "calzone_multigusto": "Calzone multigusto", "panino_multigusto": "Panino multigusto", "calzone_prodotto": "Calzone", "panino_prodotto": "Panino"}[kind]
+                        label = {"pizza": "Pizza", "multigusto": "Pizza multigusto", "calzone": "Calzone", "panino": "Panino", "calzone_multigusto": "Calzone multigusto", "panino_multigusto": "Panino multigusto", "calzone_prodotto": "Calzone", "panino_prodotto": "Panino"}[kind]
                         details = [label, str(config.get("formato") or "")]
                         if kind.endswith("multigusto"):
                             names = [settings[0][taste["id_pizza"]]["nome"] for taste in config["gusti"]]
@@ -6138,37 +6130,6 @@ def public_menu(slug: str):
                     section["prodotti"].append(item)
                     section["pizzeria_category_kind"] = category_kind
                     section["pizzeria_combine_enabled"] = bool((configured or {}).get("combina_gusti"))
-                cur.execute("SELECT id_pizza,tipo,formato,prezzo_override,disponibile FROM pizzeria_derivati WHERE id_negozio=%s AND disponibile=TRUE", (shop["id"],))
-                format_prices = {(row[0], row[2].casefold()): row[3] for row in format_rows}
-                derivative_groups = {}
-                for product_id, kind, format_name, override, available in cur.fetchall():
-                    source = product_lookup.get(product_id)
-                    price = override if override is not None else format_prices.get((product_id, format_name.casefold()))
-                    if not source or price is None:
-                        continue
-                    group = derivative_groups.setdefault((kind, format_name), {"source": source, "prices": []})
-                    group["prices"].append(price)
-                for (kind, format_name), group in derivative_groups.items():
-                    item = dict(group["source"])
-                    title = "Calzone" if kind == "calzone" else "Panino"
-                    item.update({"nome": f"{title} gusto pizza", "descrizione": "Scegli il gusto tra le pizze disponibili.",
-                                 "note": "", "immagine_url": None, "etichette": [], "allergeni": [],
-                                 "prezzo": f"{min(group['prices']):.2f}".replace(".", ","),
-                                 "pizzeria_kind": kind, "pizzeria_format": format_name,
-                                 "pizzeria_choose_taste": True,
-                                 "pizzeria_price_from": len(set(group["prices"])) > 1})
-                    stem = "calzon" if kind == "calzone" else "panin"
-                    section = next((category for category in categories if stem in category["nome"].casefold()), None)
-                    if section is None:
-                        section = {"id": kind, "nome": "CALZONI" if kind == "calzone" else "PANINI",
-                                   "prodotti": [], "virtual": True}
-                        categories.append(section)
-                    section["prodotti"].append(item)
-                    section["pizzeria_kind"], section["pizzeria_format"] = kind, ""
-                    section["pizzeria_derivative_kind"] = kind
-                    section["pizzeria_combine_enabled"] = bool(category_config.get(section.get("id"), {}).get("combina_gusti"))
-                    if format_name not in category_formats.setdefault(section["id"], []):
-                        category_formats[section["id"]].append(format_name)
                 cur.execute("SELECT frazioni FROM pizzeria_varianti_config WHERE id_negozio=%s", (shop["id"],))
                 fraction_row = cur.fetchone()
                 mixed_formats = {item["formato"].casefold() for item in (fraction_row[0] if fraction_row else []) if item.get("tagli")}
@@ -6176,10 +6137,8 @@ def public_menu(slug: str):
                     formats = category_formats.get(category["id"], [])
                     category["pizzeria_formats"] = formats
                     category["pizzeria_mixed_formats"] = [fmt for fmt in formats if fmt.casefold() in mixed_formats]
-                    combine_kind = category.get("pizzeria_derivative_kind")
-                    if not combine_kind and category.get("pizzeria_category_kind") == "pizza":
-                        combine_kind = "pizza"
-                    combine_enabled = category.get("pizzeria_combine_enabled", True if category.get("pizzeria_derivative_kind") else False)
+                    combine_kind = category.get("pizzeria_category_kind")
+                    combine_enabled = category.get("pizzeria_combine_enabled", False)
                     category["combina_gusti"] = bool(combine_kind and combine_enabled and category["pizzeria_mixed_formats"])
                     if category["combina_gusti"]:
                         category["pizzeria_kind"], category["pizzeria_format"] = combine_kind, ""
