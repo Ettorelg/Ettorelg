@@ -63,7 +63,7 @@
   </div>
   <div class="row" style="margin-top:12px">
     <div class="field" style="max-width:260px"><label>Tipo di categoria</label><select id="tipo_pizzeria"><option value="standard">Standard</option><option value="personalizzabile">Personalizzabile</option></select><small class="muted category-kind-note">Se scegli Personalizzabile, definisci qui i formati richiamati nei prodotti.</small></div>
-    <div class="field hidden" id="categoryFormatsField"><label>Formati disponibili nella categoria</label><div id="categoryFormats" class="category-formats"></div><button class="btn" type="button" id="addCategoryFormat">+ Aggiungi formato</button><label class="check" style="margin-top:10px"><input id="combina_gusti" type="checkbox"> Consenti “Combina gusti”</label><small class="muted">Il pulsante appare nei formati con metà, terzi o quarti abilitati nella sezione Varianti.</small></div>
+    <div class="field hidden" id="categoryFormatsField"><label>Formati disponibili nella categoria</label><div id="categoryFormats" class="category-formats"></div><button class="btn" type="button" id="addCategoryFormat">+ Aggiungi formato</button><label class="check" style="margin-top:10px"><input id="varianti_abilitate" type="checkbox" checked> Abilita varianti per tutti i prodotti</label><small class="muted">Nel singolo prodotto puoi scegliere un’impostazione diversa.</small><label class="check" style="margin-top:10px"><input id="combina_gusti" type="checkbox"> Consenti “Combina gusti”</label><small class="muted">Il pulsante appare nei formati con metà, terzi o quarti abilitati nella sezione Varianti.</small></div>
   </div>
   <div class="actions" style="margin-top:10px"><button class="btn" type="button" id="toggleSchedule">🕒 Programma visibilità (opzionale)</button></div>
   <div id="scheduleFields" class="row hidden" style="margin-top:10px;padding:12px;border:1px dashed rgba(110,168,254,.45);border-radius:12px">
@@ -131,7 +131,7 @@
     technicalCategoryType = "standard";
     f("id").value = "";
     f("nome").value = "";
-    f("visibile").value = "true"; f("stampante_ip").value = ""; f("tipo_pizzeria").value="standard";f("categoryFormats").replaceChildren();f("combina_gusti").checked=false;syncCategoryKind(); f("visibile_da").value = ""; f("visibile_fino").value = ""; f("ora_inizio").value = ""; f("ora_fine").value = ""; f("scheduleFields").classList.add("hidden");
+    f("visibile").value = "true"; f("stampante_ip").value = ""; f("tipo_pizzeria").value="standard";f("categoryFormats").replaceChildren();f("varianti_abilitate").checked=true;f("combina_gusti").checked=false;syncCategoryKind(); f("visibile_da").value = ""; f("visibile_fino").value = ""; f("ora_inizio").value = ""; f("ora_fine").value = ""; f("scheduleFields").classList.add("hidden");
     modeHint.textContent = "Modalità: creazione";
     f("saveBtn").textContent = "Salva categoria";
   }
@@ -151,7 +151,7 @@
         <tr draggable="true" data-category-id="${c.id}">
           <td style="font-weight:650"><span class="drag-cell"><span class="drag-grip">⋮⋮</span>${esc(c.nome)}</span></td>
           <td>${vis}</td>
-          <td>${c.tipo_pizzeria==='standard'?'<span class="muted">Standard</span>':`<strong>Personalizzabile</strong>${c.combina_gusti?' · <span class="badge">Combina gusti</span>':''}<br><span class="muted">${(c.formati||[]).map(esc).join(' · ')}</span>`}</td>
+          <td>${c.tipo_pizzeria==='standard'?'<span class="muted">Standard</span>':`<strong>Personalizzabile</strong>${c.varianti_abilitate?' · <span class="badge">Varianti</span>':''}${c.combina_gusti?' · <span class="badge">Combina gusti</span>':''}<br><span class="muted">${(c.formati||[]).map(esc).join(' · ')}</span>`}</td>
           <td class="right">
             <button class="btn" type="button" onclick="editCat(${c.id})">Modifica</button>
             <button class="btn danger" type="button" onclick="delCat(${c.id})">Elimina</button>
@@ -184,7 +184,7 @@
     f("id").value = c.id;
     f("nome").value = c.nome;
     technicalCategoryType = c.tipo_pizzeria || "standard";
-    f("visibile").value = c.visibile ? "true" : "false"; f("stampante_ip").value = c.stampante_ip || ""; f("tipo_pizzeria").value=technicalCategoryType==="standard"?"standard":"personalizzabile";f("categoryFormats").replaceChildren();(c.formati||[]).forEach(addFormat);f("combina_gusti").checked=Boolean(c.combina_gusti);syncCategoryKind(); f("visibile_da").value=c.visibile_da||""; f("visibile_fino").value=c.visibile_fino||""; f("ora_inizio").value=c.ora_inizio||""; f("ora_fine").value=c.ora_fine||""; if(c.visibile_da||c.visibile_fino||c.ora_inizio||c.ora_fine) f("scheduleFields").classList.remove("hidden");
+    f("visibile").value = c.visibile ? "true" : "false"; f("stampante_ip").value = c.stampante_ip || ""; f("tipo_pizzeria").value=technicalCategoryType==="standard"?"standard":"personalizzabile";f("categoryFormats").replaceChildren();(c.formati||[]).forEach(addFormat);f("varianti_abilitate").checked=c.varianti_abilitate!==false;f("combina_gusti").checked=Boolean(c.combina_gusti);syncCategoryKind(); f("visibile_da").value=c.visibile_da||""; f("visibile_fino").value=c.visibile_fino||""; f("ora_inizio").value=c.ora_inizio||""; f("ora_fine").value=c.ora_fine||""; if(c.visibile_da||c.visibile_fino||c.ora_inizio||c.ora_fine) f("scheduleFields").classList.remove("hidden");
     modeHint.textContent = "Modalità: modifica";
     f("saveBtn").textContent = "Aggiorna categoria";
     showToast("Modifica categoria: aggiorna e salva.");
@@ -210,7 +210,7 @@
     ev.preventDefault();
     const payload = {
       nome: f("nome").value.trim(),
-      visibile: f("visibile").value === "true", stampante_ip:f("stampante_ip").value.trim(), tipo_pizzeria:savedCategoryType(), formati:categoryFormats(), combina_gusti:f("combina_gusti").checked, categorie_gusti:(items.find(item=>String(item.id)===f("id").value)?.categorie_gusti||[]), prodotti_gusti:(items.find(item=>String(item.id)===f("id").value)?.prodotti_gusti||[]), visibile_da:f("visibile_da").value, visibile_fino:f("visibile_fino").value, ora_inizio:f("ora_inizio").value, ora_fine:f("ora_fine").value
+      visibile: f("visibile").value === "true", stampante_ip:f("stampante_ip").value.trim(), tipo_pizzeria:savedCategoryType(), formati:categoryFormats(), varianti_abilitate:f("varianti_abilitate").checked, combina_gusti:f("combina_gusti").checked, categorie_gusti:(items.find(item=>String(item.id)===f("id").value)?.categorie_gusti||[]), prodotti_gusti:(items.find(item=>String(item.id)===f("id").value)?.prodotti_gusti||[]), visibile_da:f("visibile_da").value, visibile_fino:f("visibile_fino").value, ora_inizio:f("ora_inizio").value, ora_fine:f("ora_fine").value
     };
     const id = f("id").value ? Number(f("id").value) : null;
 

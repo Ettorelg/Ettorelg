@@ -39,9 +39,9 @@ class Cursor:
     def fetchall(self):
         if "FROM prodotti p LEFT JOIN pizzeria_formati" in self.query:
             if self.formats:
-                return [(10, "Margherita", Decimal("8.00"), "pezzo", item[2], Decimal(item[3]), item[4])
+                return [(10, "Margherita", Decimal("8.00"), "pezzo", item[2], Decimal(item[3]), item[4], True)
                         for item in self.formats]
-            return [(10, "Margherita", Decimal("8.00"), "pezzo", None, None, None)]
+            return [(10, "Margherita", Decimal("8.00"), "pezzo", None, None, None, True)]
         return []
 
 
@@ -98,14 +98,20 @@ def test_empty_formats_disable_pizzeria_configuration_for_product():
 
 def test_category_owns_ordered_formats_and_product_type():
     assert category_normalizer()({"tipo_pizzeria": "calzone", "formati": ["Normale", "Doppio"], "combina_gusti": True}) == (
-        "calzone", ["Normale", "Doppio"], True, [], [])
+        "calzone", ["Normale", "Doppio"], True, [], [], True)
 
 
 def test_category_can_limit_tastes_to_categories_and_products():
     assert category_normalizer()({
         "tipo_pizzeria": "pizza", "formati": ["Singola"], "combina_gusti": True,
         "categorie_gusti": [8, 8, 12], "prodotti_gusti": [40, 41, 40],
-    }) == ("pizza", ["Singola"], True, [8, 12], [40, 41])
+    }) == ("pizza", ["Singola"], True, [8, 12], [40, 41], True)
+
+
+def test_category_can_disable_variants_for_all_products():
+    assert category_normalizer()({
+        "tipo_pizzeria": "pizza", "formati": ["Singola"], "varianti_abilitate": False,
+    }) == ("pizza", ["Singola"], False, [], [], False)
 
 
 @pytest.mark.parametrize("payload", [

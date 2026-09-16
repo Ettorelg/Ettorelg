@@ -1177,6 +1177,8 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE pizzeria_categorie_config ADD COLUMN IF NOT EXISTS combina_gusti BOOLEAN NOT NULL DEFAULT FALSE")
                 cur.execute("ALTER TABLE pizzeria_categorie_config ADD COLUMN IF NOT EXISTS categorie_gusti JSONB NOT NULL DEFAULT '[]'::jsonb")
                 cur.execute("ALTER TABLE pizzeria_categorie_config ADD COLUMN IF NOT EXISTS prodotti_gusti JSONB NOT NULL DEFAULT '[]'::jsonb")
+                cur.execute("ALTER TABLE pizzeria_categorie_config ADD COLUMN IF NOT EXISTS varianti_abilitate BOOLEAN NOT NULL DEFAULT TRUE")
+                cur.execute("ALTER TABLE prodotti ADD COLUMN IF NOT EXISTS varianti_abilitate_override BOOLEAN")
                 cur.execute("CREATE INDEX IF NOT EXISTS pizzeria_categorie_config_negozio ON pizzeria_categorie_config(id_negozio)")
                 cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_impasti_prodotti (
                     id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
@@ -4531,9 +4533,10 @@ def api_pizzeria_formati():
                 cur.execute("SELECT modulo_pizzeria_attivo FROM negozi WHERE id=%s", (shop_id,))
                 module_row = cur.fetchone()
                 cur.execute("""SELECT p.id,p.nome,p.prezzo_euro,p.unita_prezzo,
-                    f.nome,f.prezzo,f.disponibile
+                    f.nome,f.prezzo,f.disponibile,COALESCE(p.varianti_abilitate_override,pc.varianti_abilitate,TRUE)
                     FROM prodotti p LEFT JOIN pizzeria_formati f
                       ON f.id_prodotto=p.id AND f.id_negozio=p.id_negozio
+                    LEFT JOIN pizzeria_categorie_config pc ON pc.id_categoria=p.id_categoria
                     WHERE p.id_negozio=%s ORDER BY p.nome COLLATE \"C\",p.id,f.posizione,f.id""", (shop_id,))
                 rows = cur.fetchall()
                 cur.execute("SELECT id_prodotto,formato,impasto FROM pizzeria_impasti_prodotti WHERE id_negozio=%s", (shop_id,))
@@ -4543,7 +4546,7 @@ def api_pizzeria_formati():
         products = {}
         for row in rows:
             product = products.setdefault(row[0], {"id": row[0], "nome": row[1],
-                "prezzo_base": str(row[2]), "unita_prezzo": row[3], "formati": []})
+                "prezzo_base": str(row[2]), "unita_prezzo": row[3], "varianti_abilitate": bool(row[7]), "formati": []})
             if row[4] is not None:
                 product["formati"].append({"nome": row[4], "prezzo": str(row[5]), "disponibile": bool(row[6]),
                                             "impasti": product_doughs.get((row[0], row[4].casefold()), ["Classico"])})
@@ -4878,6 +4881,8 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
     def topping_total(indexes, pizza):
         if not isinstance(indexes, list) or len(indexes) > 20 or any(type(index) is not int for index in indexes) or len(indexes) != len(set(indexes)):
             raise ValueError("Aggiunte non valide.")
+        if indexes and not pizza.get("varianti_abilitate", True):
+            raise ValueError("Le varianti non sono abilitate per questo prodotto.")
         total = Decimal("0")
         for index in indexes:
             if index < 0 or index >= len(additions):
@@ -4953,15 +4958,16 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
 def load_pizzeria_order_settings(cur, shop_id):
     cur.execute("""SELECT p.id,p.id_categoria,p.nome,f.nome,f.prezzo,f.disponibile,p.descrizione,
                            COALESCE(pc.tipo,CASE WHEN LOWER(c.nome) LIKE '%%calzon%%' THEN 'calzone'
-                                                WHEN LOWER(c.nome) LIKE '%%panin%%' THEN 'panino' ELSE 'pizza' END)
+                                                WHEN LOWER(c.nome) LIKE '%%panin%%' THEN 'panino' ELSE 'pizza' END),
+                           COALESCE(p.varianti_abilitate_override,pc.varianti_abilitate,TRUE)
         FROM pizzeria_formati f JOIN prodotti p ON p.id=f.id_prodotto AND p.id_negozio=f.id_negozio
         JOIN categorie c ON c.id=p.id_categoria
         LEFT JOIN pizzeria_categorie_config pc ON pc.id_categoria=p.id_categoria
         WHERE f.id_negozio=%s AND p.disponibile=TRUE""", (shop_id,))
     pizzas, removables = {}, {}
-    for product_id, category_id, name, fmt, price, available, description, category_kind in cur.fetchall():
+    for product_id, category_id, name, fmt, price, available, description, category_kind, variants_enabled in cur.fetchall():
         pizza = pizzas.setdefault(product_id, {"id": product_id, "id_categoria": category_id, "nome": name,
-                                               "tipo_pizzeria": category_kind, "formati": {}})
+                                               "tipo_pizzeria": category_kind, "varianti_abilitate": bool(variants_enabled), "formati": {}})
         pizza["formati"][fmt.casefold()] = {"nome": fmt, "prezzo": str(price), "disponibile": bool(available), "impasti": ["Classico"]}
         removables[product_id] = derive_pizzeria_removable_ingredients(description)
     cur.execute("SELECT id_prodotto,formato,impasto FROM pizzeria_impasti_prodotti WHERE id_negozio=%s", (shop_id,))
@@ -6359,9 +6365,12 @@ def api_prodotti_list():
                     p.ordine, COALESCE(p.etichette, ARRAY[]::TEXT[]) as etichette,
                     COALESCE(p.note, '') as note,
                     COALESCE(p.allergeni_auto, ARRAY[]::TEXT[]) as allergeni_auto,
-                    p.unita_prezzo, COALESCE(p.allergeni_manual, ARRAY[]::TEXT[]) as allergeni_manual
+                    p.unita_prezzo, COALESCE(p.allergeni_manual, ARRAY[]::TEXT[]) as allergeni_manual,
+                    p.varianti_abilitate_override,
+                    COALESCE(p.varianti_abilitate_override, pc.varianti_abilitate, TRUE) AS varianti_abilitate
                 FROM prodotti p
                 LEFT JOIN categorie c ON c.id = p.id_categoria
+                LEFT JOIN pizzeria_categorie_config pc ON pc.id_categoria = p.id_categoria
                 LEFT JOIN sottocategorie sc ON sc.id = p.id_sottocategoria
                 LEFT JOIN LATERAL (
                     SELECT url
@@ -6399,6 +6408,8 @@ def api_prodotti_list():
                 "allergeni_auto": detected_allergens,
                 "allergeni_manual": r[15] or [],
                 "allergeni": combined_allergens(detected_allergens, r[15]),
+                "varianti_abilitate_override": r[16],
+                "varianti_abilitate": bool(r[17]),
             })
         # Aggiorna anche i prodotti già presenti, non solo quelli creati/modificati dopo la novità.
         if allergen_updates:
@@ -6423,7 +6434,8 @@ def api_categorie_list():
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT c.id,c.nome,pc.tipo,pc.formati,pc.combina_gusti,pc.categorie_gusti,pc.prodotti_gusti
+                SELECT c.id,c.nome,pc.tipo,pc.formati,pc.combina_gusti,pc.categorie_gusti,pc.prodotti_gusti,
+                       COALESCE(pc.varianti_abilitate,TRUE)
                 FROM categorie c LEFT JOIN pizzeria_categorie_config pc ON pc.id_categoria=c.id
                 WHERE c.id_negozio = %s
                 ORDER BY c.ordine ASC,c.nome ASC
@@ -6436,13 +6448,14 @@ def api_categorie_list():
             for category_id, format_name, position in cur.fetchall():
                 legacy_formats.setdefault(category_id, []).append(format_name)
             cats = []
-            for category_id, name, kind, formats, combine_tastes, taste_categories, taste_products in rows:
+            for category_id, name, kind, formats, combine_tastes, taste_categories, taste_products, variants_enabled in rows:
                 available_formats = formats if isinstance(formats, list) else legacy_formats.get(category_id, [])
                 inferred_kind = "calzone" if "calzon" in name.casefold() else "panino" if "panin" in name.casefold() else "pizza"
                 cats.append({"id": category_id, "nome": name,
                              "tipo_pizzeria": kind or (inferred_kind if available_formats else "standard"),
                              "formati": available_formats,
                              "combina_gusti": bool(combine_tastes),
+                             "varianti_abilitate": bool(variants_enabled),
                              "categorie_gusti": taste_categories if isinstance(taste_categories, list) else [],
                              "prodotti_gusti": taste_products if isinstance(taste_products, list) else []})
         return jsonify({"items": cats})
@@ -6506,6 +6519,10 @@ def api_prodotti_create():
     id_sottocategoria = request.form.get("id_sottocategoria") or None
     ordine = request.form.get("ordine") or None
     etichette = [tag.strip() for tag in (request.form.get("etichette") or "").split(",") if tag.strip()]
+    variants_override_raw = (request.form.get("varianti_abilitate_override") or "inherit").strip().lower()
+    if variants_override_raw not in {"inherit", "true", "false"}:
+        return jsonify({"error": "Impostazione varianti del prodotto non valida."}), 400
+    variants_override = None if variants_override_raw == "inherit" else variants_override_raw == "true"
 
     if not nome:
         return jsonify({"error": "nome obbligatorio"}), 400
@@ -6554,13 +6571,13 @@ def api_prodotti_create():
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, etichette, allergeni_auto, unita_prezzo, allergeni_manual)
+                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, etichette, allergeni_auto, unita_prezzo, allergeni_manual, varianti_abilitate_override)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                         COALESCE(%s, (SELECT COALESCE(MAX(ordine), 0) + 10 FROM prodotti WHERE id_negozio = %s)),
-                        %s, %s, %s, %s
+                        %s, %s, %s, %s, %s
                     )
                     RETURNING id
-                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, shop_id, etichette, allergeni_auto, unita_prezzo, allergeni_manual))
+                """, (shop_id, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, shop_id, etichette, allergeni_auto, unita_prezzo, allergeni_manual, variants_override))
                 new_id = cur.fetchone()[0]
 
                 # Senza un ordine manuale, mantieni l'ordine alfabetico nella categoria.
@@ -6626,9 +6643,9 @@ def api_prodotto_duplica(prodotto_id: int):
                 if prodotto_id not in ordered_ids:
                     return jsonify({"error": "prodotto non trovato"}), 404
                 cur.execute("""
-                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, ordine, etichette, allergeni_auto, unita_prezzo, allergeni_manual)
+                    INSERT INTO prodotti (id_negozio, id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_euro, disponibile, ordine, etichette, allergeni_auto, unita_prezzo, allergeni_manual, varianti_abilitate_override)
                     SELECT id_negozio, id_categoria, id_sottocategoria, LEFT(nome || ' COPIA', 100), descrizione, note,
-                           prezzo_euro, disponibile, COALESCE((SELECT MAX(ordine) + 10 FROM prodotti WHERE id_negozio=%s), 10), etichette, allergeni_auto, unita_prezzo, allergeni_manual
+                           prezzo_euro, disponibile, COALESCE((SELECT MAX(ordine) + 10 FROM prodotti WHERE id_negozio=%s), 10), etichette, allergeni_auto, unita_prezzo, allergeni_manual, varianti_abilitate_override
                     FROM prodotti WHERE id=%s AND id_negozio=%s RETURNING id
                 """, (shop_id, prodotto_id, shop_id))
                 new_id = cur.fetchone()[0]
@@ -6848,6 +6865,10 @@ def api_prodotti_update(prodotto_id: int):
     id_sottocategoria = request.form.get("id_sottocategoria") or None
     ordine = request.form.get("ordine") or None
     etichette = [tag.strip() for tag in (request.form.get("etichette") or "").split(",") if tag.strip()]
+    variants_override_raw = (request.form.get("varianti_abilitate_override") or "inherit").strip().lower()
+    if variants_override_raw not in {"inherit", "true", "false"}:
+        return jsonify({"error": "Impostazione varianti del prodotto non valida."}), 400
+    variants_override = None if variants_override_raw == "inherit" else variants_override_raw == "true"
     remove_image = (request.form.get("remove_image", "false").lower() == "true")
 
     if not nome:
@@ -6902,9 +6923,10 @@ def api_prodotti_update(prodotto_id: int):
                 cur.execute("""
                     UPDATE prodotti
                     SET id_categoria=%s, id_sottocategoria=%s, nome=%s, descrizione=%s, note=%s, prezzo_euro=%s, disponibile=%s, unita_prezzo=%s,
-                        visibile_da=%s, visibile_fino=%s, ora_inizio=%s, ora_fine=%s, ordine=COALESCE(%s, ordine), etichette=%s, allergeni_auto=%s, allergeni_manual=%s
+                        visibile_da=%s, visibile_fino=%s, ora_inizio=%s, ora_fine=%s, ordine=COALESCE(%s, ordine), etichette=%s, allergeni_auto=%s, allergeni_manual=%s,
+                        varianti_abilitate_override=%s
                     WHERE id=%s
-                """, (id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, unita_prezzo, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, etichette, allergeni_auto, allergeni_manual, prodotto_id))
+                """, (id_categoria, id_sottocategoria, nome, descrizione, note, prezzo_val, disponibile, unita_prezzo, visibile_da, visibile_fino, ora_inizio, ora_fine, ordine, etichette, allergeni_auto, allergeni_manual, variants_override, prodotto_id))
 
                 # immagine principale: gestisci remove / sostituzione
                 cur.execute("SELECT id, url FROM immagini_prodotti WHERE id_prodotto=%s AND principale=TRUE LIMIT 1", (prodotto_id,))
@@ -7157,7 +7179,10 @@ def normalize_category_pizzeria_config(data):
         if not isinstance(values, list) or len(values) > maximum or any(type(value) is not int or value <= 0 for value in values):
             raise ValueError("Selezione dei gusti non valida.")
         return list(dict.fromkeys(values))
-    return kind, formats, combine_tastes, ids("categorie_gusti", 100), ids("prodotti_gusti", 1000)
+    variants_enabled = data.get("varianti_abilitate", True)
+    if not isinstance(variants_enabled, bool):
+        raise ValueError("Impostazione varianti della categoria non valida.")
+    return kind, formats, combine_tastes, ids("categorie_gusti", 100), ids("prodotti_gusti", 1000), variants_enabled
 
 @app.post("/api/categorie")
 def api_categorie_create():
@@ -7179,7 +7204,7 @@ def api_categorie_create():
     ora_fine = data.get("ora_fine") or None
     try:
         stampante_ip = local_printer_ip(data.get("stampante_ip", ""))
-        category_kind, category_formats, category_combine_tastes, taste_categories, taste_products = normalize_category_pizzeria_config(data)
+        category_kind, category_formats, category_combine_tastes, taste_categories, taste_products, category_variants = normalize_category_pizzeria_config(data)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -7220,10 +7245,10 @@ def api_categorie_create():
                     """, (shop_id, nome, ordine_int, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine, stampante_ip))
 
                 new_id = cur.fetchone()[0]
-                cur.execute("""INSERT INTO pizzeria_categorie_config (id_categoria,id_negozio,tipo,formati,combina_gusti,categorie_gusti,prodotti_gusti)
-                    VALUES (%s,%s,%s,%s::jsonb,%s,%s::jsonb,%s::jsonb) ON CONFLICT (id_categoria) DO UPDATE
-                    SET tipo=EXCLUDED.tipo,formati=EXCLUDED.formati,combina_gusti=EXCLUDED.combina_gusti,categorie_gusti=EXCLUDED.categorie_gusti,prodotti_gusti=EXCLUDED.prodotti_gusti,aggiornato_il=NOW()""",
-                    (new_id, shop_id, category_kind, json.dumps(category_formats), category_combine_tastes, json.dumps(taste_categories), json.dumps(taste_products)))
+                cur.execute("""INSERT INTO pizzeria_categorie_config (id_categoria,id_negozio,tipo,formati,combina_gusti,categorie_gusti,prodotti_gusti,varianti_abilitate)
+                    VALUES (%s,%s,%s,%s::jsonb,%s,%s::jsonb,%s::jsonb,%s) ON CONFLICT (id_categoria) DO UPDATE
+                    SET tipo=EXCLUDED.tipo,formati=EXCLUDED.formati,combina_gusti=EXCLUDED.combina_gusti,categorie_gusti=EXCLUDED.categorie_gusti,prodotti_gusti=EXCLUDED.prodotti_gusti,varianti_abilitate=EXCLUDED.varianti_abilitate,aggiornato_il=NOW()""",
+                    (new_id, shop_id, category_kind, json.dumps(category_formats), category_combine_tastes, json.dumps(taste_categories), json.dumps(taste_products), category_variants))
                 if ordine_int is not None:
                     cur.execute("UPDATE negozi SET ordine_categorie_personalizzato = TRUE WHERE id = %s", (shop_id,))
                 print("DEBUG inserted categoria id:", new_id)
@@ -7254,7 +7279,7 @@ def api_categorie_update(categoria_id: int):
     ora_fine = data.get("ora_fine") or None
     try:
         stampante_ip = local_printer_ip(data.get("stampante_ip", ""))
-        category_kind, category_formats, category_combine_tastes, taste_categories, taste_products = normalize_category_pizzeria_config(data)
+        category_kind, category_formats, category_combine_tastes, taste_categories, taste_products, category_variants = normalize_category_pizzeria_config(data)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -7291,10 +7316,10 @@ def api_categorie_update(categoria_id: int):
                     """, (nome, visibile, ordine_int, visibile_da, visibile_fino, ora_inizio, ora_fine, stampante_ip, categoria_id))
                     cur.execute("UPDATE negozi SET ordine_categorie_personalizzato = TRUE WHERE id = %s", (shop_id,))
 
-                cur.execute("""INSERT INTO pizzeria_categorie_config (id_categoria,id_negozio,tipo,formati,combina_gusti,categorie_gusti,prodotti_gusti)
-                    VALUES (%s,%s,%s,%s::jsonb,%s,%s::jsonb,%s::jsonb) ON CONFLICT (id_categoria) DO UPDATE
-                    SET tipo=EXCLUDED.tipo,formati=EXCLUDED.formati,combina_gusti=EXCLUDED.combina_gusti,categorie_gusti=EXCLUDED.categorie_gusti,prodotti_gusti=EXCLUDED.prodotti_gusti,aggiornato_il=NOW()""",
-                    (categoria_id, shop_id, category_kind, json.dumps(category_formats), category_combine_tastes, json.dumps(taste_categories), json.dumps(taste_products)))
+                cur.execute("""INSERT INTO pizzeria_categorie_config (id_categoria,id_negozio,tipo,formati,combina_gusti,categorie_gusti,prodotti_gusti,varianti_abilitate)
+                    VALUES (%s,%s,%s,%s::jsonb,%s,%s::jsonb,%s::jsonb,%s) ON CONFLICT (id_categoria) DO UPDATE
+                    SET tipo=EXCLUDED.tipo,formati=EXCLUDED.formati,combina_gusti=EXCLUDED.combina_gusti,categorie_gusti=EXCLUDED.categorie_gusti,prodotti_gusti=EXCLUDED.prodotti_gusti,varianti_abilitate=EXCLUDED.varianti_abilitate,aggiornato_il=NOW()""",
+                    (categoria_id, shop_id, category_kind, json.dumps(category_formats), category_combine_tastes, json.dumps(taste_categories), json.dumps(taste_products), category_variants))
 
         return jsonify({"ok": True})
     finally:
@@ -7413,7 +7438,8 @@ def api_categorie_full():
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT c.id,c.nome,c.ordine,c.visibile,c.visibile_da,c.visibile_fino,c.ora_inizio,c.ora_fine,c.stampante_ip,
-                       pc.tipo,pc.formati,pc.combina_gusti,pc.categorie_gusti,pc.prodotti_gusti
+                       pc.tipo,pc.formati,pc.combina_gusti,pc.categorie_gusti,pc.prodotti_gusti,
+                       COALESCE(pc.varianti_abilitate,TRUE)
                 FROM categorie c LEFT JOIN pizzeria_categorie_config pc ON pc.id_categoria=c.id
                 WHERE c.id_negozio = %s
                 ORDER BY c.ordine ASC,c.nome ASC
@@ -7440,6 +7466,7 @@ def api_categorie_full():
                 "combina_gusti": bool(r[11]),
                 "categorie_gusti": r[12] if isinstance(r[12], list) else [],
                 "prodotti_gusti": r[13] if isinstance(r[13], list) else [],
+                "varianti_abilitate": bool(r[14]),
             } for r in rows]
         return jsonify({"items": items})
     finally:

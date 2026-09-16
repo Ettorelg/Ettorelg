@@ -27,7 +27,7 @@ class Cursor:
     def __exit__(self, *_): return False
     def execute(self, query, params): self.query = query; self.statements.append((query, params))
     def fetchall(self):
-        if "FROM pizzeria_formati" in self.query: return [(10, 2, "Margherita", "Singola", Decimal("8.00"), True, "farina, pomodoro, mozzarella", "pizza")]
+        if "FROM pizzeria_formati" in self.query: return [(10, 2, "Margherita", "Singola", Decimal("8.00"), True, "farina, pomodoro, mozzarella", "pizza", True)]
         if "FROM pizzeria_derivati" in self.query: return []
         return []
     def fetchone(self):
@@ -73,6 +73,13 @@ def test_single_pizza_uses_saved_prices_and_dough():
     result = quote({"tipo": "pizza", "id_pizza": 10, "formato": "Singola", "aggiunte": [0],
                     "impasto": "Integrale", "quantita": 2, "prezzo": "0.01"}, *settings())
     assert result == {"prezzo_unitario": "11.50", "quantita": 2, "totale": "23.00", "solo_anteprima": True}
+
+
+def test_product_variant_override_is_enforced_server_side():
+    local = settings()
+    local[0][10]["varianti_abilitate"] = False
+    with pytest.raises(ValueError, match="varianti non sono abilitate"):
+        quote({"tipo": "pizza", "id_pizza": 10, "formato": "Singola", "aggiunte": [0]}, *local)
 
 
 def test_removing_ingredient_never_reduces_price():

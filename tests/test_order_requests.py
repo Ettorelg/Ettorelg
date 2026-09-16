@@ -291,6 +291,10 @@ def test_category_formats_drive_product_configuration_and_support_direct_calzone
     assert "Calzoni personalizzabili" not in categories
     assert "Panini personalizzabili" not in categories
     assert "tipo_pizzeria:savedCategoryType()" in categories
+    assert 'id="varianti_abilitate"' in categories
+    assert 'varianti_abilitate:f("varianti_abilitate").checked' in categories
+    assert 'id="varianti_abilitate_override"' in products
+    assert 'fd.append("varianti_abilitate_override"' in products
     assert 'id="categoryFormats"' in categories
     assert "formati:categoryFormats()" in categories
     assert "function renderCategoryFormats(existing=[])" in products

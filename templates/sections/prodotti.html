@@ -130,6 +130,7 @@
   <div id="productPizzeriaFields" class="hidden" style="padding:14px;border:1px solid rgba(110,168,254,.45);border-radius:12px;margin-bottom:14px">
     <strong id="productFormatsTitle">Formati disponibili per questo prodotto</strong>
     <p class="muted">I formati provengono dalla categoria. Spunta quelli venduti per questo articolo e assegna a ciascuno prezzo e impasti.</p>
+    <div class="field" style="max-width:360px;margin:10px 0"><label>Varianti del prodotto</label><select id="varianti_abilitate_override"><option value="inherit">Eredita dalla categoria</option><option value="true">Abilitate per questo prodotto</option><option value="false">Disabilitate per questo prodotto</option></select><small class="muted" id="productVariantsHint"></small></div>
     <div id="productPizzaFormats"></div>
   </div>
   <div id="productScheduleFields" class="row hidden" style="margin:0 0 12px;padding:12px;border:1px dashed rgba(110,168,254,.45);border-radius:12px">
@@ -306,7 +307,7 @@
     const sync=()=>{price.disabled=!enabled.checked;doughs.querySelectorAll('input').forEach(input=>input.disabled=!enabled.checked)};enabled.onchange=sync;row.append(enabledLabel,price,doughs);pizzaFormatBox.append(row);sync();
   }
   function selectedCategory(){return categories.find(item=>String(item.id)===String(f('id_categoria').value))}
-  function renderCategoryFormats(existing=[]){const category=selectedCategory(),custom=category&&category.tipo_pizzeria!=='standard'&&(category.formati||[]).length;pizzaFormatBox.replaceChildren();pizzaProductToggle.checked=Boolean(custom);pizzaProductFields.classList.toggle('hidden',!custom);if(!custom)return;document.getElementById('productFormatsTitle').textContent='Formati '+category.nome.toLocaleLowerCase('it');for(const formatName of category.formati){const saved=existing.find(item=>item.nome.toLocaleLowerCase('it')===formatName.toLocaleLowerCase('it'));addProductPizzaFormat(saved?{...saved,disponibile:true}:{nome:formatName,prezzo:'',disponibile:false,impasti:['Classico']})}}
+  function renderCategoryFormats(existing=[]){const category=selectedCategory(),custom=category&&category.tipo_pizzeria!=='standard'&&(category.formati||[]).length;pizzaFormatBox.replaceChildren();pizzaProductToggle.checked=Boolean(custom);pizzaProductFields.classList.toggle('hidden',!custom);if(!custom)return;document.getElementById('productFormatsTitle').textContent='Formati '+category.nome.toLocaleLowerCase('it');f('productVariantsHint').textContent='Categoria: varianti '+(category.varianti_abilitate===false?'disabilitate':'abilitate')+'.';for(const formatName of category.formati){const saved=existing.find(item=>item.nome.toLocaleLowerCase('it')===formatName.toLocaleLowerCase('it'));addProductPizzaFormat(saved?{...saved,disponibile:true}:{nome:formatName,prezzo:'',disponibile:false,impasti:['Classico']})}}
   function collectProductPizzaFormats(){return [...pizzaFormatBox.children].filter(row=>row.querySelector('[data-pizza-format-enabled]').checked).map(row=>({nome:row.querySelector('[data-pizza-format=name]').dataset.value,prezzo:row.querySelector('[data-pizza-format=price]').value,disponibile:true,impasti:[...row.querySelectorAll('[data-pizza-dough]:checked')].map(i=>i.value)}))}
   const modeHint = document.getElementById("modeHint");
 
@@ -470,7 +471,7 @@
       f("imagePreview").style.display = "none";
       f("imagePreview").removeAttribute("src");
       f("disponibile").value = "true";
-      pizzaProductToggle.checked=false;pizzaProductFields.classList.add('hidden');pizzaFormatBox.replaceChildren();
+      pizzaProductToggle.checked=false;pizzaProductFields.classList.add('hidden');pizzaFormatBox.replaceChildren();f("varianti_abilitate_override").value="inherit";
       f("id_categoria").value = categoryId;
       renderCategoryFormats();
       f("id_sottocategoria").innerHTML = `<option value="">—</option>`;
@@ -507,6 +508,7 @@
       else { f("imagePreview").style.display = "none"; f("imagePreview").removeAttribute("src"); }
       f("disponibile").value = p.disponibile ? "true" : "false";
       f("id_categoria").value = p.id_categoria ? String(p.id_categoria) : "";
+      f("varianti_abilitate_override").value=p.varianti_abilitate_override===true?"true":p.varianti_abilitate_override===false?"false":"inherit";
       await loadSubcategories(p.id_categoria, p.id_sottocategoria);
   
       modeHint.textContent = "Modalità: modifica";
@@ -894,6 +896,7 @@
     fd.append("visibile_da", f("visibile_da").value); fd.append("visibile_fino", f("visibile_fino").value); fd.append("ora_inizio", f("ora_inizio").value); fd.append("ora_fine", f("ora_fine").value);
     fd.append("id_categoria", f("id_categoria").value || "");
     fd.append("id_sottocategoria", f("id_sottocategoria").value || "");
+    fd.append("varianti_abilitate_override", f("varianti_abilitate_override").value);
     fd.append("etichette", selectedLabels().join(","));
     f("allergeniManual").querySelectorAll("input:checked").forEach(input => fd.append("allergeni_manual", input.value));
   
