@@ -768,9 +768,12 @@ def test_manual_dough_stocks_stay_on_one_row_and_support_persistent_long_press_r
     assert ".manual-dough-stock-items{display:flex;flex-wrap:nowrap" in html
     assert "function enableDoughStockLongPress(card)" in html
     assert "timer=setTimeout(()=>{active=true" in html
+    assert "touch-action:none" in html
+    assert "card.setPointerCapture?.(pointerId)" in html
+    assert "card.parentElement.scrollLeft-=event.clientX-lastX" in html
     assert "items.insertBefore(card" in html
     assert "fetch('/api/pizzeria/preparazione',{method:'PUT'" in html
-    assert "Tieni premuto e trascina una panetta per riordinarla" in html
+    assert "Tieni premuto e trascina per spostare" in html
 
 
 def test_manual_dough_stock_updates_from_selected_cart_items_before_submission():
@@ -781,6 +784,8 @@ def test_manual_dough_stock_updates_from_selected_cart_items_before_submission()
     assert "quantity-reserved" in html
     assert "reserved?'residue':'disponibili'" in html
     assert "Quantità residue previste dopo gli articoli selezionati" in html
+    assert "note.hidden=!note.textContent" in html
+    assert "I formati non elencati sono illimitati" not in html
 
 
 def test_manual_dough_stock_spans_above_catalog_and_cart_in_a_compact_row():
