@@ -651,7 +651,7 @@ def test_fulfillment_page_always_shows_product_totals_and_completed_orders():
     assert 'id="totalCount"' in html
     assert 'id="pendingCount"' in html
     assert 'id="doneCount"' in html
-    assert "order.stato==='evaso'?' done'" in html
+    assert "ready?' working':done?' done'" in html
     assert 'id="orderHistory"' in html
     assert "historyPanel.showModal()" in html
     assert "load({silent:true})},5000" in html
@@ -676,6 +676,17 @@ def test_fulfillment_page_keeps_separate_product_and_order_views():
     assert "['Evasi',amounts.done,'evaded']" in html
     assert "['Da preparare',amounts.pending,'remaining']" in html
     assert "['Totale',amounts.total,'all']" in html
+
+
+def test_fulfillment_orders_are_compact_and_expandable():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert "node(grid,'details',undefined,'order-card'" in html
+    assert "node(card,'summary',undefined,'order-summary')" in html
+    assert "'order-summary-count'" in html
+    assert "'order-summary-status'" in html
+    assert ".order-card[open]>.order-summary::after" in html
+    assert "const body=node(card,'div',undefined,'order-card-body')" in html
+    assert "expandedOrderIds.has(String(order.id))" in html
 
 
 def test_fulfillment_product_section_follows_date_and_add_order_floats():
