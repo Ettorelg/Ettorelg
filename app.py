@@ -760,16 +760,16 @@ SUPPORTED_MENU_LANGUAGES = {
 }
 
 MENU_UI = {
-    "it": {"venue": "Il nostro locale", "contacts": "Contatti", "show": "VISUALIZZA IL MENU'", "back": "Torna alle informazioni", "hours": "Orari di apertura", "closed": "Chiuso", "empty": "Il menu sarà disponibile presto.", "categories": "Categorie del menu", "days": ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]},
-    "en": {"venue": "Our venue", "contacts": "Contacts", "show": "VIEW MENU", "back": "Back to information", "hours": "Opening hours", "closed": "Closed", "empty": "The menu will be available soon.", "categories": "Menu categories", "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]},
-    "fr": {"venue": "Notre établissement", "contacts": "Contacts", "show": "VOIR LE MENU", "back": "Retour aux informations", "hours": "Horaires d'ouverture", "closed": "Fermé", "empty": "Le menu sera bientôt disponible.", "categories": "Catégories du menu", "days": ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]},
-    "de": {"venue": "Unser Lokal", "contacts": "Kontakte", "show": "MENÜ ANZEIGEN", "back": "Zurück zu den Informationen", "hours": "Öffnungszeiten", "closed": "Geschlossen", "empty": "Das Menü ist bald verfügbar.", "categories": "Menükategorien", "days": ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]},
-    "es": {"venue": "Nuestro local", "contacts": "Contactos", "show": "VER EL MENÚ", "back": "Volver a la información", "hours": "Horario de apertura", "closed": "Cerrado", "empty": "El menú estará disponible pronto.", "categories": "Categorías del menú", "days": ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]},
-    "pt": {"venue": "O nosso espaço", "contacts": "Contactos", "show": "VER MENU", "back": "Voltar às informações", "hours": "Horário de funcionamento", "closed": "Fechado", "empty": "O menu estará disponível em breve.", "categories": "Categorias do menu", "days": ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]},
-    "nl": {"venue": "Onze zaak", "contacts": "Contact", "show": "BEKIJK MENU", "back": "Terug naar informatie", "hours": "Openingstijden", "closed": "Gesloten", "empty": "Het menu is binnenkort beschikbaar.", "categories": "Menucategorieën", "days": ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"]},
-    "pl": {"venue": "Nasz lokal", "contacts": "Kontakt", "show": "ZOBACZ MENU", "back": "Powrót do informacji", "hours": "Godziny otwarcia", "closed": "Zamknięte", "empty": "Menu będzie dostępne wkrótce.", "categories": "Kategorie menu", "days": ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"]},
-    "ro": {"venue": "Localul nostru", "contacts": "Contacte", "show": "VEZI MENIUL", "back": "Înapoi la informații", "hours": "Program", "closed": "Închis", "empty": "Meniul va fi disponibil în curând.", "categories": "Categorii meniu", "days": ["Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă", "Duminică"]},
-    "zh": {"venue": "我们的餐厅", "contacts": "联系方式", "show": "查看菜单", "back": "返回信息", "hours": "营业时间", "closed": "休息", "empty": "菜单即将上线。", "categories": "菜单分类", "days": ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]},
+    "it": {"venue": "Il nostro locale", "contacts": "Contatti", "show": "VISUALIZZA IL MENU'", "back": "Torna alle informazioni", "hours": "Orari di apertura", "open": "Aperto", "closed": "Chiuso", "empty": "Il menu sarà disponibile presto.", "categories": "Categorie del menu", "days": ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]},
+    "en": {"venue": "Our venue", "contacts": "Contacts", "show": "VIEW MENU", "back": "Back to information", "hours": "Opening hours", "open": "Open", "closed": "Closed", "empty": "The menu will be available soon.", "categories": "Menu categories", "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]},
+    "fr": {"venue": "Notre établissement", "contacts": "Contacts", "show": "VOIR LE MENU", "back": "Retour aux informations", "hours": "Horaires d'ouverture", "open": "Ouvert", "closed": "Fermé", "empty": "Le menu sera bientôt disponible.", "categories": "Catégories du menu", "days": ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]},
+    "de": {"venue": "Unser Lokal", "contacts": "Kontakte", "show": "MENÜ ANZEIGEN", "back": "Zurück zu den Informationen", "hours": "Öffnungszeiten", "open": "Geöffnet", "closed": "Geschlossen", "empty": "Das Menü ist bald verfügbar.", "categories": "Menükategorien", "days": ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]},
+    "es": {"venue": "Nuestro local", "contacts": "Contactos", "show": "VER EL MENÚ", "back": "Volver a la información", "hours": "Horario de apertura", "open": "Abierto", "closed": "Cerrado", "empty": "El menú estará disponible pronto.", "categories": "Categorías del menú", "days": ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]},
+    "pt": {"venue": "O nosso espaço", "contacts": "Contactos", "show": "VER MENU", "back": "Voltar às informações", "hours": "Horário de funcionamento", "open": "Aberto", "closed": "Fechado", "empty": "O menu estará disponível em breve.", "categories": "Categorias do menu", "days": ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]},
+    "nl": {"venue": "Onze zaak", "contacts": "Contact", "show": "BEKIJK MENU", "back": "Terug naar informatie", "hours": "Openingstijden", "open": "Open", "closed": "Gesloten", "empty": "Het menu is binnenkort beschikbaar.", "categories": "Menucategorieën", "days": ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"]},
+    "pl": {"venue": "Nasz lokal", "contacts": "Kontakt", "show": "ZOBACZ MENU", "back": "Powrót do informacji", "hours": "Godziny otwarcia", "open": "Otwarte", "closed": "Zamknięte", "empty": "Menu będzie dostępne wkrótce.", "categories": "Kategorie menu", "days": ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"]},
+    "ro": {"venue": "Localul nostru", "contacts": "Contacte", "show": "VEZI MENIUL", "back": "Înapoi la informații", "hours": "Program", "open": "Deschis", "closed": "Închis", "empty": "Meniul va fi disponibil în curând.", "categories": "Categorii meniu", "days": ["Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă", "Duminică"]},
+    "zh": {"venue": "我们的餐厅", "contacts": "联系方式", "show": "查看菜单", "back": "返回信息", "hours": "营业时间", "open": "营业中", "closed": "休息", "empty": "菜单即将上线。", "categories": "菜单分类", "days": ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]},
 }
 
 for _code, (_call, _whatsapp, _book, _booking_message) in {
@@ -6020,6 +6020,40 @@ def api_aggiorna_ordine(order_id: int):
         conn.close()
 
 
+def shop_is_open(saved_hours: dict, moment: datetime | None = None) -> bool:
+    """Calcola lo stato del locale in Europe/Rome, inclusi i turni oltre mezzanotte."""
+    current = moment or datetime.now(ZoneInfo("Europe/Rome"))
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=ZoneInfo("Europe/Rome"))
+    else:
+        current = current.astimezone(ZoneInfo("Europe/Rome"))
+    minute = current.hour * 60 + current.minute
+
+    def ranges_for(day: int):
+        schedule = saved_hours.get(day) or {}
+        if not schedule.get("aperto"):
+            return []
+        ranges = []
+        for opening_key, closing_key in (("apertura", "chiusura"), ("apertura_2", "chiusura_2")):
+            opening, closing = schedule.get(opening_key), schedule.get(closing_key)
+            if not opening or not closing:
+                continue
+            start_hour, start_minute = map(int, opening.split(":"))
+            end_hour, end_minute = map(int, closing.split(":"))
+            ranges.append((start_hour * 60 + start_minute, end_hour * 60 + end_minute))
+        return ranges
+
+    for start, end in ranges_for(current.weekday()):
+        if start < end and start <= minute < end:
+            return True
+        if start > end and minute >= start:
+            return True
+    for start, end in ranges_for((current.weekday() - 1) % 7):
+        if start > end and minute < end:
+            return True
+    return False
+
+
 @app.get("/menu/<slug>")
 def public_menu(slug: str):
     requested_language = (request.args.get("lang") or "it").lower()
@@ -6237,6 +6271,7 @@ def public_menu(slug: str):
             ui = MENU_UI.get(language, MENU_UI["it"])
             shop["whatsapp_digits"] = re.sub(r"\D", "", shop["whatsapp"] or shop["telefono"])
             hours = [{"nome": ui["days"][day], **saved_hours.get(day, {"aperto": False})} for day in range(7)]
+            opening_status = shop_is_open(saved_hours) if saved_hours else None
             languages = [{"codice": "it", "nome": "Italiano"}] + [{"codice": code, "nome": SUPPORTED_MENU_LANGUAGES[code]} for code in enabled_codes]
 
         customer_phone = ""
@@ -6245,7 +6280,7 @@ def public_menu(slug: str):
                 phone_cur.execute("SELECT COALESCE(telefono,'') FROM utenti WHERE id=%s", (session["user_id"],))
                 phone_row = phone_cur.fetchone()
             customer_phone = phone_row[0] if phone_row else ""
-        return render_template("public_menu.html", shop=shop, categories=categories, hours=hours, ui=ui, language=language, languages=languages, customer_google=session.get("customer_google"), customer_phone=customer_phone)
+        return render_template("public_menu.html", shop=shop, categories=categories, hours=hours, opening_status=opening_status, ui=ui, language=language, languages=languages, customer_google=session.get("customer_google"), customer_phone=customer_phone)
     finally:
         conn.close()
 

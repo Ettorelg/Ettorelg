@@ -2,6 +2,7 @@
 import ast
 import os
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -47,6 +48,19 @@ class LicenseAndTrialTests(unittest.TestCase):
         self.assertLess(home.index('id="setupCard"'), home.index('class="home-hero"'))
         self.assertIn("hidden=complete", home)
         self.assertIn('href="/logout"', account)
+
+    def test_public_menu_opening_status_supports_split_and_overnight_shifts(self):
+        is_open = load_function("shop_is_open", {"datetime": datetime, "ZoneInfo": ZoneInfo})
+        schedule = {
+            0: {"aperto": True, "apertura": "09:00", "chiusura": "13:00", "apertura_2": "18:00", "chiusura_2": "23:00"},
+            4: {"aperto": True, "apertura": "18:00", "chiusura": "02:00", "apertura_2": "", "chiusura_2": ""},
+        }
+        zone = ZoneInfo("Europe/Rome")
+        self.assertTrue(is_open(schedule, datetime(2026, 9, 14, 10, 30, tzinfo=zone)))
+        self.assertFalse(is_open(schedule, datetime(2026, 9, 14, 15, 0, tzinfo=zone)))
+        self.assertTrue(is_open(schedule, datetime(2026, 9, 14, 20, 0, tzinfo=zone)))
+        self.assertTrue(is_open(schedule, datetime(2026, 9, 19, 1, 30, tzinfo=zone)))
+        self.assertFalse(is_open(schedule, datetime(2026, 9, 19, 2, 0, tzinfo=zone)))
 
     def test_license_requires_active_status_and_non_expired_date(self):
         active = load_function("license_is_active", {"date": date, "datetime": datetime})
