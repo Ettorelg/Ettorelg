@@ -698,8 +698,13 @@ def test_fulfillment_orders_are_compact_and_expandable():
 def test_fulfillment_product_section_follows_date_and_navigation_is_lateral():
     html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
     assert html.index('id="date"') < html.index('id="groups"') < html.index('class="metrics"')
-    assert 'body{padding-left:270px}' in html
+    assert 'body{padding-left:270px;transition:padding-left .18s}' in html
     assert 'class="side-view-nav"' in html
+    assert 'id="sidebarToggle"' in html
+    assert 'class="side-tools"' in html
+    assert '<details class="side-tools"><summary>Strumenti e collegamenti</summary>' in html
+    assert 'alpha-menu-fulfillment-sidebar-collapsed' in html
+    assert "classList.toggle('sidebar-collapsed',collapsed)" in html
 
 
 def test_order_operations_are_on_fulfillment_page_not_settings():
