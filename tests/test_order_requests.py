@@ -279,6 +279,19 @@ def test_public_pizzeria_formats_are_visible_subpages_with_exact_product_prices(
     assert "combine.dataset.pizzeriaFormat = formatName" in html
 
 
+def test_category_formats_drive_product_configuration_and_support_direct_calzones():
+    root = Path(__file__).resolve().parents[1] / "templates"
+    categories = (root / "sections" / "categorie.html").read_text(encoding="utf-8")
+    products = (root / "sections" / "prodotti.html").read_text(encoding="utf-8")
+    configurator = (root / "pizzeria_test.html").read_text(encoding="utf-8")
+    assert 'id="tipo_pizzeria"' in categories
+    assert 'id="categoryFormats"' in categories
+    assert "formati:categoryFormats()" in categories
+    assert "function renderCategoryFormats(existing=[])" in products
+    assert "data-pizza-format-enabled" in products
+    assert 'value="calzone_prodotto"' in configurator
+
+
 def test_kilogram_product_uses_weight_and_labels_order_line():
     db = FakeConnection(product_unit="kg")
     with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=payload("1,5")):

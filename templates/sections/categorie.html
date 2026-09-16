@@ -28,6 +28,7 @@
   .right{white-space:nowrap}
   .toast{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
   .hidden{display:none}
+  .category-formats{display:grid;gap:8px;margin-top:8px}.category-format-row{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:8px}.category-kind-note{margin-top:6px}
   .catalog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:20px}
   .catalog-head h2{margin:0 0 7px;font-size:1.65rem;color:#f3f6ff}
   .catalog-head .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8fb9ff;font-weight:800}
@@ -40,7 +41,7 @@
   @media(max-width:720px){
     .catalog-head{display:block}.row{display:grid;grid-template-columns:1fr}.field{min-width:0!important;max-width:none!important}
     #catForm,#scForm{padding:15px}.actions .btn{flex:1;justify-content:center}
-    .table-wrap-catalog{overflow:visible}.table{border:0;background:transparent}.table thead{display:none}.table tbody{display:grid;gap:12px}.table tr{display:grid;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.035)}.table td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border:0}.table td:first-child{font-size:1.02rem}.table td:nth-child(2)::before{content:"Visibile";color:#9eabca;font-size:12px}.table td:nth-child(3)::before{content:"Stampante";color:#9eabca;font-size:12px}.table td.right{display:flex;white-space:normal}.table td.right .btn{flex:1;justify-content:center}
+    .table-wrap-catalog{overflow:visible}.table{border:0;background:transparent}.table thead{display:none}.table tbody{display:grid;gap:12px}.table tr{display:grid;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.035)}.table td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border:0}.table td:first-child{font-size:1.02rem}.table td:nth-child(2)::before{content:"Visibile";color:#9eabca;font-size:12px}.table td:nth-child(3)::before{content:"Tipo e formati";color:#9eabca;font-size:12px}.table td.right{display:flex;white-space:normal}.table td.right .btn{flex:1;justify-content:center}
   }
 </style>
 
@@ -59,6 +60,10 @@
 
     <div class="field" style="max-width:180px"><label>Visibile</label><select id="visibile"><option value="true">Sì</option><option value="false">No</option></select></div>
     <div class="field" style="max-width:220px"><label>IP stampante categoria (opzionale)</label><input id="stampante_ip" inputmode="decimal" autocomplete="off" placeholder="192.168.1.50" maxlength="45"><small class="muted">Le sottocategorie usano la stampante della categoria.</small></div>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <div class="field" style="max-width:260px"><label>Tipo di categoria</label><select id="tipo_pizzeria"><option value="standard">Categoria standard</option><option value="pizza">Pizze personalizzabili</option><option value="calzone">Calzoni personalizzabili</option><option value="panino">Panini personalizzabili</option></select><small class="muted category-kind-note">Se scegli un tipo personalizzabile, definisci qui i formati richiamati nei prodotti.</small></div>
+    <div class="field hidden" id="categoryFormatsField"><label>Formati disponibili nella categoria</label><div id="categoryFormats" class="category-formats"></div><button class="btn" type="button" id="addCategoryFormat">+ Aggiungi formato</button></div>
   </div>
   <div class="actions" style="margin-top:10px"><button class="btn" type="button" id="toggleSchedule">🕒 Programma visibilità (opzionale)</button></div>
   <div id="scheduleFields" class="row hidden" style="margin-top:10px;padding:12px;border:1px dashed rgba(110,168,254,.45);border-radius:12px">
@@ -81,7 +86,7 @@
     <tr>
       <th>Nome</th>
       <th>Visibile</th>
-      <th>Stampante</th>
+      <th>Tipo e formati</th>
       <th class="right">Azioni</th>
     </tr>
   </thead>
@@ -97,6 +102,15 @@
 
   let items = [];
 
+  function addFormat(value=""){
+    const row=document.createElement("div");row.className="category-format-row";
+    const input=document.createElement("input");input.maxLength=80;input.placeholder="Es. Singola, Doppia, Familiare";input.value=value;
+    const remove=document.createElement("button");remove.type="button";remove.className="btn danger";remove.textContent="Rimuovi";remove.onclick=()=>row.remove();
+    row.append(input,remove);f("categoryFormats").append(row);
+  }
+  function syncCategoryKind(){const custom=f("tipo_pizzeria").value!=="standard";f("categoryFormatsField").classList.toggle("hidden",!custom);if(custom&&!f("categoryFormats").children.length)addFormat()}
+  function categoryFormats(){return [...f("categoryFormats").querySelectorAll("input")].map(input=>input.value.trim()).filter(Boolean)}
+
   function showToast(msg){
     window.showDashboardNotice?.(msg, /errore|non valid|impossibile|seleziona/i.test(msg));
     toast.textContent = msg;
@@ -107,7 +121,7 @@
   function resetForm(){
     f("id").value = "";
     f("nome").value = "";
-    f("visibile").value = "true"; f("stampante_ip").value = ""; f("visibile_da").value = ""; f("visibile_fino").value = ""; f("ora_inizio").value = ""; f("ora_fine").value = ""; f("scheduleFields").classList.add("hidden");
+    f("visibile").value = "true"; f("stampante_ip").value = ""; f("tipo_pizzeria").value="standard";f("categoryFormats").replaceChildren();syncCategoryKind(); f("visibile_da").value = ""; f("visibile_fino").value = ""; f("ora_inizio").value = ""; f("ora_fine").value = ""; f("scheduleFields").classList.add("hidden");
     modeHint.textContent = "Modalità: creazione";
     f("saveBtn").textContent = "Salva categoria";
   }
@@ -127,7 +141,7 @@
         <tr draggable="true" data-category-id="${c.id}">
           <td style="font-weight:650"><span class="drag-cell"><span class="drag-grip">⋮⋮</span>${esc(c.nome)}</span></td>
           <td>${vis}</td>
-          <td>${c.stampante_ip ? esc(c.stampante_ip) : '<span class="muted">Non assegnata</span>'}</td>
+          <td>${c.tipo_pizzeria==='standard'?'<span class="muted">Standard</span>':`<strong>${esc(c.tipo_pizzeria)}</strong><br><span class="muted">${(c.formati||[]).map(esc).join(' · ')}</span>`}</td>
           <td class="right">
             <button class="btn" type="button" onclick="editCat(${c.id})">Modifica</button>
             <button class="btn danger" type="button" onclick="delCat(${c.id})">Elimina</button>
@@ -159,7 +173,7 @@
     if(!c) return;
     f("id").value = c.id;
     f("nome").value = c.nome;
-    f("visibile").value = c.visibile ? "true" : "false"; f("stampante_ip").value = c.stampante_ip || ""; f("visibile_da").value=c.visibile_da||""; f("visibile_fino").value=c.visibile_fino||""; f("ora_inizio").value=c.ora_inizio||""; f("ora_fine").value=c.ora_fine||""; if(c.visibile_da||c.visibile_fino||c.ora_inizio||c.ora_fine) f("scheduleFields").classList.remove("hidden");
+    f("visibile").value = c.visibile ? "true" : "false"; f("stampante_ip").value = c.stampante_ip || ""; f("tipo_pizzeria").value=c.tipo_pizzeria||"standard";f("categoryFormats").replaceChildren();(c.formati||[]).forEach(addFormat);syncCategoryKind(); f("visibile_da").value=c.visibile_da||""; f("visibile_fino").value=c.visibile_fino||""; f("ora_inizio").value=c.ora_inizio||""; f("ora_fine").value=c.ora_fine||""; if(c.visibile_da||c.visibile_fino||c.ora_inizio||c.ora_fine) f("scheduleFields").classList.remove("hidden");
     modeHint.textContent = "Modalità: modifica";
     f("saveBtn").textContent = "Aggiorna categoria";
     showToast("Modifica categoria: aggiorna e salva.");
@@ -185,7 +199,7 @@
     ev.preventDefault();
     const payload = {
       nome: f("nome").value.trim(),
-      visibile: f("visibile").value === "true", stampante_ip:f("stampante_ip").value.trim(), visibile_da:f("visibile_da").value, visibile_fino:f("visibile_fino").value, ora_inizio:f("ora_inizio").value, ora_fine:f("ora_fine").value
+      visibile: f("visibile").value === "true", stampante_ip:f("stampante_ip").value.trim(), tipo_pizzeria:f("tipo_pizzeria").value, formati:categoryFormats(), visibile_da:f("visibile_da").value, visibile_fino:f("visibile_fino").value, ora_inizio:f("ora_inizio").value, ora_fine:f("ora_fine").value
     };
     const id = f("id").value ? Number(f("id").value) : null;
 
@@ -219,6 +233,7 @@
   document.getElementById("toggleSchedule").addEventListener("click",()=>f("scheduleFields").classList.toggle("hidden"));
   document.getElementById("clearSchedule").addEventListener("click",()=>{f("visibile_da").value="";f("visibile_fino").value="";f("ora_inizio").value="";f("ora_fine").value="";f("scheduleFields").classList.add("hidden")});
   document.getElementById("resetBtn").addEventListener("click", resetForm);
+  f("tipo_pizzeria").addEventListener("change",syncCategoryKind);f("addCategoryFormat").addEventListener("click",()=>addFormat());
 
   function esc(s){
     return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");

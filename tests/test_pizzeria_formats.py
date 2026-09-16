@@ -65,6 +65,14 @@ def functions(db):
     return scope
 
 
+def category_normalizer():
+    node = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef)
+                              and item.name == "normalize_category_pizzeria_config"))
+    scope = {}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "app.py", "exec"), scope)
+    return scope["normalize_category_pizzeria_config"]
+
+
 def test_formats_are_optional_per_product_and_prices_are_normalized():
     product_id, formats = functions(Connection())["normalize_pizzeria_formats"]({
         "id_prodotto": 10, "formati": [{"nome": "Singola", "prezzo": "8,50"}]})
@@ -73,7 +81,6 @@ def test_formats_are_optional_per_product_and_prices_are_normalized():
 
 
 @pytest.mark.parametrize("formats", [
-    [],
     [{"nome": "Singola", "prezzo": -1}],
     [{"nome": "Singola", "prezzo": "8.001"}],
     [{"nome": "Singola", "prezzo": "8"}, {"nome": "singola", "prezzo": "9"}],
@@ -81,6 +88,27 @@ def test_formats_are_optional_per_product_and_prices_are_normalized():
 def test_invalid_formats_are_rejected(formats):
     with pytest.raises(ValueError):
         functions(Connection())["normalize_pizzeria_formats"]({"id_prodotto": 10, "formati": formats})
+
+
+def test_empty_formats_disable_pizzeria_configuration_for_product():
+    product_id, formats = functions(Connection())["normalize_pizzeria_formats"]({"id_prodotto": 10, "formati": []})
+    assert product_id == 10
+    assert formats == []
+
+
+def test_category_owns_ordered_formats_and_product_type():
+    assert category_normalizer()({"tipo_pizzeria": "calzone", "formati": ["Normale", "Doppio"]}) == (
+        "calzone", ["Normale", "Doppio"])
+
+
+@pytest.mark.parametrize("payload", [
+    {"tipo_pizzeria": "calzone", "formati": []},
+    {"tipo_pizzeria": "standard", "formati": ["Singola"]},
+    {"tipo_pizzeria": "pizza", "formati": ["Singola", "singola"]},
+])
+def test_invalid_category_format_configuration_is_rejected(payload):
+    with pytest.raises(ValueError):
+        category_normalizer()(payload)
 
 
 def test_format_save_is_scoped_to_owner_shop_and_does_not_activate_module():
