@@ -702,14 +702,22 @@ def test_order_forms_pair_reference_and_notes_and_manual_products_are_searchable
     public = (root / "public_menu.html").read_text(encoding="utf-8")
     assert 'class="manual-extra-fields"' in fulfillment
     assert 'class="order-details" id="orderDetails"' in public
-    assert "search.type='search'" in fulfillment
-    assert "node(productPicker,'div',undefined,'product-results')" in fulfillment
+    assert 'id="manualProductSearch" type="search"' in fulfillment
+    assert 'id="manualCategories"' in fulfillment
+    assert 'id="manualProducts"' in fulfillment
+    assert 'id="manualCart"' in fulfillment
     assert "manualProducts.filter(product=>" in fulfillment
-    assert "row.dataset.productId=String(product.id)" in fulfillment
-    assert "id:Number(row.dataset.productId)" in fulfillment
+    assert "openPizzeria({kind" in fulfillment
+    assert "pizzeria:item.pizzeria" in fulfillment
     assert "datalist" not in fulfillment
-    assert "Scegli ogni articolo dai suggerimenti" in fulfillment
     assert '<option value="anno">Anno</option>' in fulfillment
+
+
+def test_owner_manual_orders_accept_server_validated_pizzeria_configuration():
+    endpoint = SOURCE[SOURCE.index('def api_crea_ordine_menu'):SOURCE.index('def order_push_keys')]
+    assert 'if manual or not isinstance(config, dict)' not in endpoint
+    assert 'if not isinstance(config, dict)' in endpoint
+    assert 'quote_pizzeria_draft({**config, "quantita": 1}, *settings)' in endpoint
 
 
 def test_add_order_opens_a_dialog_without_inline_manual_panel():

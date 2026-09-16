@@ -3645,9 +3645,18 @@ def fulfillment_dashboard():
         return redirect(url_for("login"))
     if session.get("is_admin"):
         return redirect("/dashboard_admin")
-    if not get_user_shop_id(session["user_id"]):
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
         return redirect(url_for("dashboard_user") + "#attivita")
-    return render_template("fulfillment_dashboard.html", username=session.get("username", "utente"))
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT slug,COALESCE(modulo_pizzeria_attivo,FALSE) FROM negozi WHERE id=%s", (shop_id,))
+            shop = cur.fetchone()
+    finally:
+        conn.close()
+    return render_template("fulfillment_dashboard.html", username=session.get("username", "utente"),
+                           menu_slug=shop[0] if shop else "", pizzeria_enabled=bool(shop and shop[1]))
 
 @app.route("/dashboard_user/section/<section>")
 def dashboard_user_section(section: str):
@@ -5020,12 +5029,13 @@ def load_pizzeria_order_settings(cur, shop_id):
         for source_format in normalized_formats:
             aliases = format_equivalences.setdefault(dough_key, {}).setdefault(source_format, [])
             aliases.extend(name for name in normalized_formats if name not in aliases)
-    cur.execute("""SELECT id_categoria,tipo,combina_gusti,categorie_gusti,prodotti_gusti
+    cur.execute("""SELECT id_categoria,tipo,formati,combina_gusti,categorie_gusti,prodotti_gusti
         FROM pizzeria_categorie_config WHERE id_negozio=%s""", (shop_id,))
     taste_selections = {
-        row[0]: {"tipo": row[1], "combina_gusti": bool(row[2]),
-                 "categorie": row[3] if isinstance(row[3], list) else [],
-                 "prodotti": row[4] if isinstance(row[4], list) else []}
+        row[0]: {"tipo": row[1], "formati": row[2] if isinstance(row[2], list) else [],
+                 "combina_gusti": bool(row[3]),
+                 "categorie": row[4] if isinstance(row[4], list) else [],
+                 "prodotti": row[5] if isinstance(row[5], list) else []}
         for row in cur.fetchall()
     }
     return pizzas, fractions, additions, derivatives, doughs, removables, taste_selections, format_equivalences
@@ -5094,6 +5104,9 @@ def api_public_pizzeria_config(slug):
             "impasti": list(doughs.values()),
             "selezioni_gusti": taste_selections,
             "equivalenze_formati": format_equivalences,
+            "categorie_config": [{"id_categoria": category_id, "tipo": config["tipo"],
+                                    "formati": config["formati"], "combina_gusti": config["combina_gusti"]}
+                                   for category_id, config in taste_configs.items()],
             "ingredienti": [{"id": product_id, "valori": values} for product_id, values in removables.items()]})
     finally:
         conn.close()
@@ -5402,7 +5415,7 @@ def api_crea_ordine_menu(slug: str | None = None):
         config = None
         if item.get("pizzeria") is not None:
             config = item["pizzeria"]
-            if manual or not isinstance(config, dict):
+            if not isinstance(config, dict):
                 return jsonify({"error": "Configurazione Pizzeria non valida."}), 400
             anchor_id = config.get("gusti", [{}])[0].get("id_pizza") if str(config.get("tipo", "")).endswith("multigusto") and isinstance(config.get("gusti"), list) and config["gusti"] else config.get("id_pizza")
             if anchor_id != product_id:
