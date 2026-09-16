@@ -58,8 +58,9 @@
     function syncDoughs(){const selectedIds=[...tastes.querySelectorAll('.taste-product')].map(input=>Number(input.value)).filter(Boolean),selected=products.filter(product=>selectedIds.includes(product.id)),allowedSets=selected.map(product=>new Set((productFormat(product)?.impasti||['Classico']).map(name=>name.toLowerCase()))),allowed=allowedSets.length?[...allowedSets[0]].filter(name=>allowedSets.every(set=>set.has(name))):['classico'],available=doughs.filter(item=>item.disponibile&&allowed.includes(item.nome.toLowerCase()));const old=dough.value;fill(dough,available.map(item=>({label:item.nome+(Number(item.supplemento)?' · +€ '+item.supplemento:''),value:item.nome})),'Scegli impasto');dough.value=[...dough.options].some(option=>option.value===old)?old:(dough.options[1]?.value||'');el('doughWrap').hidden=available.length<=1}
     function render(){
       const currentFormat=format.value,mixed=kind.value.endsWith('multigusto'),derivativeKind=kind.value==='multigusto'?'pizza':kind.value.replace('_multigusto',''),derived=derivativeKind==='calzone'||derivativeKind==='panino';
-      let formats=[...new Set(products.flatMap(p=>p.formati.filter(f=>f.disponibile).map(f=>f.nome)))];
-      if(derived)formats=formats.filter(name=>products.some(p=>p.tipo_pizzeria===derivativeKind&&p.formati.some(f=>f.nome===name&&f.disponibile)));
+      const requested=products.find(product=>String(product.id)===requestedProduct);
+      let formats=publicSlug&&requestedProduct&&!mixed&&requested?[...new Set(requested.formati.filter(f=>f.disponibile).map(f=>f.nome))]:[...new Set(products.flatMap(p=>p.formati.filter(f=>f.disponibile).map(f=>f.nome)))];
+      if(derived&&!requested)formats=formats.filter(name=>products.some(p=>p.tipo_pizzeria===derivativeKind&&p.formati.some(f=>f.nome===name&&f.disponibile)));
       if(mixed)formats=formats.filter(name=>fractions.some(f=>f.formato===name&&f.tagli.length));if(publicSlug&&requestedFormat)formats=formats.filter(name=>name===requestedFormat);
       fill(format,formats.map(name=>({label:name,value:name})),'Scegli formato');format.value=formats.includes(currentFormat)?currentFormat:formats[0]||'';
       el('cutWrap').hidden=!mixed;
