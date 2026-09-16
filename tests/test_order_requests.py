@@ -718,6 +718,7 @@ def test_order_forms_pair_reference_and_notes_and_manual_products_are_searchable
     assert 'id="manualProducts"' in fulfillment
     assert 'id="manualCart"' in fulfillment
     assert "manualProducts.filter(product=>" in fulfillment
+    assert "if(product.descrizione)node(card,'small',product.descrizione)" not in fulfillment
     assert "query?normalizeSearch(product.nome+' '+product.descrizione+' '+product.categoria_nome).includes(query)" in fulfillment
     assert "classList.toggle('active',!query&&id===selectedManualCategory)" in fulfillment
     assert "if(query)node(card,'small',product.categoria_nome||'Senza categoria','manual-product-category')" in fulfillment
@@ -749,6 +750,8 @@ def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_config
     assert 'id="manualSlotButtons"' in html
     assert "onUpdate:renderManualSlotButtons" in html
     assert "url_for('manual_order_product_configurator')" in html
+    configurator = (Path(__file__).resolve().parents[1] / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
+    assert ".embedded .taste .ingredients-summary{display:none}" in configurator
     assert "card.onclick=event=>" in html
 
 
