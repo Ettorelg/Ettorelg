@@ -295,6 +295,8 @@ def test_category_formats_drive_product_configuration_and_support_direct_calzone
     assert 'varianti_abilitate:f("varianti_abilitate").checked' in categories
     assert 'id="varianti_abilitate_override"' in products
     assert 'fd.append("varianti_abilitate_override"' in products
+    assert 'id="prodotto_pizzeria"' not in products
+    assert "function categoryIsCustom()" in products
     assert 'id="categoryFormats"' in categories
     assert "formati:categoryFormats()" in categories
     assert "function renderCategoryFormats(existing=[])" in products
