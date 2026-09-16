@@ -128,7 +128,7 @@
     {% if categories %}
       {% for category in categories %}
       <section class="menu-section" id="categoria-{{ category.id }}" data-category-section data-track-url="{% if not category.virtual %}{{ url_for('track_category_open', slug=shop.slug, category_id=category.id, lang=language) }}{% endif %}" hidden>
-        <div class="menu-section-title"><h2>{{ category.nome }}</h2>{% if category.combina_gusti %}<button type="button" class="order-add combine-tastes" data-pizzeria-kind="{{ 'multigusto' if category.pizzeria_kind == 'pizza' else category.pizzeria_kind ~ '_multigusto' }}" data-pizzeria-format="" data-mixed-formats="{{ category.pizzeria_mixed_formats|join('|')|e }}">Combina gusti</button>{% endif %}</div>
+        <div class="menu-section-title"><h2>{{ category.nome }}</h2>{% if category.combina_gusti %}<button type="button" class="order-add combine-tastes" data-category-id="{{ category.id }}" data-pizzeria-kind="{{ 'multigusto' if category.pizzeria_kind == 'pizza' else category.pizzeria_kind ~ '_multigusto' }}" data-pizzeria-format="" data-mixed-formats="{{ category.pizzeria_mixed_formats|join('|')|e }}">Combina gusti</button>{% endif %}</div>
         {% if category.pizzeria_formats %}<nav class="pizzeria-format-nav" aria-label="Formati di {{ category.nome }}">{% for format_name in category.pizzeria_formats %}<button type="button" class="pizzeria-format-button{% if loop.first %} active{% endif %}" data-format-target="{{ format_name|e }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ format_name }}</button>{% endfor %}</nav>{% endif %}
         <div class="products">
           {% set subcategory_state = namespace(current='') %}
@@ -465,7 +465,7 @@
         card.querySelector('.product-actions').appendChild(button);
         orderAddButtons.push(button);
       });
-      {% if shop.modulo_pizzeria_attivo %}document.querySelectorAll('.combine-tastes').forEach(button=>button.addEventListener('click',event=>{event.stopPropagation();if(orderMode==='view')return;pizzaFrame.src={{ url_for('public_pizzeria_configurator',slug=shop.slug)|tojson }}+'?kind='+encodeURIComponent(button.dataset.pizzeriaKind)+'&format='+encodeURIComponent(button.dataset.pizzeriaFormat);pizzaDialog.showModal()}));{% endif %}
+      {% if shop.modulo_pizzeria_attivo %}document.querySelectorAll('.combine-tastes').forEach(button=>button.addEventListener('click',event=>{event.stopPropagation();if(orderMode==='view')return;pizzaFrame.src={{ url_for('public_pizzeria_configurator',slug=shop.slug)|tojson }}+'?kind='+encodeURIComponent(button.dataset.pizzeriaKind)+'&format='+encodeURIComponent(button.dataset.pizzeriaFormat)+'&category='+encodeURIComponent(button.dataset.categoryId||'');pizzaDialog.showModal()}));{% endif %}
       setOrderMode = mode => {
         orderMode=mode;
         orderCart.clear();

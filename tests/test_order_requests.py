@@ -298,11 +298,27 @@ def test_category_can_enable_combine_tastes_for_calzone_gusto_pizza():
     app_source = (root / "app.py").read_text(encoding="utf-8")
     assert 'id="combina_gusti"' in categories
     assert 'combina_gusti:f("combina_gusti").checked' in categories
+    assert 'categorie_gusti:' in categories
+    assert 'prodotti_gusti:' in categories
     assert 'section["pizzeria_combine_enabled"]' in app_source
     assert 'combine_enabled and category["pizzeria_mixed_formats"]' in app_source
     configurator = (root / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
     assert 'p.tipo_pizzeria===derivativeKind' in configurator
     assert "['pizza','calzone','panino'].includes(kind.value)" in configurator
+
+
+def test_formats_page_configures_taste_sources_and_groups_stock_by_dough():
+    root = Path(__file__).resolve().parents[1]
+    formats = (root / "templates" / "sections" / "formati.html").read_text(encoding="utf-8")
+    public_menu = (root / "templates" / "public_menu.html").read_text(encoding="utf-8")
+    configurator = (root / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
+    assert 'class="taste-category"' in formats
+    assert 'class="taste-product"' in formats
+    assert 'stock-format-enabled' in formats
+    assert 'group.dataset.dough' in formats
+    assert 'data-category-id="{{ category.id }}"' in public_menu
+    assert "requestedCategory=params.get('category')" in configurator
+    assert 'cfg.selezioni_gusti||{}' in configurator
 
 
 def test_formats_section_is_shared_with_pizzeria_and_replaces_quick_configuration():

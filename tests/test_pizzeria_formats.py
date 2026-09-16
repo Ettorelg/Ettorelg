@@ -98,7 +98,14 @@ def test_empty_formats_disable_pizzeria_configuration_for_product():
 
 def test_category_owns_ordered_formats_and_product_type():
     assert category_normalizer()({"tipo_pizzeria": "calzone", "formati": ["Normale", "Doppio"], "combina_gusti": True}) == (
-        "calzone", ["Normale", "Doppio"], True)
+        "calzone", ["Normale", "Doppio"], True, [], [])
+
+
+def test_category_can_limit_tastes_to_categories_and_products():
+    assert category_normalizer()({
+        "tipo_pizzeria": "pizza", "formati": ["Singola"], "combina_gusti": True,
+        "categorie_gusti": [8, 8, 12], "prodotti_gusti": [40, 41, 40],
+    }) == ("pizza", ["Singola"], True, [8, 12], [40, 41])
 
 
 @pytest.mark.parametrize("payload", [

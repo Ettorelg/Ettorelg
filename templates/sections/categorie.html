@@ -199,7 +199,7 @@
     ev.preventDefault();
     const payload = {
       nome: f("nome").value.trim(),
-      visibile: f("visibile").value === "true", stampante_ip:f("stampante_ip").value.trim(), tipo_pizzeria:f("tipo_pizzeria").value, formati:categoryFormats(), combina_gusti:f("combina_gusti").checked, visibile_da:f("visibile_da").value, visibile_fino:f("visibile_fino").value, ora_inizio:f("ora_inizio").value, ora_fine:f("ora_fine").value
+      visibile: f("visibile").value === "true", stampante_ip:f("stampante_ip").value.trim(), tipo_pizzeria:f("tipo_pizzeria").value, formati:categoryFormats(), combina_gusti:f("combina_gusti").checked, categorie_gusti:(items.find(item=>String(item.id)===f("id").value)?.categorie_gusti||[]), prodotti_gusti:(items.find(item=>String(item.id)===f("id").value)?.prodotti_gusti||[]), visibile_da:f("visibile_da").value, visibile_fino:f("visibile_fino").value, ora_inizio:f("ora_inizio").value, ora_fine:f("ora_fine").value
     };
     const id = f("id").value ? Number(f("id").value) : null;
 

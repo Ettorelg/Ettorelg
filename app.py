@@ -1170,9 +1170,13 @@ def init_db() -> None:
                         CHECK (tipo IN ('standard','pizza','calzone','panino')),
                     formati JSONB NOT NULL DEFAULT '[]'::jsonb,
                     combina_gusti BOOLEAN NOT NULL DEFAULT FALSE,
+                    categorie_gusti JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    prodotti_gusti JSONB NOT NULL DEFAULT '[]'::jsonb,
                     aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )""")
                 cur.execute("ALTER TABLE pizzeria_categorie_config ADD COLUMN IF NOT EXISTS combina_gusti BOOLEAN NOT NULL DEFAULT FALSE")
+                cur.execute("ALTER TABLE pizzeria_categorie_config ADD COLUMN IF NOT EXISTS categorie_gusti JSONB NOT NULL DEFAULT '[]'::jsonb")
+                cur.execute("ALTER TABLE pizzeria_categorie_config ADD COLUMN IF NOT EXISTS prodotti_gusti JSONB NOT NULL DEFAULT '[]'::jsonb")
                 cur.execute("CREATE INDEX IF NOT EXISTS pizzeria_categorie_config_negozio ON pizzeria_categorie_config(id_negozio)")
                 cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_impasti_prodotti (
                     id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
@@ -5001,11 +5005,14 @@ def api_public_pizzeria_config(slug):
             if not shop[1]:
                 return jsonify({"attivo": False})
             pizzas, fractions, additions, derivatives, doughs, removables = load_pizzeria_order_settings(cur, shop[0])
+            cur.execute("SELECT id_categoria,categorie_gusti,prodotti_gusti FROM pizzeria_categorie_config WHERE id_negozio=%s AND combina_gusti=TRUE", (shop[0],))
+            taste_selections = {str(row[0]): {"categorie": row[1] if isinstance(row[1], list) else [], "prodotti": row[2] if isinstance(row[2], list) else []} for row in cur.fetchall()}
         return jsonify({"attivo": True, "pizze": list(pizzas.values()),
             "frazioni": [{"formato": next((fmt["nome"] for pizza in pizzas.values() for key, fmt in pizza["formati"].items() if key == name), name), "tagli": cuts} for name, cuts in fractions.items()],
             "aggiunte": additions,
             "derivati": [{"id_pizza": key[0], "tipo": key[1], **value} for key, value in derivatives.items()],
             "impasti": list(doughs.values()),
+            "selezioni_gusti": taste_selections,
             "ingredienti": [{"id": product_id, "valori": values} for product_id, values in removables.items()]})
     finally:
         conn.close()
@@ -6057,8 +6064,9 @@ def public_menu(slug: str):
             if shop["modulo_pizzeria_attivo"]:
                 product_lookup = {product["id"]: product for category in categories for product in category["prodotti"]}
                 category_lookup = {category["id"]: category for category in categories}
-                cur.execute("SELECT id_categoria,tipo,formati,combina_gusti FROM pizzeria_categorie_config WHERE id_negozio=%s", (shop["id"],))
-                category_config = {row[0]: {"tipo": row[1], "formati": row[2] if isinstance(row[2], list) else [], "combina_gusti": bool(row[3])} for row in cur.fetchall()}
+                cur.execute("SELECT id_categoria,tipo,formati,combina_gusti,categorie_gusti,prodotti_gusti FROM pizzeria_categorie_config WHERE id_negozio=%s", (shop["id"],))
+                category_config = {row[0]: {"tipo": row[1], "formati": row[2] if isinstance(row[2], list) else [], "combina_gusti": bool(row[3]),
+                    "categorie_gusti": row[4] if isinstance(row[4], list) else [], "prodotti_gusti": row[5] if isinstance(row[5], list) else []} for row in cur.fetchall()}
                 cur.execute("""SELECT f.id_prodotto,p.id_categoria,f.nome,f.prezzo,f.disponibile
                     FROM pizzeria_formati f JOIN prodotti p ON p.id=f.id_prodotto
                     WHERE f.id_negozio=%s AND f.disponibile=TRUE ORDER BY f.posizione,f.nome,p.nome""", (shop["id"],))
@@ -6390,7 +6398,7 @@ def api_categorie_list():
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT c.id,c.nome,pc.tipo,pc.formati,pc.combina_gusti
+                SELECT c.id,c.nome,pc.tipo,pc.formati,pc.combina_gusti,pc.categorie_gusti,pc.prodotti_gusti
                 FROM categorie c LEFT JOIN pizzeria_categorie_config pc ON pc.id_categoria=c.id
                 WHERE c.id_negozio = %s
                 ORDER BY c.ordine ASC,c.nome ASC
@@ -6403,13 +6411,15 @@ def api_categorie_list():
             for category_id, format_name, position in cur.fetchall():
                 legacy_formats.setdefault(category_id, []).append(format_name)
             cats = []
-            for category_id, name, kind, formats, combine_tastes in rows:
+            for category_id, name, kind, formats, combine_tastes, taste_categories, taste_products in rows:
                 available_formats = formats if isinstance(formats, list) else legacy_formats.get(category_id, [])
                 inferred_kind = "calzone" if "calzon" in name.casefold() else "panino" if "panin" in name.casefold() else "pizza"
                 cats.append({"id": category_id, "nome": name,
                              "tipo_pizzeria": kind or (inferred_kind if available_formats else "standard"),
                              "formati": available_formats,
-                             "combina_gusti": bool(combine_tastes)})
+                             "combina_gusti": bool(combine_tastes),
+                             "categorie_gusti": taste_categories if isinstance(taste_categories, list) else [],
+                             "prodotti_gusti": taste_products if isinstance(taste_products, list) else []})
         return jsonify({"items": cats})
     finally:
         conn.close()
@@ -7117,7 +7127,12 @@ def normalize_category_pizzeria_config(data):
     if kind != "standard" and not formats:
         raise ValueError("Aggiungi almeno un formato alla categoria personalizzabile.")
     combine_tastes = bool(data.get("combina_gusti", False)) if kind != "standard" else False
-    return kind, formats, combine_tastes
+    def ids(field, maximum):
+        values = data.get(field, []) if combine_tastes else []
+        if not isinstance(values, list) or len(values) > maximum or any(type(value) is not int or value <= 0 for value in values):
+            raise ValueError("Selezione dei gusti non valida.")
+        return list(dict.fromkeys(values))
+    return kind, formats, combine_tastes, ids("categorie_gusti", 100), ids("prodotti_gusti", 1000)
 
 @app.post("/api/categorie")
 def api_categorie_create():
@@ -7139,7 +7154,7 @@ def api_categorie_create():
     ora_fine = data.get("ora_fine") or None
     try:
         stampante_ip = local_printer_ip(data.get("stampante_ip", ""))
-        category_kind, category_formats, category_combine_tastes = normalize_category_pizzeria_config(data)
+        category_kind, category_formats, category_combine_tastes, taste_categories, taste_products = normalize_category_pizzeria_config(data)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -7180,10 +7195,10 @@ def api_categorie_create():
                     """, (shop_id, nome, ordine_int, visibile, visibile_da, visibile_fino, ora_inizio, ora_fine, stampante_ip))
 
                 new_id = cur.fetchone()[0]
-                cur.execute("""INSERT INTO pizzeria_categorie_config (id_categoria,id_negozio,tipo,formati,combina_gusti)
-                    VALUES (%s,%s,%s,%s::jsonb,%s) ON CONFLICT (id_categoria) DO UPDATE
-                    SET tipo=EXCLUDED.tipo,formati=EXCLUDED.formati,combina_gusti=EXCLUDED.combina_gusti,aggiornato_il=NOW()""",
-                    (new_id, shop_id, category_kind, json.dumps(category_formats), category_combine_tastes))
+                cur.execute("""INSERT INTO pizzeria_categorie_config (id_categoria,id_negozio,tipo,formati,combina_gusti,categorie_gusti,prodotti_gusti)
+                    VALUES (%s,%s,%s,%s::jsonb,%s,%s::jsonb,%s::jsonb) ON CONFLICT (id_categoria) DO UPDATE
+                    SET tipo=EXCLUDED.tipo,formati=EXCLUDED.formati,combina_gusti=EXCLUDED.combina_gusti,categorie_gusti=EXCLUDED.categorie_gusti,prodotti_gusti=EXCLUDED.prodotti_gusti,aggiornato_il=NOW()""",
+                    (new_id, shop_id, category_kind, json.dumps(category_formats), category_combine_tastes, json.dumps(taste_categories), json.dumps(taste_products)))
                 if ordine_int is not None:
                     cur.execute("UPDATE negozi SET ordine_categorie_personalizzato = TRUE WHERE id = %s", (shop_id,))
                 print("DEBUG inserted categoria id:", new_id)
@@ -7214,7 +7229,7 @@ def api_categorie_update(categoria_id: int):
     ora_fine = data.get("ora_fine") or None
     try:
         stampante_ip = local_printer_ip(data.get("stampante_ip", ""))
-        category_kind, category_formats, category_combine_tastes = normalize_category_pizzeria_config(data)
+        category_kind, category_formats, category_combine_tastes, taste_categories, taste_products = normalize_category_pizzeria_config(data)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -7251,10 +7266,10 @@ def api_categorie_update(categoria_id: int):
                     """, (nome, visibile, ordine_int, visibile_da, visibile_fino, ora_inizio, ora_fine, stampante_ip, categoria_id))
                     cur.execute("UPDATE negozi SET ordine_categorie_personalizzato = TRUE WHERE id = %s", (shop_id,))
 
-                cur.execute("""INSERT INTO pizzeria_categorie_config (id_categoria,id_negozio,tipo,formati,combina_gusti)
-                    VALUES (%s,%s,%s,%s::jsonb,%s) ON CONFLICT (id_categoria) DO UPDATE
-                    SET tipo=EXCLUDED.tipo,formati=EXCLUDED.formati,combina_gusti=EXCLUDED.combina_gusti,aggiornato_il=NOW()""",
-                    (categoria_id, shop_id, category_kind, json.dumps(category_formats), category_combine_tastes))
+                cur.execute("""INSERT INTO pizzeria_categorie_config (id_categoria,id_negozio,tipo,formati,combina_gusti,categorie_gusti,prodotti_gusti)
+                    VALUES (%s,%s,%s,%s::jsonb,%s,%s::jsonb,%s::jsonb) ON CONFLICT (id_categoria) DO UPDATE
+                    SET tipo=EXCLUDED.tipo,formati=EXCLUDED.formati,combina_gusti=EXCLUDED.combina_gusti,categorie_gusti=EXCLUDED.categorie_gusti,prodotti_gusti=EXCLUDED.prodotti_gusti,aggiornato_il=NOW()""",
+                    (categoria_id, shop_id, category_kind, json.dumps(category_formats), category_combine_tastes, json.dumps(taste_categories), json.dumps(taste_products)))
 
         return jsonify({"ok": True})
     finally:
@@ -7373,7 +7388,7 @@ def api_categorie_full():
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT c.id,c.nome,c.ordine,c.visibile,c.visibile_da,c.visibile_fino,c.ora_inizio,c.ora_fine,c.stampante_ip,
-                       pc.tipo,pc.formati,pc.combina_gusti
+                       pc.tipo,pc.formati,pc.combina_gusti,pc.categorie_gusti,pc.prodotti_gusti
                 FROM categorie c LEFT JOIN pizzeria_categorie_config pc ON pc.id_categoria=c.id
                 WHERE c.id_negozio = %s
                 ORDER BY c.ordine ASC,c.nome ASC
@@ -7398,6 +7413,8 @@ def api_categorie_full():
                 "tipo_pizzeria": r[9] or (("calzone" if "calzon" in r[1].casefold() else "panino" if "panin" in r[1].casefold() else "pizza") if legacy_formats.get(r[0]) else "standard"),
                 "formati": r[10] if isinstance(r[10], list) else legacy_formats.get(r[0], []),
                 "combina_gusti": bool(r[11]),
+                "categorie_gusti": r[12] if isinstance(r[12], list) else [],
+                "prodotti_gusti": r[13] if isinstance(r[13], list) else [],
             } for r in rows]
         return jsonify({"items": items})
     finally:
