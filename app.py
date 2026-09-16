@@ -3655,6 +3655,7 @@ def dashboard_user_section(section: str):
         "ordini",
         "clienti",
         "pizzeria",
+        "formati",
         "prodotti",
         "varianti",
         "categorie",
@@ -3680,7 +3681,7 @@ def dashboard_user_section(section: str):
         )
 
     shop_required_sections = {
-        "prodotti", "varianti", "categorie", "sottocategorie", "allergeni",
+        "prodotti", "varianti", "categorie", "formati", "sottocategorie", "allergeni",
         "menu_online", "ordini", "clienti", "pizzeria", "qrcode", "anteprima", "lingue", "statistiche",
     }
     if section in shop_required_sections and not get_user_shop_id(session["user_id"]):

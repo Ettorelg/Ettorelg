@@ -305,6 +305,18 @@ def test_category_can_enable_combine_tastes_for_calzone_gusto_pizza():
     assert "['pizza','calzone','panino'].includes(kind.value)" in configurator
 
 
+def test_formats_section_is_shared_with_pizzeria_and_replaces_quick_configuration():
+    root = Path(__file__).resolve().parents[1]
+    dashboard = (root / "templates" / "dashboard_user.html").read_text(encoding="utf-8")
+    formats = (root / "templates" / "sections" / "formati.html").read_text(encoding="utf-8")
+    pizzeria = (root / "templates" / "sections" / "pizzeria.html").read_text(encoding="utf-8")
+    assert 'data-section="formati"' in dashboard
+    assert 'Panette disponibili per formato' in formats
+    assert "fetch('/api/categorie_full'" in formats
+    assert 'id="openFormatsSection"' in pizzeria
+    assert 'Configurazione rapida prodotti' not in pizzeria
+
+
 def test_kilogram_product_uses_weight_and_labels_order_line():
     db = FakeConnection(product_unit="kg")
     with FLASK.test_request_context("/api/menu/esempio/ordini", method="POST", json=payload("1,5")):

@@ -98,6 +98,7 @@
         <button class="nav-item" data-section="prodotti" data-requires-shop="1"><div class="icon">🧾</div><div class="label">Prodotti</div></button>
         <button class="nav-item" data-section="varianti" data-requires-shop="1"><div class="icon">➕</div><div class="label">Varianti</div></button>
         <button class="nav-item" data-section="categorie" data-requires-shop="1"><div class="icon">📁</div><div class="label">Categorie</div></button>
+        <button class="nav-item" data-section="formati" data-requires-shop="1" data-module="pizzeria" {% if not pizzeria_active %}hidden{% endif %}><div class="icon">📐</div><div class="label">Formati</div></button>
         <button class="nav-item" data-section="attivita"><div class="icon">🏪</div><div class="label">Negozio e orari</div></button>
         <button class="nav-item" data-section="menu_online" data-requires-shop="1"><div class="icon">📱</div><div class="label">Menu pubblico</div></button>
         <button class="nav-item" data-section="ordini" data-requires-shop="1" data-module="orders" {% if not orders_active %}hidden{% endif %}><div class="icon">🛎️</div><div class="label">Ordini</div></button>
@@ -191,7 +192,7 @@
       } catch (_) {}
     }
     showExpiryWarning();
-    const shopRequiredSections = new Set(['prodotti', 'varianti', 'categorie', 'sottocategorie', 'allergeni', 'menu_online', 'ordini', 'clienti', 'pizzeria', 'qrcode', 'anteprima', 'lingue', 'statistiche']);
+    const shopRequiredSections = new Set(['prodotti', 'varianti', 'categorie', 'formati', 'sottocategorie', 'allergeni', 'menu_online', 'ordini', 'clienti', 'pizzeria', 'qrcode', 'anteprima', 'lingue', 'statistiche']);
 
     function syncShopLocks(){
       // Tutte le sezioni restano visibili e selezionabili. loadSection guida
