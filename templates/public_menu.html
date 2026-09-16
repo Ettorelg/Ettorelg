@@ -37,9 +37,9 @@
     .hours{max-width:620px;margin:12px auto 0;border-radius:12px;background:#211d19;color:#fff;overflow:hidden}.hours summary{padding:11px 14px;cursor:pointer;font-size:.88rem;font-weight:800;list-style-position:inside}.hours-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px 16px;padding:0 14px 10px}.hours-row{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:.72rem}.hours-row span:last-child{color:#eadbd0;text-align:right}
     footer{text-align:center;padding:22px;color:var(--muted);font-size:.8rem}
     .contact-actions[hidden]{display:none!important}
-    .order-add{margin:0;padding:7px 11px;border:1px solid var(--accent);border-radius:9px;background:color-mix(in srgb,var(--accent) 11%,#fff);color:var(--accent);font:800 .78rem system-ui;cursor:pointer}.order-add:hover,.order-add.selected{background:var(--accent);color:#fff}.product-dialog .order-add{display:none}.combine-tastes{padding:11px 19px;font-size:.96rem;border-width:2px;box-shadow:0 5px 16px color-mix(in srgb,var(--accent) 22%,transparent)}
+    .order-product-controls{display:flex;align-items:center;gap:6px}.order-add,.order-remove{margin:0;padding:7px 11px;border:1px solid var(--accent);border-radius:9px;background:color-mix(in srgb,var(--accent) 11%,#fff);color:var(--accent);font:800 .78rem system-ui;cursor:pointer}.order-add:hover,.order-add.selected{background:var(--accent);color:#fff}.order-remove{min-width:34px;padding-inline:9px;background:#fff;font-size:1.05rem;line-height:1}.order-remove:hover,.order-remove:focus-visible{background:color-mix(in srgb,var(--accent) 16%,#fff);outline:2px solid color-mix(in srgb,var(--accent) 25%,transparent)}.product-dialog .order-add,.product-dialog .order-remove{display:none}.combine-tastes{padding:11px 19px;font-size:.96rem;border-width:2px;box-shadow:0 5px 16px color-mix(in srgb,var(--accent) 22%,transparent)}
     .order-panel{width:min(720px,calc(100vw - 24px));max-height:calc(100dvh - 24px);margin:auto;padding:20px;border:1px solid color-mix(in srgb,var(--accent) 30%,#fff);border-radius:18px;background:#fff;color:var(--text);box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:auto}.order-panel::backdrop{background:rgba(20,15,12,.64);backdrop-filter:blur(4px)}.order-panel:not([open]){display:none}.order-panel-head{display:flex;align-items:start;justify-content:space-between;gap:12px}.order-panel-close{width:38px;height:38px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:1.35rem;cursor:pointer}.order-panel h2{margin:0 0 6px;font:700 1.5rem Georgia,serif}.order-panel h2 span{font:700 .8rem system-ui;color:var(--accent)}.order-panel p{margin:0 0 13px;color:var(--muted);font-size:.85rem;line-height:1.45}.order-lines{display:grid;gap:8px;margin:12px 0}.order-line{display:flex;justify-content:space-between;align-items:center;gap:9px;padding:9px;border:1px solid var(--line);border-radius:10px}.order-line span{font-size:.87rem}.order-line div{display:flex;align-items:center;gap:7px}.order-line button{width:30px;height:30px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--accent);font-weight:800;cursor:pointer}.order-panel form{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:17px}.order-panel label{display:grid;gap:5px;font-size:.82rem;font-weight:750}.order-panel form>label:nth-child(n+3),.order-panel form>button,.order-panel #orderFeedback{grid-column:1/-1}.order-panel input,.order-panel textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;font:inherit}.order-panel form>button{min-height:46px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:800 .94rem system-ui;cursor:pointer}.order-panel form>button:disabled{opacity:.5;cursor:not-allowed}.order-panel #orderFeedback{min-height:20px;font-weight:700}.order-panel .order-privacy{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-weight:500}.order-panel .order-privacy input{width:auto}.order-panel .order-privacy a{color:var(--accent)}
-    .order-panel #orderFeedback.is-error{margin:4px 0 0;padding:14px 16px;border:2px solid #c62828;border-radius:11px;background:#fff0f0;color:#8f1111;font-size:1rem;line-height:1.45;box-shadow:0 5px 18px rgba(198,40,40,.18)}.order-panel #orderFeedback.is-error::before{content:'⚠ ';font-size:1.15em}.order-line input{width:80px;padding:6px;text-align:center}.order-line .order-line-copy{display:block;flex:1;min-width:0}.order-line .order-line-title{display:flex;justify-content:space-between;align-items:start;gap:14px;font-weight:750}.order-line-price{white-space:nowrap;color:var(--accent);font-weight:850}.order-item-details{display:grid!important;align-items:stretch!important;gap:3px!important;margin:7px 0 0;padding:8px 10px;border-left:3px solid var(--accent);font-size:.82rem}.order-item-details b{color:var(--accent)}.order-review-action{width:100%;margin-top:16px}.order-panel form>p{grid-column:1/-1}.order-panel form>label:first-child{grid-column:1/-1}.order-contact-fields,.order-details{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.order-details textarea{height:41px;min-height:41px;resize:vertical}.order-panel[hidden],.order-panel [hidden],.order-add[hidden]{display:none!important}.order-mode-button{min-height:52px;background:#fff;color:var(--accent);border:2px solid var(--accent);box-shadow:none}.order-mode-button:hover{background:color-mix(in srgb,var(--accent) 10%,#fff)}
+    .order-panel #orderFeedback.is-error{margin:4px 0 0;padding:14px 16px;border:2px solid #c62828;border-radius:11px;background:#fff0f0;color:#8f1111;font-size:1rem;line-height:1.45;box-shadow:0 5px 18px rgba(198,40,40,.18)}.order-panel #orderFeedback.is-error::before{content:'⚠ ';font-size:1.15em}.order-line input{width:80px;padding:6px;text-align:center}.order-line .order-line-copy{display:block;flex:1;min-width:0}.order-line .order-line-title{display:flex;justify-content:space-between;align-items:start;gap:14px;font-weight:750}.order-line-price{white-space:nowrap;color:var(--accent);font-weight:850}.order-item-details{display:grid!important;align-items:stretch!important;gap:3px!important;margin:7px 0 0;padding:8px 10px;border-left:3px solid var(--accent);font-size:.82rem}.order-item-details b{color:var(--accent)}.order-review-action{width:100%;margin-top:16px}.order-panel form>p{grid-column:1/-1}.order-panel form>label:first-child{grid-column:1/-1}.order-contact-fields,.order-details{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.order-details textarea{height:41px;min-height:41px;resize:vertical}.order-panel[hidden],.order-panel [hidden],.order-add[hidden],.order-remove[hidden]{display:none!important}.order-mode-button{min-height:52px;background:#fff;color:var(--accent);border:2px solid var(--accent);box-shadow:none}.order-mode-button:hover{background:color-mix(in srgb,var(--accent) 10%,#fff)}
     .order-panel select{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font:inherit}
     .order-google{margin:13px 0 15px;padding:11px;border:1px solid var(--line);border-radius:13px;background:color-mix(in srgb,var(--accent) 4%,#fff);text-align:center}.google-signin{display:flex;align-items:center;justify-content:center;gap:12px;min-height:46px;padding:9px 15px;border:1px solid #d9dfe7;border-radius:10px;background:#fff;color:#21334c;text-decoration:none;font-size:.95rem;font-weight:800;box-shadow:0 3px 10px rgba(18,40,70,.08);transition:transform .15s ease,box-shadow .15s ease}.google-signin:hover,.google-signin:focus-visible{transform:translateY(-2px);box-shadow:0 7px 18px rgba(18,40,70,.16);outline:2px solid color-mix(in srgb,var(--accent) 35%,transparent)}.google-mark{font:900 1.25rem/1 system-ui;background:conic-gradient(#4285f4 0 100deg,#34a853 100deg 190deg,#fbbc05 190deg 270deg,#ea4335 270deg 360deg);background-clip:text;-webkit-background-clip:text;color:transparent}.google-or{display:block;margin-top:7px;color:var(--muted);font-size:.76rem}.google-connected{display:flex;align-items:center;justify-content:center;gap:10px;font-size:.86rem;font-weight:750}.google-connected small{display:block;color:var(--muted);font-weight:500;overflow-wrap:anywhere}#orderTotal{display:block;margin:12px 0 4px;padding:13px 16px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:11px;background:color-mix(in srgb,var(--accent) 8%,#fff);color:var(--accent);font-size:clamp(1.15rem,3vw,1.42rem);font-weight:900;line-height:1.2}
     .order-panel form>.order-google{grid-column:1/-1;margin:0}.order-success{width:min(440px,calc(100vw - 32px));padding:30px 25px;border:1px solid color-mix(in srgb,var(--accent) 30%,#fff);border-radius:20px;background:#fff;color:var(--text);text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.3)}.order-success::backdrop{background:rgba(20,15,12,.7);backdrop-filter:blur(5px)}.order-success:not([open]){display:none}.order-success-icon{display:grid;place-items:center;width:66px;height:66px;margin:0 auto 14px;border-radius:50%;background:#e5f5e9;color:#16813c;font-size:2rem;font-weight:900}.order-success h2{margin:0 0 10px;font-size:1.5rem}.order-success p{margin:0 0 20px;color:var(--muted);line-height:1.5}.order-success button{width:100%;min-height:46px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:800 .95rem system-ui;cursor:pointer}
@@ -53,7 +53,7 @@
     @page{size:A4 portrait;margin:7mm}
     @media print{
       html,body{padding:0!important;background:#fff!important;color:#111!important;font:7.5pt/1.15 Arial,sans-serif!important;-webkit-print-color-adjust:economy;print-color-adjust:economy}
-      .alpha-platform-bar,.alpha-promo-modal,.language-picker,.print-menu-button,.category-nav,.menu-tools,.intro,.hours,.view-actions,.legal-footer,.product-modal,.product-actions,.contact-actions,.order-panel,.order-success,.order-cart-preview,.order-add{display:none!important}
+      .alpha-platform-bar,.alpha-promo-modal,.language-picker,.print-menu-button,.category-nav,.menu-tools,.intro,.hours,.view-actions,.legal-footer,.product-modal,.product-actions,.contact-actions,.order-panel,.order-success,.order-cart-preview,.order-add,.order-remove{display:none!important}
       .hero{min-height:0!important;margin:0 0 2mm;background:none!important;overflow:visible;border:0;border-bottom:2pt solid var(--accent)}
       .hero-inner{display:flex;width:auto;margin:0;padding:0 0 3mm;align-items:center;gap:4mm;color:#111}
       .brand-logo{display:grid!important;width:18mm;height:18mm;flex:0 0 18mm;border:.6pt solid #bbb;border-radius:3mm;background:#fff;box-shadow:none;color:var(--accent);font-size:15pt}
@@ -433,9 +433,12 @@
         orderCartPreview.hidden=!count;
         document.body.classList.toggle('has-active-cart',Boolean(count));
         for(const button of orderAddButtons){
-          const selected=orderCart.get(Number(button.closest('[data-order-id]').dataset.orderId));
+          const productId=Number(button.closest('[data-order-id]').dataset.orderId);
+          const selected=[...orderCart.values()].find(item=>Number(item.id)===productId);
           button.classList.toggle('selected',Boolean(selected));
           button.textContent=selected?menuText('✓ Nell’ordine: ')+selected.quantita.toLocaleString('it-IT')+(selected.unita==='kg'?' kg':'')+menuText(' · Aggiungi'):menuText('+ Aggiungi all’ordine');
+          const removeButton=button.parentElement.querySelector('.order-remove');
+          if(removeButton) removeButton.hidden=orderMode==='view'||!selected;
         }
         orderCartOpen.textContent=orderMode==='tavolo'?menuText('Completa ordine al tavolo'):menuText('Prenota un ordine');
         orderSubmit.disabled = !count || orderMode==='view' || (orderMode==='asporto' && !orderDateAvailable);
@@ -445,6 +448,7 @@
       document.getElementById('orderSuccessClose').addEventListener('click',()=>orderSuccess.close());
       orderPanel.addEventListener('click',event=>{if(event.target===orderPanel)orderPanel.close()});
       const orderAddButtons=[];
+      const orderRemoveButtons=[];
       const configuredPizzas=new Set();
       {% if shop.modulo_pizzeria_attivo %}
       const pizzaDialog=document.getElementById('pizzeriaConfigurator'),pizzaFrame=document.getElementById('pizzeriaConfiguratorFrame');
@@ -472,8 +476,31 @@
           renderOrderCart();
           if(orderMode==='asporto') checkOrderDate();
         });
-        card.querySelector('.product-actions').appendChild(button);
+        const removeButton = document.createElement('button');
+        removeButton.className = 'order-remove';
+        removeButton.type = 'button';
+        removeButton.hidden = true;
+        removeButton.textContent = '−';
+        removeButton.setAttribute('aria-label', menuText('Togli una quantità di ')+card.dataset.orderName);
+        removeButton.addEventListener('click', event => {
+          event.stopPropagation();
+          if(orderMode==='view') return;
+          const id=Number(card.dataset.orderId);
+          const entries=[...orderCart.entries()].filter(([,item])=>Number(item.id)===id);
+          if(!entries.length) return;
+          const [key,current]=entries[entries.length-1];
+          if(current.pizzeria || current.quantita<=1) orderCart.delete(key);
+          else current.quantita=Math.max(0.001,current.quantita-1);
+          orderFeedback.textContent='';
+          renderOrderCart();
+          if(orderMode==='asporto') checkOrderDate();
+        });
+        const controls=document.createElement('div');
+        controls.className='order-product-controls';
+        controls.append(removeButton,button);
+        card.querySelector('.product-actions').appendChild(controls);
         orderAddButtons.push(button);
+        orderRemoveButtons.push(removeButton);
       });
       {% if shop.modulo_pizzeria_attivo %}document.querySelectorAll('.combine-tastes').forEach(button=>button.addEventListener('click',event=>{event.stopPropagation();if(orderMode==='view')return;pizzaFrame.src={{ url_for('public_pizzeria_configurator',slug=shop.slug)|tojson }}+'?kind='+encodeURIComponent(button.dataset.pizzeriaKind)+'&format='+encodeURIComponent(button.dataset.pizzeriaFormat)+'&category='+encodeURIComponent(button.dataset.categoryId||'');pizzaDialog.showModal()}));{% endif %}
       setOrderMode = mode => {
@@ -495,6 +522,7 @@
         orderForm.querySelector('input[name="tavolo"]').required=mode==='tavolo';
         orderPrivacyField.querySelector('input').required=mode==='asporto';
         orderAddButtons.forEach(button=>button.hidden=mode==='view');
+        orderRemoveButtons.forEach(button=>button.hidden=true);
         document.querySelectorAll('[data-category-section]').forEach(section=>{
           const selected=section.querySelector('[data-format-target].active');
           if(selected)activateFormat(section,selected.dataset.formatTarget);
