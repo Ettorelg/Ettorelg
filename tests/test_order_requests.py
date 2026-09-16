@@ -736,3 +736,14 @@ def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_config
     assert "onUpdate:renderManualSlotButtons" in html
     assert "url_for('manual_order_product_configurator')" in html
     assert "card.onclick=event=>" in html
+
+
+def test_manual_order_prominently_shows_current_dough_stock():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert html.index('id="manualDoughStock"') < html.index('<h3>Scegli gli articoli</h3>')
+    assert '🍕 Panette disponibili' in html
+    assert "fetch('/api/pizzeria/preparazione',{cache:'no-store'})" in html
+    assert "quantity<=5?'stock-low':'stock-ok'" in html
+    assert "quantity===0?'esaurite':'disponibili'" in html
+    assert "{pizza:'Pizza',calzone:'Calzone',panino:'Panino'}" in html
+    assert "Promise.all([load(),refreshManualDoughStock()])" in html
