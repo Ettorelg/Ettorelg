@@ -761,3 +761,13 @@ def test_manual_order_prominently_shows_current_dough_stock():
     assert "quantity===0?'esaurite':'disponibili'" in html
     assert "{pizza:'Pizza',calzone:'Calzone',panino:'Panino'}" in html
     assert "Promise.all([load(),refreshManualDoughStock()])" in html
+
+
+def test_manual_dough_stocks_stay_on_one_row_and_support_persistent_long_press_reordering():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert ".manual-dough-stock-items{display:flex;flex-wrap:nowrap" in html
+    assert "function enableDoughStockLongPress(card)" in html
+    assert "timer=setTimeout(()=>{active=true" in html
+    assert "items.insertBefore(card" in html
+    assert "fetch('/api/pizzeria/preparazione',{method:'PUT'" in html
+    assert "Tieni premuto e trascina una panetta per riordinarla" in html
