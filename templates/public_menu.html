@@ -19,7 +19,7 @@
     .hero-inner{width:min(1120px,100%);margin:auto;padding:56px 22px 30px;display:flex;align-items:flex-end;gap:18px;color:#fff}
     .brand-logo{width:92px;height:92px;flex:0 0 auto;border-radius:22px;display:grid;place-items:center;overflow:hidden;background:#fff;box-shadow:0 10px 35px rgba(0,0,0,.28);color:#7d3020;font-size:28px;font-weight:800}
     .brand-logo img{width:100%;height:100%;object-fit:contain}.hero h1{margin:0;font-size:clamp(2rem,6vw,3.8rem);line-height:1}.hero p{margin:10px 0 0;color:#f2e7df;max-width:700px}
-    .opening-status{display:inline-flex;align-items:center;gap:7px;margin-top:11px;padding:6px 11px;border:1px solid rgba(255,255,255,.48);border-radius:999px;background:rgba(13,22,18,.72);color:#fff;font-size:.78rem;font-weight:850;box-shadow:0 4px 14px rgba(0,0,0,.18)}.opening-status::before{content:"";width:9px;height:9px;border-radius:50%;background:#45d483;box-shadow:0 0 0 3px rgba(69,212,131,.18)}.opening-status.closed::before{background:#ff7878;box-shadow:0 0 0 3px rgba(255,120,120,.18)}
+    .opening-status-wrap{display:flex;justify-content:center;max-width:620px;margin:12px auto 7px}.opening-status-wrap[hidden]{display:none}.opening-status{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border:1px solid #82d9a5;border-radius:999px;background:#eaf8ef;color:#176a39;font-size:.8rem;font-weight:850;box-shadow:0 4px 14px rgba(20,90,50,.1)}.opening-status::before{content:"";width:9px;height:9px;border-radius:50%;background:#26ad61;box-shadow:0 0 0 3px rgba(38,173,97,.16)}.opening-status.closed{border-color:#e4a2a2;background:#fff0f0;color:#9a2929}.opening-status.closed::before{background:#df5353;box-shadow:0 0 0 3px rgba(223,83,83,.15)}
     .category-nav{position:sticky;top:38px;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:12px max(18px,calc((100% - 1120px)/2));background:rgba(247,243,237,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);scrollbar-width:none}
     .category-nav a{flex:0 0 auto;padding:10px 15px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--text);text-decoration:none;font-size:.9rem;font-weight:750;transition:.18s ease}.category-nav a.active{background:var(--accent);border-color:var(--accent);color:#fff}.menu-section[hidden]{display:none}
     .menu-tools{position:sticky;top:103px;z-index:4;display:grid;grid-template-columns:minmax(220px,1fr) repeat(2,minmax(150px,220px));gap:9px;width:min(1120px,calc(100% - 24px));margin:12px auto;padding:10px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.94);box-shadow:0 8px 24px rgba(70,48,33,.08);backdrop-filter:blur(10px)}.menu-tools[hidden]{display:none}.menu-tools>input{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--text);font:600 .86rem system-ui}.filter-dropdown{position:relative;min-width:0;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--text);font:600 .86rem system-ui}.filter-dropdown summary{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:39px;padding:9px 12px;cursor:pointer;list-style:none}.filter-dropdown summary::-webkit-details-marker{display:none}.filter-dropdown summary::after{content:"▾";font-size:.72rem}.filter-dropdown[open] summary::after{transform:rotate(180deg)}.filter-count{display:none;min-width:20px;padding:2px 6px;border-radius:999px;background:var(--accent);color:#fff;text-align:center;font-size:.7rem}.filter-count.active{display:inline-block}.filter-options{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:8;display:grid;gap:3px;max-height:260px;overflow:auto;padding:8px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow)}.filter-options label{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:.8rem}.filter-options label:hover{background:var(--bg)}.filter-options input{width:17px;height:17px;margin:0;accent-color:var(--accent)}.filter-hidden{display:none!important}.filter-empty{grid-column:1/-1;padding:24px;text-align:center;color:var(--muted)}
@@ -99,7 +99,7 @@
       <div class="brand-logo">
         {% if shop.logo_url %}<img src="{{ shop.logo_url }}" alt="Logo {{ shop.nome }}">{% else %}{{ shop.nome[:2]|upper }}{% endif %}
       </div>
-      <div><h1>{{ shop.nome }}</h1>{% if opening_status is not none %}<span class="opening-status{% if not opening_status %} closed{% endif %}">{{ ui.open if opening_status else ui.closed }}</span>{% endif %}{% if shop.descrizione_breve %}<p>{{ shop.descrizione_breve }}</p>{% endif %}{% if shop.costo_coperto != '0,00' %}<p class="cover-charge">{{ ui.cover }} € {{ shop.costo_coperto }}</p>{% endif %}</div>
+      <div><h1>{{ shop.nome }}</h1>{% if shop.descrizione_breve %}<p>{{ shop.descrizione_breve }}</p>{% endif %}{% if shop.costo_coperto != '0,00' %}<p class="cover-charge">{{ ui.cover }} € {{ shop.costo_coperto }}</p>{% endif %}</div>
     </div>
   </header>
 
@@ -193,6 +193,7 @@
       </div>
     </div>
 
+    {% if opening_status is not none %}<div class="opening-status-wrap" id="openingStatus"><span class="opening-status{% if not opening_status %} closed{% endif %}">{{ ui.open if opening_status else ui.closed }}</span></div>{% endif %}
     {% if hours %}<details class="hours" id="businessHours"><summary>{{ ui.hours }}</summary><div class="hours-grid">
       {% for day in hours %}<div class="hours-row"><strong>{{ day.nome }}</strong><span>{% if day.aperto %}{{ day.apertura }}–{{ day.chiusura }}{% if day.apertura_2 and day.chiusura_2 %}<br>{{ day.apertura_2 }}–{{ day.chiusura_2 }}{% endif %}{% else %}{{ ui.closed }}{% endif %}</span></div>{% endfor %}
     </div></details>{% endif %}
@@ -214,6 +215,7 @@
     const orderTableStart = document.getElementById('orderTableStart');
     const hideMenu = document.getElementById('hideMenu');
     const companyInfo = document.getElementById('companyInfo');
+    const openingStatus = document.getElementById('openingStatus');
     const businessHours = document.getElementById('businessHours');
     const contactActions = document.getElementById('contactActions');
     const categoryLinks = [...document.querySelectorAll('[data-category-target]')];
@@ -612,6 +614,7 @@
       if (menuTools) menuTools.hidden = false;
       showMenu.parentElement.hidden = true;
       if (companyInfo) companyInfo.hidden = true;
+      if (openingStatus) openingStatus.hidden = true;
       if (businessHours) businessHours.hidden = true;
       if (contactActions) contactActions.hidden = true;
       if (categoryLinks[0]) activateCategory(categoryLinks[0].dataset.categoryTarget);
@@ -629,6 +632,7 @@
       categoryLinks.forEach(link => link.classList.remove('active'));
       showMenu.parentElement.hidden = false;
       if (companyInfo) companyInfo.hidden = false;
+      if (openingStatus) openingStatus.hidden = false;
       if (businessHours) businessHours.hidden = false;
       if (contactActions) contactActions.hidden = false;
       document.querySelector('.intro')?.scrollIntoView({behavior: 'smooth', block: 'start'});
