@@ -285,6 +285,12 @@ def test_category_formats_drive_product_configuration_and_support_direct_calzone
     products = (root / "sections" / "prodotti.html").read_text(encoding="utf-8")
     configurator = (root / "pizzeria_test.html").read_text(encoding="utf-8")
     assert 'id="tipo_pizzeria"' in categories
+    assert '<option value="standard">Standard</option>' in categories
+    assert '<option value="personalizzabile">Personalizzabile</option>' in categories
+    assert "Pizze personalizzabili" not in categories
+    assert "Calzoni personalizzabili" not in categories
+    assert "Panini personalizzabili" not in categories
+    assert "tipo_pizzeria:savedCategoryType()" in categories
     assert 'id="categoryFormats"' in categories
     assert "formati:categoryFormats()" in categories
     assert "function renderCategoryFormats(existing=[])" in products
