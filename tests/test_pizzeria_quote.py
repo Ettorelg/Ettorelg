@@ -168,6 +168,24 @@ def test_calzone_cannot_mix_a_pizza_with_a_calzone_product():
                "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 13, "quota": 1}]}, *local)
 
 
+def test_calzone_can_use_explicitly_selected_pizza_tastes():
+    selections = {3: {"tipo": "calzone", "combina_gusti": True, "categorie": [2], "prodotti": []}}
+    result = quote({"tipo": "calzone_multigusto", "formato": "Gigante", "taglio": 2,
+                    "id_categoria_configurazione": 3,
+                    "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 11, "quota": 1}]},
+                   *settings(), None, selections)
+    assert result["totale"] == "23.00"
+
+
+def test_calzone_rejects_taste_not_selected_by_owner():
+    selections = {3: {"tipo": "calzone", "combina_gusti": True, "categorie": [], "prodotti": [10]}}
+    with pytest.raises(ValueError, match="non appartiene"):
+        quote({"tipo": "calzone_multigusto", "formato": "Gigante", "taglio": 2,
+               "id_categoria_configurazione": 3,
+               "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 11, "quota": 1}]},
+              *settings(), None, selections)
+
+
 def test_multitaste_shares_must_always_make_one_whole_item():
     with pytest.raises(ValueError):
         quote({"tipo": "panino_multigusto", "formato": "Gigante", "taglio": 2,

@@ -4852,7 +4852,7 @@ def calculate_pizzeria_multigusto_price(format_name, denominator, tastes):
     return (total / denominator).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, doughs, removables=None):
+def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, doughs, removables=None, taste_selections=None):
     """Owner-only dry run. All amounts come from persisted shop settings, never the request."""
     valid_kinds = ("pizza", "multigusto", "calzone", "panino", "calzone_multigusto", "panino_multigusto",
                    "calzone_prodotto", "panino_prodotto")
@@ -4860,7 +4860,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
         raise ValueError("Scegli un tipo di pizza valido.")
     kind = payload["tipo"]
     mixed = kind in ("multigusto", "calzone_multigusto", "panino_multigusto")
-    derivative_kind = kind.removesuffix("_multigusto") if kind.endswith("_multigusto") else kind
+    derivative_kind = "pizza" if kind == "multigusto" else (kind.removesuffix("_multigusto") if kind.endswith("_multigusto") else kind)
     quantity = payload.get("quantita", 1)
     if type(quantity) is not int or not 1 <= quantity <= 100:
         raise ValueError("Quantità non valida.")
@@ -4868,6 +4868,25 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
     if not isinstance(format_name, str) or not format_name.strip():
         raise ValueError("Scegli un formato valido.")
     removables = removables or {}
+    taste_selections = taste_selections or {}
+
+    selected_taste_config = None
+    configured_category_id = payload.get("id_categoria_configurazione")
+    if mixed and configured_category_id is not None:
+        if type(configured_category_id) is not int:
+            raise ValueError("Categoria di configurazione non valida.")
+        selected_taste_config = taste_selections.get(configured_category_id)
+        if (not selected_taste_config or not selected_taste_config.get("combina_gusti")
+                or selected_taste_config.get("tipo") != derivative_kind):
+            raise ValueError("La combinazione di gusti non è abilitata per questa categoria.")
+
+    def taste_is_allowed(pizza):
+        if selected_taste_config:
+            category_ids = selected_taste_config.get("categorie") or []
+            product_ids = selected_taste_config.get("prodotti") or []
+            if category_ids or product_ids:
+                return pizza["id_categoria"] in category_ids or pizza["id"] in product_ids
+        return derivative_kind == "pizza" or pizza.get("tipo_pizzeria") == derivative_kind
 
     def pizza_and_format(product_id):
         if type(product_id) is not int or product_id not in pizzas:
@@ -4920,7 +4939,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
             selected_formats.append(selected_format)
             removed.append(removed_ingredients(taste.get("senza", []), pizza))
             taste_price = selected_format["prezzo"]
-            if derivative_kind in ("calzone", "panino") and pizza.get("tipo_pizzeria") != derivative_kind:
+            if not taste_is_allowed(pizza):
                 raise ValueError("Questo gusto non appartiene alla categoria scelta.")
             priced_tastes.append({"formato": format_name, "quota": taste.get("quota"),
                                   "prezzo_gusto": taste_price,
@@ -4982,7 +5001,15 @@ def load_pizzeria_order_settings(cur, shop_id):
     row = cur.fetchone()
     dough_list = row[0] if row else [{"nome": "Classico", "supplemento": "0.00", "disponibile": True}]
     doughs = {item["nome"].casefold(): item for item in dough_list}
-    return pizzas, fractions, additions, derivatives, doughs, removables
+    cur.execute("""SELECT id_categoria,tipo,combina_gusti,categorie_gusti,prodotti_gusti
+        FROM pizzeria_categorie_config WHERE id_negozio=%s""", (shop_id,))
+    taste_selections = {
+        row[0]: {"tipo": row[1], "combina_gusti": bool(row[2]),
+                 "categorie": row[3] if isinstance(row[3], list) else [],
+                 "prodotti": row[4] if isinstance(row[4], list) else []}
+        for row in cur.fetchall()
+    }
+    return pizzas, fractions, additions, derivatives, doughs, removables, taste_selections
 
 
 @app.post("/api/pizzeria/preventivo")
@@ -4995,9 +5022,9 @@ def api_pizzeria_preventivo():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            pizzas, fractions, additions, derivatives, doughs, removables = load_pizzeria_order_settings(cur, shop_id)
+            pizzas, fractions, additions, derivatives, doughs, removables, taste_selections = load_pizzeria_order_settings(cur, shop_id)
         try:
-            result = quote_pizzeria_draft(request.get_json(silent=True), pizzas, fractions, additions, derivatives, doughs, removables)
+            result = quote_pizzeria_draft(request.get_json(silent=True), pizzas, fractions, additions, derivatives, doughs, removables, taste_selections)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify(result)
@@ -5038,9 +5065,9 @@ def api_public_pizzeria_config(slug):
                 return jsonify({"error": "Locale non trovato."}), 404
             if not shop[1]:
                 return jsonify({"attivo": False})
-            pizzas, fractions, additions, derivatives, doughs, removables = load_pizzeria_order_settings(cur, shop[0])
-            cur.execute("SELECT id_categoria,categorie_gusti,prodotti_gusti FROM pizzeria_categorie_config WHERE id_negozio=%s AND combina_gusti=TRUE", (shop[0],))
-            taste_selections = {str(row[0]): {"categorie": row[1] if isinstance(row[1], list) else [], "prodotti": row[2] if isinstance(row[2], list) else []} for row in cur.fetchall()}
+            pizzas, fractions, additions, derivatives, doughs, removables, taste_configs = load_pizzeria_order_settings(cur, shop[0])
+            taste_selections = {str(category_id): {"categorie": config["categorie"], "prodotti": config["prodotti"]}
+                                for category_id, config in taste_configs.items() if config["combina_gusti"]}
         return jsonify({"attivo": True, "pizze": list(pizzas.values()),
             "frazioni": [{"formato": next((fmt["nome"] for pizza in pizzas.values() for key, fmt in pizza["formati"].items() if key == name), name), "tagli": cuts} for name, cuts in fractions.items()],
             "aggiunte": additions,

@@ -53,7 +53,7 @@
     };
     const chosenFormat=()=>format.value;
     const availableProducts=()=>products.filter(p=>p.formati.some(f=>f.nome===chosenFormat()&&f.disponibile));
-    const compatibleTastes=(categoryKind)=>{const selection=tasteSelections[String(requestedCategory)]||{},categoryIds=selection.categorie||[],productIds=selection.prodotti||[],limited=categoryIds.length||productIds.length;return availableProducts().filter(p=>(!limited||categoryIds.includes(p.id_categoria)||productIds.includes(p.id))&&(p.tipo_pizzeria||'pizza')===categoryKind)};
+    const compatibleTastes=(categoryKind)=>{const selection=tasteSelections[String(requestedCategory)]||{},categoryIds=selection.categorie||[],productIds=selection.prodotti||[],limited=categoryIds.length||productIds.length;return availableProducts().filter(p=>limited?(categoryIds.includes(p.id_categoria)||productIds.includes(p.id)):(p.tipo_pizzeria||'pizza')===categoryKind)};
     function syncDoughs(){const selectedIds=[...tastes.querySelectorAll('.taste-product')].map(input=>Number(input.value)).filter(Boolean),selected=products.filter(product=>selectedIds.includes(product.id)),allowedSets=selected.map(product=>new Set((product.formati.find(f=>f.nome===chosenFormat())?.impasti||['Classico']).map(name=>name.toLowerCase()))),allowed=allowedSets.length?[...allowedSets[0]].filter(name=>allowedSets.every(set=>set.has(name))):['classico'],available=doughs.filter(item=>item.disponibile&&allowed.includes(item.nome.toLowerCase()));const old=dough.value;fill(dough,available.map(item=>({label:item.nome+(Number(item.supplemento)?' · +€ '+item.supplemento:''),value:item.nome})),'Scegli impasto');dough.value=[...dough.options].some(option=>option.value===old)?old:(dough.options[1]?.value||'');el('doughWrap').hidden=available.length<=1}
     function render(){
       const currentFormat=format.value,mixed=kind.value.endsWith('multigusto'),derivativeKind=kind.value==='multigusto'?'pizza':kind.value.replace('_multigusto',''),derived=derivativeKind==='calzone'||derivativeKind==='panino';
@@ -99,6 +99,7 @@
       const rows=[...tastes.children],parts=rows.map(row=>({id_pizza:Number(row.querySelector('.taste-product').value),quota:Number(row.querySelector('.taste-share')?.value),aggiunte:[...row.querySelectorAll('.taste-additions input:checked')].map(input=>Number(input.value)),senza:[...row.querySelectorAll('.taste-removals input:checked')].map(input=>Number(input.value))}));
       if(parts.some(p=>!p.id_pizza)){message('Scegli tutti i prodotti richiesti.',true);return}
       const payload={tipo:kind.value,formato:chosenFormat(),quantita:Number(el('quantity').value),impasto:dough.value||'Classico'};
+      if(publicSlug&&requestedCategory&&kind.value.endsWith('multigusto'))payload.id_categoria_configurazione=Number(requestedCategory);
       if(kind.value.endsWith('multigusto')){
         payload.taglio=Number(cut.value);payload.gusti=parts;
         if(parts.reduce((sum,p)=>sum+p.quota,0)!==payload.taglio){message('Le quote devono comporre una pizza intera.',true);return}
