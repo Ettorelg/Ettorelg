@@ -763,6 +763,8 @@ def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_config
     assert "url_for('manual_order_product_configurator')" in html
     configurator = (Path(__file__).resolve().parents[1] / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
     assert ".embedded .taste .ingredients-summary{display:none}" in configurator
+    assert "'public' if public_slug and not order_embed else ''" in configurator
+    assert ".embedded{background:#0d1627;color:#f2f6ff}" in configurator
     assert "card.onclick=event=>" in html
 
 
