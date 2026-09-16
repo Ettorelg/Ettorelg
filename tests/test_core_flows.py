@@ -62,6 +62,17 @@ class LicenseAndTrialTests(unittest.TestCase):
         self.assertTrue(is_open(schedule, datetime(2026, 9, 19, 1, 30, tzinfo=zone)))
         self.assertFalse(is_open(schedule, datetime(2026, 9, 19, 2, 0, tzinfo=zone)))
 
+    def test_public_menu_category_navigation_keeps_search_controls_visible(self):
+        root = Path(__file__).resolve().parents[1]
+        public_menu = (root / "templates" / "public_menu.html").read_text(encoding="utf-8")
+        self.assertIn("function scrollToMenuStart()", public_menu)
+        self.assertIn("const target = menuTools || document.getElementById(activeCategoryId)", public_menu)
+        self.assertIn("- platformHeight - categoryHeight", public_menu)
+        activate_start = public_menu.index("function activateCategory")
+        activate_category = public_menu[activate_start:public_menu.index("categoryLinks.forEach(link => link.addEventListener", activate_start)]
+        self.assertIn("scrollToMenuStart();", activate_category)
+        self.assertNotIn("scrollIntoView", activate_category)
+
     def test_license_requires_active_status_and_non_expired_date(self):
         active = load_function("license_is_active", {"date": date, "datetime": datetime})
         self.assertTrue(active("attiva", date.today()))

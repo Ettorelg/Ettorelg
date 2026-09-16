@@ -592,6 +592,17 @@
 
 
 
+    function scrollToMenuStart(){
+      const target = menuTools || document.getElementById(activeCategoryId);
+      if (!target) return;
+      requestAnimationFrame(() => {
+        const platformHeight = document.querySelector('.alpha-platform-bar')?.getBoundingClientRect().height || 0;
+        const categoryHeight = categoryNav && !categoryNav.hidden ? categoryNav.getBoundingClientRect().height : 0;
+        const top = window.scrollY + target.getBoundingClientRect().top - platformHeight - categoryHeight - 6;
+        window.scrollTo({top: Math.max(0, top), behavior: 'smooth'});
+      });
+    }
+
     function activateCategory(targetId){
       activeCategoryId = targetId;
       const activeSection = document.getElementById(targetId);
@@ -606,7 +617,7 @@
       categoryLinks.forEach(link => link.classList.toggle('active', link.dataset.categoryTarget === targetId));
       const selectedFormat = activeSection?.querySelector('[data-format-target].active') || activeSection?.querySelector('[data-format-target]');
       if (selectedFormat) activateFormat(activeSection, selectedFormat.dataset.formatTarget);
-      document.getElementById(targetId)?.scrollIntoView({behavior: 'smooth', block: 'start'});
+      scrollToMenuStart();
     }
 
     categoryLinks.forEach(link => link.addEventListener('click', event => {
