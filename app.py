@@ -4874,7 +4874,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
             pizza, selected_format = pizza_and_format(taste.get("id_pizza"))
             removed.append(removed_ingredients(taste.get("senza", []), pizza))
             taste_price = selected_format["prezzo"]
-            if derivative_kind in ("calzone", "panino"):
+            if derivative_kind in ("calzone", "panino") and pizza.get("tipo_pizzeria") != derivative_kind:
                 derivative = derivatives.get((pizza["id"], derivative_kind, format_name.casefold()))
                 if not derivative or not derivative["disponibile"]:
                     raise ValueError("Questo gusto non è disponibile per la preparazione scelta.")
@@ -4886,7 +4886,7 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
     else:
         pizza, selected_format = pizza_and_format(payload.get("id_pizza"))
         removed.append(removed_ingredients(payload.get("senza", []), pizza))
-        if derivative_kind in ("calzone", "panino"):
+        if derivative_kind in ("calzone", "panino") and pizza.get("tipo_pizzeria") != derivative_kind:
             derivative = derivatives.get((pizza["id"], derivative_kind, format_name.casefold()))
             if not derivative or not derivative["disponibile"]:
                 raise ValueError("Calzone o panino non configurato.")
@@ -4911,12 +4911,17 @@ def quote_pizzeria_draft(payload, pizzas, fractions, additions, derivatives, dou
 
 
 def load_pizzeria_order_settings(cur, shop_id):
-    cur.execute("""SELECT p.id,p.id_categoria,p.nome,f.nome,f.prezzo,f.disponibile,p.descrizione
+    cur.execute("""SELECT p.id,p.id_categoria,p.nome,f.nome,f.prezzo,f.disponibile,p.descrizione,
+                           COALESCE(pc.tipo,CASE WHEN LOWER(c.nome) LIKE '%%calzon%%' THEN 'calzone'
+                                                WHEN LOWER(c.nome) LIKE '%%panin%%' THEN 'panino' ELSE 'pizza' END)
         FROM pizzeria_formati f JOIN prodotti p ON p.id=f.id_prodotto AND p.id_negozio=f.id_negozio
+        JOIN categorie c ON c.id=p.id_categoria
+        LEFT JOIN pizzeria_categorie_config pc ON pc.id_categoria=p.id_categoria
         WHERE f.id_negozio=%s AND p.disponibile=TRUE""", (shop_id,))
     pizzas, removables = {}, {}
-    for product_id, category_id, name, fmt, price, available, description in cur.fetchall():
-        pizza = pizzas.setdefault(product_id, {"id": product_id, "id_categoria": category_id, "nome": name, "formati": {}})
+    for product_id, category_id, name, fmt, price, available, description, category_kind in cur.fetchall():
+        pizza = pizzas.setdefault(product_id, {"id": product_id, "id_categoria": category_id, "nome": name,
+                                               "tipo_pizzeria": category_kind, "formati": {}})
         pizza["formati"][fmt.casefold()] = {"nome": fmt, "prezzo": str(price), "disponibile": bool(available), "impasti": ["Classico"]}
         removables[product_id] = derive_pizzeria_removable_ingredients(description)
     cur.execute("SELECT id_prodotto,formato,impasto FROM pizzeria_impasti_prodotti WHERE id_negozio=%s", (shop_id,))

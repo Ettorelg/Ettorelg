@@ -27,7 +27,7 @@ class Cursor:
     def __exit__(self, *_): return False
     def execute(self, query, params): self.query = query; self.statements.append((query, params))
     def fetchall(self):
-        if "FROM pizzeria_formati" in self.query: return [(10, 2, "Margherita", "Singola", Decimal("8.00"), True, "farina, pomodoro, mozzarella")]
+        if "FROM pizzeria_formati" in self.query: return [(10, 2, "Margherita", "Singola", Decimal("8.00"), True, "farina, pomodoro, mozzarella", "pizza")]
         if "FROM pizzeria_derivati" in self.query: return []
         return []
     def fetchone(self):
@@ -147,6 +147,15 @@ def test_calzone_and_panino_can_mix_tastes_but_remain_one_whole_item():
                     "quantita": 1}, *local)
     assert result["quantita"] == 1
     assert result["totale"] == "24.00"
+
+
+def test_calzone_can_mix_a_pizza_taste_with_a_direct_calzone_taste():
+    local = settings()
+    local[0][13] = {"id": 13, "id_categoria": 4, "tipo_pizzeria": "calzone",
+                    "formati": {"gigante": {"prezzo": "18.00", "disponibile": True}}}
+    result = quote({"tipo": "calzone_multigusto", "formato": "Gigante", "taglio": 2,
+                    "gusti": [{"id_pizza": 10, "quota": 1}, {"id_pizza": 13, "quota": 1}]}, *local)
+    assert result["totale"] == "19.00"
 
 
 def test_multitaste_shares_must_always_make_one_whole_item():

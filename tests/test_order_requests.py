@@ -300,6 +300,9 @@ def test_category_can_enable_combine_tastes_for_calzone_gusto_pizza():
     assert 'combina_gusti:f("combina_gusti").checked' in categories
     assert 'section["pizzeria_combine_enabled"]' in app_source
     assert 'combine_enabled and category["pizzeria_mixed_formats"]' in app_source
+    configurator = (root / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
+    assert 'p.tipo_pizzeria===derivativeKind' in configurator
+    assert "['pizza','calzone','panino'].includes(kind.value)" in configurator
 
 
 def test_kilogram_product_uses_weight_and_labels_order_line():
