@@ -685,6 +685,9 @@ def test_fulfillment_orders_are_compact_and_expandable():
     assert "'order-summary-count'" in html
     assert "'order-summary-status'" in html
     assert ".order-card[open]>.order-summary::after" in html
+    assert "grid-template-areas:'title title title toggle' 'meta count status toggle'" in html
+    cards_css = (Path(__file__).resolve().parents[1] / "static" / "fulfillment-cards.css").read_text(encoding="utf-8")
+    assert "minmax(min(100%, 365px), 1fr)" in cards_css
     assert "const body=node(card,'div',undefined,'order-card-body')" in html
     assert "expandedOrderIds.has(String(order.id))" in html
 

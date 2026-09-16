@@ -44,7 +44,7 @@
 #groups .prep-breakdown span { font-size: .85rem; }
 #groups .prep-breakdown b { font-size: .9rem; }
 #groups .order-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 365px), 1fr));
   gap: 9px;
   padding: 12px;
 }
