@@ -57,7 +57,7 @@
     const compatibleTastes=(derivativeKind)=>{const selection=tasteSelections[String(requestedCategory)]||{},categoryIds=selection.categorie||[],productIds=selection.prodotti||[],limited=categoryIds.length||productIds.length;return availableProducts().filter(p=>(!limited||categoryIds.includes(p.id_categoria)||productIds.includes(p.id))&&(p.tipo_pizzeria===derivativeKind||((p.tipo_pizzeria||'pizza')==='pizza'&&validDerivatives().some(d=>d.id_pizza===p.id))))};
     function syncDoughs(){const selectedIds=[...tastes.querySelectorAll('.taste-product')].map(input=>Number(input.value)).filter(Boolean),selected=products.filter(product=>selectedIds.includes(product.id)),allowedSets=selected.map(product=>new Set((product.formati.find(f=>f.nome===chosenFormat())?.impasti||['Classico']).map(name=>name.toLowerCase()))),allowed=allowedSets.length?[...allowedSets[0]].filter(name=>allowedSets.every(set=>set.has(name))):['classico'],available=doughs.filter(item=>item.disponibile&&allowed.includes(item.nome.toLowerCase()));const old=dough.value;fill(dough,available.map(item=>({label:item.nome+(Number(item.supplemento)?' · +€ '+item.supplemento:''),value:item.nome})),'Scegli impasto');dough.value=[...dough.options].some(option=>option.value===old)?old:(dough.options[1]?.value||'');el('doughWrap').hidden=available.length<=1}
     function render(){
-      const currentFormat=format.value,mixed=kind.value.endsWith('multigusto'),derivativeKind=kind.value.replace('_multigusto',''),derived=derivativeKind==='calzone'||derivativeKind==='panino';
+      const currentFormat=format.value,mixed=kind.value.endsWith('multigusto'),derivativeKind=kind.value==='multigusto'?'pizza':kind.value.replace('_multigusto',''),derived=derivativeKind==='calzone'||derivativeKind==='panino';
       let formats=[...new Set(products.flatMap(p=>p.formati.filter(f=>f.disponibile).map(f=>f.nome)))];
       if(derived)formats=formats.filter(name=>derivatives.some(d=>d.tipo===derivativeKind&&d.formato===name&&d.disponibile)||products.some(p=>p.tipo_pizzeria===derivativeKind&&p.formati.some(f=>f.nome===name&&f.disponibile)));
       if(mixed)formats=formats.filter(name=>fractions.some(f=>f.formato===name&&f.tagli.length));if(publicSlug&&requestedFormat)formats=formats.filter(name=>name===requestedFormat);
@@ -76,7 +76,7 @@
       if(!formats.length)message('Nessun formato disponibile per questa preparazione. Configuralo nella dashboard.',true);else if(publicSlug){el('pageIntro').hidden=mixed;message('Il totale si aggiorna automaticamente.');scheduleQuote()}else message('Scegli i gusti e calcola il totale.');
     }
     function addTaste(index,total,denominator,derived,mixed){
-      const derivativeKind=kind.value.replace('_multigusto','');
+      const derivativeKind=kind.value==='multigusto'?'pizza':kind.value.replace('_multigusto','');
       const box=document.createElement('section');box.className='card taste';
       const title=document.createElement('h3'),partTitle=mixed?'Gusto '+(index+1)+' · 1/'+denominator:(kind.value==='pizza'?'Gusto pizza':derived?'Gusto intero':'Prodotto');title.textContent=partTitle;box.append(title);
       const productLabel=document.createElement('label');productLabel.textContent=derived?'Scegli il gusto':'Prodotto';

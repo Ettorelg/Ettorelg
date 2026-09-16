@@ -325,6 +325,7 @@ def test_formats_page_configures_taste_sources_and_groups_stock_by_dough():
     assert "requestedCategory=params.get('category')" in configurator
     assert 'cfg.selezioni_gusti||{}' in configurator
     assert '(mixed||derived)?compatibleTastes' in configurator
+    assert "kind.value==='multigusto'?'pizza'" in configurator
 
 
 def test_formats_section_is_shared_with_pizzeria_and_replaces_quick_configuration():
