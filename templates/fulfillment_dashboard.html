@@ -293,6 +293,7 @@
         const remove=node(actions,'button','Rimuovi','cart-remove');remove.type='button';remove.onclick=()=>{manualCart.splice(index,1);renderManualCart();manualAvailability.schedule()};
       });
       document.getElementById('manualCartTotal').textContent=euro(manualCart.reduce((sum,item)=>sum+item.prezzo*Number(item.quantita),0));
+      renderManualDoughStock();
     }
     function openPizzeria({kind,format,product='',category=''}){
       const panel=document.getElementById('manualPizzeriaPanel'),frame=document.getElementById('manualPizzeriaFrame');if(!panel||!frame)return;
@@ -338,6 +339,7 @@
     function renderManualDoughStock(){
       const box=document.getElementById('manualDoughStock'),items=document.getElementById('manualDoughStockItems'),note=document.getElementById('manualDoughStockNote');
       if(!box||!items||!note)return;
+      const previousScroll=items.scrollLeft;
       items.replaceChildren();
       const stocks=[...(manualPreparation.panette||[])];
       const formatLabel=format=>{const types=(manualPizzeria.categorie_config||[]).filter(config=>(config.formati||[]).some(name=>String(name).toLocaleLowerCase('it')===String(format).toLocaleLowerCase('it'))).map(config=>({pizza:'Pizza',calzone:'Calzone',panino:'Panino'}[config.tipo]||'Prodotto')+' '+format);return [...new Set(types)].join(' · ')||format};
@@ -353,11 +355,14 @@
         card.dataset.stockIndex=String(stockIndex);card.tabIndex=0;card.setAttribute('aria-label',(stock.impasto||'Impasto')+' '+(stock.nome||'Panetta')+'. Tieni premuto e trascina per spostare.');enableDoughStockLongPress(card);
         node(copy,'strong',(stock.impasto||'Impasto')+' · '+(stock.nome||'Panetta'));
         node(copy,'small','Per: '+((stock.formati||[]).map(formatLabel).join(' · ')||'formati associati'));
-        const unlimited=Boolean(stock.illimitate),quantity=Math.max(0,Number(stock.quantita||0));
-        const state=unlimited?'stock-unlimited':quantity===0?'stock-zero':quantity<=5?'stock-low':'stock-ok';
-        const count=node(card,'span',undefined,'manual-dough-stock-count '+state);node(count,'b',unlimited?'∞':String(quantity));node(count,'span',unlimited?'illimitate':quantity===0?'esaurite':'disponibili');
+        const stockFormats=new Set((stock.formati||[]).map(value=>String(value).trim().toLocaleLowerCase('it'))),stockDough=String(stock.impasto||'Classico').trim().toLocaleLowerCase('it');
+        const reserved=manualCart.reduce((sum,item)=>{const config=item.pizzeria;if(!config||String(config.impasto||'Classico').trim().toLocaleLowerCase('it')!==stockDough||!stockFormats.has(String(config.formato||'Singola').trim().toLocaleLowerCase('it')))return sum;return sum+Number(item.quantita||0)},0);
+        const unlimited=Boolean(stock.illimitate),quantity=Math.max(0,Number(stock.quantita||0)),remaining=quantity-reserved,shown=Math.max(0,remaining);
+        const state=unlimited?'stock-unlimited':remaining<=0?'stock-zero':remaining<=5?'stock-low':'stock-ok';
+        const count=node(card,'span',undefined,'manual-dough-stock-count '+state);count.title=reserved?'Disponibili ora: '+quantity+' · usate nell\'ordine: '+reserved:'';node(count,'b',unlimited?'∞':String(shown));node(count,'span',unlimited?'illimitate':remaining<0?'mancano '+Math.abs(remaining):remaining===0?'esaurite':reserved?'residue':'disponibili');
       }
-      note.textContent='Tieni premuto e trascina una panetta per riordinarla. I formati non elencati sono illimitati.';
+      note.textContent=(manualCart.some(item=>item.pizzeria)?'Quantità residue previste dopo gli articoli selezionati. ':'')+'Tieni premuto e trascina una panetta per riordinarla. I formati non elencati sono illimitati.';
+      items.scrollLeft=previousScroll;
     }
     async function refreshManualDoughStock(){
       const box=document.getElementById('manualDoughStock');if(!box)return;

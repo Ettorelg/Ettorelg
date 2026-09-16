@@ -757,8 +757,8 @@ def test_manual_order_prominently_shows_current_dough_stock():
     assert html.index('id="manualDoughStock"') < html.index('<h3>Scegli gli articoli</h3>')
     assert '🍕 Panette disponibili' in html
     assert "fetch('/api/pizzeria/preparazione',{cache:'no-store'})" in html
-    assert "quantity<=5?'stock-low':'stock-ok'" in html
-    assert "quantity===0?'esaurite':'disponibili'" in html
+    assert "remaining<=5?'stock-low':'stock-ok'" in html
+    assert "remaining===0?'esaurite'" in html
     assert "{pizza:'Pizza',calzone:'Calzone',panino:'Panino'}" in html
     assert "Promise.all([load(),refreshManualDoughStock()])" in html
 
@@ -771,3 +771,13 @@ def test_manual_dough_stocks_stay_on_one_row_and_support_persistent_long_press_r
     assert "items.insertBefore(card" in html
     assert "fetch('/api/pizzeria/preparazione',{method:'PUT'" in html
     assert "Tieni premuto e trascina una panetta per riordinarla" in html
+
+
+def test_manual_dough_stock_updates_from_selected_cart_items_before_submission():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert "document.getElementById('manualCartTotal').textContent" in html
+    assert "renderManualDoughStock();" in html
+    assert "const reserved=manualCart.reduce" in html
+    assert "quantity-reserved" in html
+    assert "reserved?'residue':'disponibili'" in html
+    assert "Quantità residue previste dopo gli articoli selezionati" in html
