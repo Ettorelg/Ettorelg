@@ -3623,7 +3623,8 @@ def pizzeria_test_page():
         abort(403)
     if not get_user_shop_id(session["user_id"]):
         return redirect(url_for("dashboard_user") + "#attivita")
-    return render_template("pizzeria_test.html", username=session.get("username", "utente"), public_slug=None)
+    return render_template("pizzeria_test.html", username=session.get("username", "utente"), public_slug=None,
+                           order_embed=False)
 
 
 @app.get("/menu/<slug>/configura-pizzeria")
@@ -3636,7 +3637,28 @@ def public_pizzeria_configurator(slug):
                 abort(404)
     finally:
         conn.close()
-    return render_template("pizzeria_test.html", username="Cliente", public_slug=slug)
+    return render_template("pizzeria_test.html", username="Cliente", public_slug=slug, order_embed=False)
+
+
+@app.get("/ordini/configura-prodotto")
+def manual_order_product_configurator():
+    """Private compact configurator embedded in the owner's manual-order dialog."""
+    if "user_id" not in session or session.get("is_admin") or session.get("employee_id"):
+        abort(403)
+    shop_id = get_user_shop_id(session["user_id"])
+    if not shop_id:
+        abort(404)
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT slug FROM negozi WHERE id=%s AND modulo_pizzeria_attivo=TRUE", (shop_id,))
+            row = cur.fetchone()
+    finally:
+        conn.close()
+    if not row or not row[0]:
+        abort(404)
+    return render_template("pizzeria_test.html", username=session.get("username", "utente"),
+                           public_slug=row[0], order_embed=True)
 
 
 @app.get("/ordini/evasione")

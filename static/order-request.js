@@ -19,7 +19,7 @@ window.AlphaOrders = (() => {
     }
     return response;
   }
-  function availability({form, date, slot, field, message, quantities}) {
+  function availability({form, date, slot, field, message, quantities, onUpdate}) {
     let version = 0, ready = false, timer;
     const submit = form.querySelector('[type="submit"]');
     async function refresh() {
@@ -43,6 +43,7 @@ window.AlphaOrders = (() => {
           slot.add(new Option(start + '–' + end, start));
         }
         if ((data.fasce || []).includes(selected)) slot.value = selected;
+        if (typeof onUpdate === 'function') onUpdate(data);
         ready = !!data.disponibile;
         message.textContent = ready ? '' : 'Nessuna disponibilità per questa data e quantità. Scegli un’altra data.';
         submit.disabled = !ready;

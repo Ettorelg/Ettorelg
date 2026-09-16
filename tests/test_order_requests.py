@@ -726,3 +726,13 @@ def test_add_order_opens_a_dialog_without_inline_manual_panel():
     assert 'manualPanel.showModal()' in html
     assert 'manualPanel.close()' in html
     assert 'Nuovo ordine manuale' not in html
+
+
+def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_configurator():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert 'id="manualCustomerSummary" hidden' in html
+    assert "manualCustomer.classList.add('compact')" in html
+    assert 'id="manualSlotButtons"' in html
+    assert "onUpdate:renderManualSlotButtons" in html
+    assert "url_for('manual_order_product_configurator')" in html
+    assert "card.onclick=event=>" in html
