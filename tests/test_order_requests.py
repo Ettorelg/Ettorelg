@@ -670,6 +670,9 @@ def test_fulfillment_page_keeps_separate_product_and_order_views():
     html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
     assert 'id="summaryView" type="button" aria-pressed="true"' in html
     assert 'id="ordersView" type="button" aria-pressed="false"' in html
+    assert 'id="addOrderView" type="button" aria-pressed="false"' in html
+    assert 'id="defaultPage"' in html
+    assert "alpha-menu-fulfillment-default-page" in html
     assert "let lastOrders=[],displayMode='totali'" in html
     assert "prep.hidden=displayMode!=='totali'" in html
     assert "grid.hidden=displayMode!=='ordini'" in html
@@ -692,11 +695,11 @@ def test_fulfillment_orders_are_compact_and_expandable():
     assert "expandedOrderIds.has(String(order.id))" in html
 
 
-def test_fulfillment_product_section_follows_date_and_add_order_floats():
+def test_fulfillment_product_section_follows_date_and_navigation_is_lateral():
     html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
     assert html.index('id="date"') < html.index('id="groups"') < html.index('class="metrics"')
-    assert 'position:fixed;right:max(20px,env(safe-area-inset-right));bottom:max(20px,env(safe-area-inset-bottom))' in html
-    assert 'id="addOrderButton" class="add-order-button"' in html
+    assert 'body{padding-left:270px}' in html
+    assert 'class="side-view-nav"' in html
 
 
 def test_order_operations_are_on_fulfillment_page_not_settings():
@@ -705,7 +708,7 @@ def test_order_operations_are_on_fulfillment_page_not_settings():
     fulfillment = (root / "fulfillment_dashboard.html").read_text(encoding="utf-8")
     for old_control in ('id="manualOrderForm"', 'id="ordersPeriod"', 'id="ordersSummary"', 'id="ordersList"'):
         assert old_control not in settings
-    assert 'id="addOrderButton"' in fulfillment
+    assert 'id="addOrderView"' in fulfillment
     assert 'id="manualOrderForm"' in fulfillment
     assert 'id="historyPeriod"' in fulfillment
 
@@ -738,12 +741,12 @@ def test_owner_manual_orders_accept_server_validated_pizzeria_configuration():
     assert 'quote_pizzeria_draft({**config, "quantita": 1}, *settings)' in endpoint
 
 
-def test_add_order_opens_a_dialog_without_inline_manual_panel():
+def test_add_order_is_a_dedicated_page_with_a_saved_default_view():
     html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
-    assert '<dialog class="manual-order" id="manualOrderPanel"' in html
-    assert 'manualPanel.showModal()' in html
-    assert 'manualPanel.close()' in html
-    assert 'Nuovo ordine manuale' not in html
+    assert '<section class="manual-order" id="manualOrderPanel"' in html
+    assert 'function openManualPage()' in html
+    assert "selectAppPage(defaultPage.value)" in html
+    assert "localStorage.setItem(pagePreferenceKey,defaultPage.value)" in html
 
 
 def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_configurator():
