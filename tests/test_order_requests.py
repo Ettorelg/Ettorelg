@@ -707,6 +707,9 @@ def test_order_forms_pair_reference_and_notes_and_manual_products_are_searchable
     assert 'id="manualProducts"' in fulfillment
     assert 'id="manualCart"' in fulfillment
     assert "manualProducts.filter(product=>" in fulfillment
+    assert "query?normalizeSearch(product.nome+' '+product.descrizione+' '+product.categoria_nome).includes(query)" in fulfillment
+    assert "classList.toggle('active',!query&&id===selectedManualCategory)" in fulfillment
+    assert "if(query)node(card,'small',product.categoria_nome||'Senza categoria','manual-product-category')" in fulfillment
     assert "openPizzeria({kind" in fulfillment
     assert "pizzeria:item.pizzeria" in fulfillment
     assert "datalist" not in fulfillment
