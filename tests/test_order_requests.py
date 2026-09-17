@@ -224,6 +224,8 @@ def test_remote_call_receiver_has_order_and_callback_actions():
     assert 'setRequestProperty("Authorization","Bearer "+token)' in service
     manifest = (root / "android-app" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding="utf-8")
     assert "android.permission.READ_CONTACTS" in manifest
+    assert "setTimeout(openRemoteCallOrder,0)" in html
+    assert "Verrà salvato in rubrica insieme all’ordine" in html
 
 
 def test_online_customer_choice_must_be_boolean():

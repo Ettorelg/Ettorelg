@@ -434,7 +434,7 @@
     const incomingCaller=new URLSearchParams(location.search).get('caller')||'';
     let incomingCallerPending=Boolean(incomingCaller);
     const phoneDigits=value=>String(value||'').replace(/\D/g,'');
-    function selectManualCustomer(customer){manualForm.elements.nome.value=customer.nome;manualForm.elements.telefono.value=customer.telefono;manualForm.elements.email.value=customer.email||'';customerSearch.value=customer.nome;customerResults.replaceChildren();document.getElementById('manualCustomerName').textContent=customer.nome;document.getElementById('manualCustomerPhone').textContent=customer.telefono;manualCustomer.classList.add('compact');manualCustomerSummary.hidden=false;document.querySelector('.manual-pickup').scrollIntoView({block:'nearest',behavior:'smooth'});manualDate.focus()}
+    function selectManualCustomer(customer){manualForm.elements.nome.value=customer.nome;manualForm.elements.telefono.value=customer.telefono;manualForm.elements.email.value=customer.email||'';manualForm.elements.salva_cliente.checked=true;customerSearch.value=customer.nome;customerResults.replaceChildren();document.getElementById('manualCustomerName').textContent=customer.nome;document.getElementById('manualCustomerPhone').textContent=customer.telefono;manualCustomer.classList.add('compact');manualCustomerSummary.hidden=false;document.querySelector('.manual-pickup').scrollIntoView({block:'nearest',behavior:'smooth'});manualDate.focus()}
     async function searchCustomers(){
       const current=++customerRequest;
       const query=customerSearch.value.trim();
@@ -445,7 +445,7 @@
         if(current!==customerRequest)return;
         if(!response.ok)throw new Error(data.error||'Rubrica non disponibile.');
         customerResults.replaceChildren();
-        if(incomingCallerPending){const digits=phoneDigits(query),match=data.clienti.find(customer=>{const saved=phoneDigits(customer.telefono);return digits&&saved&&(saved===digits||saved.slice(-8)===digits.slice(-8))});incomingCallerPending=false;if(match){selectManualCustomer(match);setManualFeedback('Cliente riconosciuto dalla chiamata: '+match.nome+'.');return}manualForm.elements.telefono.value=query;setManualFeedback('Numero non ancora presente in rubrica. Inserisci il nome per salvarlo come nuovo cliente.')}
+        if(incomingCallerPending){const digits=phoneDigits(query),match=data.clienti.find(customer=>{const saved=phoneDigits(customer.telefono);return digits&&saved&&(saved===digits||saved.slice(-8)===digits.slice(-8))});incomingCallerPending=false;if(match){selectManualCustomer(match);setManualFeedback('Cliente riconosciuto dalla chiamata: '+match.nome+'.');return}manualForm.elements.telefono.value=query;manualForm.elements.salva_cliente.checked=true;manualCustomer.classList.remove('compact');manualCustomerSummary.hidden=true;setManualFeedback('Nuovo cliente: inserisci il nome. Verrà salvato in rubrica insieme all’ordine.')}
         for(const customer of data.clienti){
           const row=node(customerResults,'div',undefined,'customer-result');
           node(row,'span',customer.nome+' · '+customer.telefono+(customer.email?' · '+customer.email:''));
@@ -553,7 +553,7 @@
     const remoteCall=document.getElementById('remoteCall'),remoteCallNumber=document.getElementById('remoteCallNumber');
     let callCursor=null,lastRemoteCall=null;
     function openRemoteCallOrder(){if(!lastRemoteCall)return;openManualPage();incomingCallerPending=true;customerSearch.value=lastRemoteCall.telefono;searchCustomers();remoteCall.hidden=true}
-    function showRemoteCall(call){lastRemoteCall=call;document.getElementById('remoteCallCustomer').textContent=call.cliente;document.getElementById('remoteCallSource').textContent='Ricevuta su '+call.dispositivo;document.getElementById('remoteCallTime').textContent=call.ora;remoteCallNumber.textContent=call.telefono;remoteCallNumber.href='tel:'+String(call.telefono).replace(/[^+\d]/g,'');document.getElementById('remoteCallBack').href=remoteCallNumber.href;remoteCall.hidden=false;try{navigator.vibrate?.([180,100,180])}catch(_error){}}
+    function showRemoteCall(call){lastRemoteCall=call;document.getElementById('remoteCallCustomer').textContent=call.cliente;document.getElementById('remoteCallSource').textContent='Ricevuta su '+call.dispositivo;document.getElementById('remoteCallTime').textContent=call.ora;remoteCallNumber.textContent=call.telefono;remoteCallNumber.href='tel:'+String(call.telefono).replace(/[^+\d]/g,'');document.getElementById('remoteCallBack').href=remoteCallNumber.href;remoteCall.hidden=false;try{navigator.vibrate?.([180,100,180])}catch(_error){}if(call.telefono!=='0000000000'&&(manualPanel.hidden||!manualCart.length))setTimeout(openRemoteCallOrder,0)}
     document.getElementById('remoteCallOrder').onclick=openRemoteCallOrder;
     remoteCallNumber.onclick=()=>{remoteCall.hidden=true};
     document.getElementById('remoteCallDismiss').onclick=()=>{remoteCall.hidden=true};
