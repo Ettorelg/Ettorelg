@@ -841,8 +841,11 @@ def test_manual_dough_stocks_stay_on_one_row_and_support_persistent_long_press_r
     assert "touch-action:none" in html
     assert "card.setPointerCapture?.(pointerId)" in html
     assert "card.parentElement.scrollLeft-=event.clientX-lastX" in html
-    assert "items.insertBefore(card" in html
+    assert "siblings.find(item=>" in html
+    assert "if(target)items.insertBefore(card,target);else items.append(card)" in html
+    assert "document.elementFromPoint" not in html
     assert "fetch('/api/pizzeria/preparazione',{method:'PUT'" in html
+    assert "note.hidden=false;note.textContent='Salvataggio del nuovo ordine…'" in html
     assert "Tieni premuto e trascina per spostare" in html
 
 

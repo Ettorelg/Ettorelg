@@ -326,7 +326,7 @@
       const items=document.getElementById('manualDoughStockItems'),note=document.getElementById('manualDoughStockNote');if(!items||manualDoughStockSaving)return;
       const indexes=[...items.querySelectorAll('.manual-dough-stock-card[data-stock-index]')].map(card=>Number(card.dataset.stockIndex));
       if(indexes.length!==(manualPreparation.panette||[]).length||indexes.every((value,index)=>value===index))return;
-      manualDoughStockSaving=true;const previous=[...(manualPreparation.panette||[])];manualPreparation.panette=indexes.map(index=>previous[index]);note.textContent='Salvataggio del nuovo ordine…';
+      manualDoughStockSaving=true;const previous=[...(manualPreparation.panette||[])];manualPreparation.panette=indexes.map(index=>previous[index]);note.hidden=false;note.textContent='Salvataggio del nuovo ordine…';
       try{const response=await fetch('/api/pizzeria/preparazione',{method:'PUT',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({impasti:manualPreparation.impasti||[],panette:manualPreparation.panette})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'Riordinamento non riuscito.');manualPreparation=result;renderManualDoughStock()}
       catch(error){manualPreparation.panette=previous;renderManualDoughStock();manualFeedback.textContent=error.message}
       finally{manualDoughStockSaving=false}
@@ -334,9 +334,9 @@
     function enableDoughStockLongPress(card){
       let timer=null,active=false,startX=0,startY=0,lastX=0,pointerId=null;
       const clear=()=>{if(timer){clearTimeout(timer);timer=null}};
-      const moveToPointer=(x,y)=>{const items=card.parentElement,target=document.elementFromPoint(x,y)?.closest('.manual-dough-stock-card');if(!items||!target||target===card||target.parentElement!==items)return;const rect=target.getBoundingClientRect();items.insertBefore(card,x<rect.left+rect.width/2?target:target.nextSibling);if(x<rect.left+18)items.scrollLeft-=18;else if(x>rect.right-18)items.scrollLeft+=18};
+      const moveToPointer=x=>{const items=card.parentElement;if(!items)return;const siblings=[...items.querySelectorAll('.manual-dough-stock-card')].filter(item=>item!==card),target=siblings.find(item=>{const rect=item.getBoundingClientRect();return x<rect.left+rect.width/2});if(target)items.insertBefore(card,target);else items.append(card);const bounds=items.getBoundingClientRect();if(x<bounds.left+24)items.scrollLeft-=24;else if(x>bounds.right-24)items.scrollLeft+=24};
       card.onpointerdown=event=>{if(manualDoughStockSaving||event.button!==0)return;event.preventDefault();startX=lastX=event.clientX;startY=event.clientY;pointerId=event.pointerId;card.setPointerCapture?.(pointerId);clear();timer=setTimeout(()=>{active=true;card.classList.add('is-reordering');try{navigator.vibrate?.(25)}catch(_error){}},500)};
-      card.onpointermove=event=>{event.preventDefault();if(!active){if(Math.hypot(event.clientX-startX,event.clientY-startY)>8){clear();card.parentElement.scrollLeft-=event.clientX-lastX;lastX=event.clientX}return}moveToPointer(event.clientX,event.clientY)};
+      card.onpointermove=event=>{event.preventDefault();if(!active){if(Math.hypot(event.clientX-startX,event.clientY-startY)>12){clear();card.parentElement.scrollLeft-=event.clientX-lastX;lastX=event.clientX}return}moveToPointer(event.clientX)};
       const finish=event=>{clear();const wasActive=active;active=false;card.classList.remove('is-reordering');if(card.hasPointerCapture?.(pointerId))card.releasePointerCapture(pointerId);if(!wasActive)return;event.preventDefault();saveManualDoughStockOrder()};
       card.onpointerup=finish;card.onpointercancel=finish;card.onpointerleave=event=>{if(!active)clear()};
       card.oncontextmenu=event=>event.preventDefault();
