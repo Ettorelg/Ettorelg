@@ -703,9 +703,11 @@ def test_fulfillment_orders_show_product_names_then_variants_like_public_review(
     html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
     assert "function pizzeriaPresentation(product)" in html
     assert "mixed?' · combina gusti':''" in html
-    assert "title:(taste.quota?taste.quota+' · ':'')+baseType+' · '+taste.nome" in html
-    assert "...(taste.senza||[]).map(name=>'− '+name)" in html
-    assert "...(taste.aggiunte||[]).map(name=>'+ '+name)" in html
+    assert "/^\\s*(?:Pizza|Calzone|Panino)\\s*·/i.test(taste.nome)?taste.nome:baseType+' · '+taste.nome" in html
+    assert "...(taste.senza||[]).map(name=>'− '+String(name).replace" in html
+    assert "...(taste.aggiunte||[]).map(name=>'+ '+String(name).replace" in html
+    assert "clean=name=>String(name).replace" in html
+    assert ".manual-cart-row-head b{flex:0 0 auto;white-space:nowrap}" in html
     assert "appendProductGroups(line,presentation,'order-product-groups'" in html
     assert "appendProductGroups(row,{meta:item.meta||'',groups:item.groups||[]},'manual-cart-groups'" in html
     assert ".manual-cart-groups{display:grid" in html
