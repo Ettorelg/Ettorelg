@@ -797,6 +797,15 @@ def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_config
     assert ".manual-product-price{justify-self:end;color:#c8daf0;font-size:.72rem" in html
 
 
+def test_manual_order_fits_intermediate_and_mobile_viewports_without_page_overflow():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert "html,body{max-width:100%;overflow-x:hidden}" in html
+    assert "main,.manual-order,.manual-order form,.manual-order-workspace,.manual-catalog,.manual-cart,.manual-pickup{min-width:0;max-width:100%}" in html
+    assert ".manual-order-workspace{grid-template-columns:minmax(0,1fr)}" in html
+    assert ".manual-products{grid-template-columns:repeat(2,minmax(0,1fr));max-height:270px}" in html
+    assert "@media(max-width:560px){.manual-products{grid-template-columns:1fr}" in html
+
+
 def test_staff_product_configurator_uses_direct_format_buttons():
     configurator = (Path(__file__).resolve().parents[1] / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
     assert 'id="format" hidden aria-hidden="true"' in configurator
