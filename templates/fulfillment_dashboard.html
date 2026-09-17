@@ -65,13 +65,14 @@
     @media(max-width:560px){.manual-products{grid-template-columns:1fr}.manual-catalog-head input{max-width:none}.manual-submit{flex-wrap:wrap}.manual-submit button{width:100%;min-width:0}}
     @media(max-width:480px){.side-view-nav,.toplinks{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr;gap:8px}.metric{padding:12px}.metric b{font-size:1.55rem}.toplinks a{font-size:.76rem}.toolbar .date-compact input{width:135px}.filter-options{margin-left:0}.filter-options .filter-content{right:auto;left:0;min-width:min(320px,calc(100vw - 36px))}.manual-client-fields,.manual-pickup{grid-template-columns:1fr}.manual-line{grid-template-columns:minmax(0,1fr) 90px auto}}
     @media(max-width:600px){body{font-size:14px}.topbar,body.sidebar-collapsed .topbar{gap:8px;padding:8px}.side-brand-row{min-height:42px}.brand img{width:38px;height:38px}.sidebar-toggle{width:36px;height:36px}.side-view-nav{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.side-view-nav button{min-height:44px;padding:6px 4px;text-align:center;font-size:.7rem;line-height:1.15}.toplinks{grid-template-columns:1fr}.default-page{padding-top:7px}.side-tools{padding-top:7px}main{padding:8px 6px 82px}h1{font-size:1.55rem}.board-heading{gap:10px;margin-bottom:12px}.toolbar,.toolbar-section{width:100%}.toolbar-section+.toolbar-section{padding-left:0;border-left:0}.toolbar label,.toolbar input,.toolbar select{min-width:0;max-width:100%}.filter-options{width:100%;margin-left:0}.filter-options summary{width:100%}.metrics{grid-template-columns:1fr 1fr;gap:7px;margin:10px 0}.metric{padding:10px}.metric b{font-size:1.45rem}.group{margin:9px 0 18px}.group-head{padding:11px 12px}.prep{padding:11px}.prep-list{grid-template-columns:1fr}.order-grid{grid-template-columns:1fr;padding:7px}.add-order-button{right:8px;bottom:8px;min-height:48px;padding:10px 14px;border-radius:12px}.manual-order{width:calc(100vw - 12px);max-width:calc(100vw - 12px);padding:7px;border-radius:12px}.manual-order form,.manual-order-workspace{gap:7px}.manual-order-head{margin-bottom:5px}.manual-order-head h2{font-size:1.08rem}.manual-customer,.manual-catalog,.manual-cart{padding:8px}.manual-client-fields,.manual-pickup{grid-template-columns:1fr}.manual-pickup{gap:8px;padding:9px}.manual-pickup>strong{font-size:1rem}.manual-slot-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.manual-slot-buttons button{width:100%;min-width:0}.manual-dough-stock-card{min-width:112px}.manual-catalog-head{display:grid;grid-template-columns:1fr;gap:6px}.manual-catalog-head h3,.manual-catalog-head input{width:100%;max-width:none}.manual-categories{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.manual-categories button{width:100%;min-width:0;padding-inline:5px}.manual-combine{display:grid;grid-template-columns:1fr;gap:5px}.manual-combine button{width:100%;min-width:0}.manual-products{grid-template-columns:1fr;grid-auto-rows:58px;gap:6px;max-height:290px}.manual-product{height:58px;padding:7px 9px}.manual-cart-empty{padding:14px 7px}.manual-cart-list{max-height:none}.manual-cart-row{padding:8px}.manual-submit{position:sticky;bottom:5px;z-index:6;padding:7px;border:1px solid #456584;border-radius:10px;background:#182b45;box-shadow:0 -8px 22px #08111fbb}.manual-submit button{min-height:44px}.manual-feedback{width:100%}}
-  </style>
+    .banco-pay{display:grid;gap:8px;margin-top:12px;padding-top:12px;border-top:2px solid #507397}.banco-pay-methods{display:grid;grid-template-columns:1fr 1fr;gap:7px}.banco-pay-methods button[aria-pressed=true]{background:#e5ad3f;border-color:#ffe6a2;color:#172033;box-shadow:0 0 0 2px #fff4}.banco-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.banco-keypad button{min-height:48px;font-size:1.05rem}.banco-received{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid #5b7798;border-radius:9px;background:#0e1a2d}.banco-received output{font-size:1.2rem;font-weight:900}.banco-checkout{min-height:52px!important;background:#198754!important;border-color:#74d8aa!important;font-size:1rem!important}.banco-mode .manual-order-workspace{grid-template-columns:minmax(0,1.7fr) minmax(310px,.7fr)}body.sidebar-collapsed #counterView::before{content:'🛒';font-size:1.1rem}
+</style>
 </head>
 <body>
   <header class="topbar">
     <div class="side-brand-row"><a class="brand" href="{{ url_for('dashboard_choice') }}"><img src="{{ url_for('static', filename='alpha-menu-favicon.png') }}" alt=""><span>Alpha Menu<small>Banco evasione ordini</small></span></a><button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Richiudi menu" aria-expanded="true">‹</button></div>
-    <nav class="side-view-nav" aria-label="Pagine del banco"><button id="summaryView" type="button" aria-pressed="true">Da preparare in totale</button><button id="ordersView" type="button" aria-pressed="false">Singoli ordini da evadere</button><button id="addOrderView" type="button" aria-pressed="false" aria-controls="manualOrderPanel">+ Aggiungi ordine</button></nav>
-    <label class="default-page">Pagina principale<select id="defaultPage"><option value="totali">Da preparare in totale</option><option value="ordini">Singoli ordini da evadere</option><option value="manuale">Aggiungi ordine</option></select></label>
+    <nav class="side-view-nav" aria-label="Pagine del banco"><button id="summaryView" type="button" aria-pressed="true">Da preparare in totale</button><button id="ordersView" type="button" aria-pressed="false">Singoli ordini da evadere</button><button id="addOrderView" type="button" aria-pressed="false" aria-controls="manualOrderPanel">+ Aggiungi ordine</button><button id="counterView" type="button" aria-pressed="false" aria-controls="manualOrderPanel">BANCO</button></nav>
+    <label class="default-page">Pagina principale<select id="defaultPage"><option value="totali">Da preparare in totale</option><option value="ordini">Singoli ordini da evadere</option><option value="manuale">Aggiungi ordine</option><option value="banco">Banco</option></select></label>
     <details class="side-tools"><summary>Strumenti e collegamenti</summary><nav class="toplinks" aria-label="Strumenti e navigazione"><button class="order-notification-button" type="button" data-order-notifications aria-pressed="false">🔔 Attiva notifiche ordini</button><a href="{{ url_for('dashboard_choice') }}">Scelta iniziale</a><a href="{{ url_for('dashboard_user') }}#ordini">Impostazioni ordini</a><a href="{{ url_for('dashboard_user') }}#home">Dashboard menu</a></nav></details>
   </header>
   <aside id="remoteCall" class="remote-call" role="alert" hidden><div class="remote-call-head"><div><strong id="remoteCallCustomer">Chiamata in arrivo</strong><span id="remoteCallSource"></span></div><span id="remoteCallTime"></span></div><a id="remoteCallNumber" class="remote-call-number"></a><div class="remote-call-actions"><button id="remoteCallOrder" type="button">＋ Apri ordine</button><a id="remoteCallBack" class="call-back">☎ Richiama</a><button id="remoteCallDismiss" class="dismiss-call" type="button">Chiudi</button></div></aside>
@@ -100,7 +101,7 @@
         {% if pizzeria_enabled %}<aside id="manualDoughStock" class="manual-dough-stock" aria-label="Disponibilità panette" hidden><div id="manualDoughStockItems" class="manual-dough-stock-items"></div><p id="manualDoughStockNote" class="manual-dough-stock-note"></p></aside>{% endif %}
         <div class="manual-order-workspace">
           <section class="manual-catalog"><div class="manual-catalog-head"><h3>Scegli gli articoli</h3><input id="manualProductSearch" type="search" placeholder="Cerca prodotto…" autocomplete="off" aria-label="Cerca prodotto"></div><div id="manualCategories" class="manual-categories" aria-label="Categorie prodotti"></div><div id="manualCombine" class="manual-combine"></div><div id="manualProducts" class="manual-products"></div></section>
-          <section class="manual-cart"><h3>Ordine</h3><div id="manualCart" class="manual-cart-list"></div><div class="manual-cart-total"><span>Totale</span><span id="manualCartTotal">€ 0,00</span></div></section>
+          <section class="manual-cart"><h3 id="manualCartTitle">Ordine</h3><div id="manualCart" class="manual-cart-list"></div><div class="manual-cart-total"><span>Totale</span><span id="manualCartTotal">€ 0,00</span></div><div id="bancoPay" class="banco-pay" hidden><div class="banco-pay-methods"><button type="button" data-banco-method="contanti" aria-pressed="true">💶 CONTANTI</button><button type="button" data-banco-method="carta" aria-pressed="false">💳 CARTA</button></div><div class="banco-received"><span>Ricevuto</span><output id="bancoReceived">€ 0,00</output></div><div id="bancoKeypad" class="banco-keypad" aria-label="Tastierino importo"></div><button id="bancoCheckout" class="banco-checkout" type="button">EMETTI SCONTRINO</button></div></section>
         </div>
         <div class="manual-submit"><p class="manual-hint">Controlla cliente, orario e articoli.</p><button id="manualSubmit" type="submit">Registra ordine</button></div>
         <p id="manualFeedback" class="manual-feedback" role="status"></p>
@@ -120,7 +121,7 @@
   <script src="{{ url_for('static', filename='dough-reorder.js') }}?v=1"></script>
   <script src="{{ url_for('static', filename='order-print.js') }}?v=14"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='order-payment.css') }}?v=1">
-  <script src="{{ url_for('static', filename='order-payment.js') }}?v=1"></script>
+  <script src="{{ url_for('static', filename='order-payment.js') }}?v=2"></script>
   <script src="{{ url_for('static', filename='order-auto-print.js') }}?v=4"></script>
 <script>
     const csrf={{ csrf_token()|tojson }};
@@ -221,7 +222,7 @@
           card.dataset.orderId=String(order.id);card.open=expandedOrderIds.has(String(order.id));
           const summary=node(card,'summary',undefined,'order-summary'),summaryMain=node(summary,'span',undefined,'order-summary-main');
           node(summaryMain,'strong','#'+(order.numero||order.id)+' · '+order.nome);
-          node(summaryMain,'small',(order.origine==='tavolo'?'Al tavolo':'Da asporto')+(order.ora_richiesta?' · Ore '+order.ora_richiesta:' · Senza orario'));
+          node(summaryMain,'small',(order.origine==='banco'?'Vendita al banco':order.origine==='tavolo'?'Al tavolo':'Da asporto')+(order.ora_richiesta?' · Ore '+order.ora_richiesta:' · Senza orario'));
           const articleQuantity=products.reduce((sum,product)=>sum+Number(product.quantita),0);node(summary,'span',quantityFormat.format(articleQuantity)+' articol'+(articleQuantity===1?'o':'i'),'order-summary-count');
           node(summary,'span',stateLabel,'order-summary-status');
           const body=node(card,'div',undefined,'order-card-body');node(body,'div','Inserito '+order.creato_il,'meta');
@@ -268,16 +269,19 @@
       for(const number of groups.querySelectorAll('.prep-total-number'))number.textContent=quantityFormat.format(Number(number.dataset[mode]));
       for(const button of groups.querySelectorAll('.quantity-switch button'))button.setAttribute('aria-pressed',String(button.dataset.quantityMode===mode));
     }
-    const manualPanel=document.getElementById('manualOrderPanel'),addOrderView=document.getElementById('addOrderView'),defaultPage=document.getElementById('defaultPage'),sidebarToggle=document.getElementById('sidebarToggle'),boardElements=[...document.querySelectorAll('[data-board-view]')];
+    const manualPanel=document.getElementById('manualOrderPanel'),addOrderView=document.getElementById('addOrderView'),counterView=document.getElementById('counterView'),defaultPage=document.getElementById('defaultPage'),sidebarToggle=document.getElementById('sidebarToggle'),boardElements=[...document.querySelectorAll('[data-board-view]')];
     const pagePreferenceKey='alpha-menu-fulfillment-default-page';
     const sidebarPreferenceKey='alpha-menu-fulfillment-sidebar-collapsed';
-    let lastBoardMode='totali';
-    function selectDisplayMode(mode){lastBoardMode=mode;displayMode=mode;manualPanel.hidden=true;for(const element of boardElements)element.hidden=false;document.getElementById('summaryView').setAttribute('aria-pressed',String(mode==='totali'));document.getElementById('ordersView').setAttribute('aria-pressed',String(mode==='ordini'));addOrderView.setAttribute('aria-pressed','false');document.getElementById('orderSearchWrap').hidden=mode!=='ordini';render(lastOrders);window.scrollTo({top:0,behavior:'smooth'})}
-    function openManualPage(){for(const element of boardElements)element.hidden=true;manualPanel.hidden=false;document.getElementById('summaryView').setAttribute('aria-pressed','false');document.getElementById('ordersView').setAttribute('aria-pressed','false');addOrderView.setAttribute('aria-pressed','true');if(!manualSettingsLoaded)loadManualSettings().catch(error=>{manualFeedback.textContent=error.message});else refreshManualDoughStock();searchCustomers();window.scrollTo({top:0,behavior:'smooth'});setTimeout(()=>document.getElementById('customerSearch').focus(),0)}
-    function selectAppPage(page){if(page==='manuale')openManualPage();else selectDisplayMode(page==='ordini'?'ordini':'totali')}
+    let lastBoardMode='totali',counterMode=false;
+    function selectDisplayMode(mode){lastBoardMode=mode;displayMode=mode;counterMode=false;manualPanel.hidden=true;manualPanel.classList.remove('banco-mode');for(const element of boardElements)element.hidden=false;document.getElementById('summaryView').setAttribute('aria-pressed',String(mode==='totali'));document.getElementById('ordersView').setAttribute('aria-pressed',String(mode==='ordini'));addOrderView.setAttribute('aria-pressed','false');counterView.setAttribute('aria-pressed','false');document.getElementById('orderSearchWrap').hidden=mode!=='ordini';render(lastOrders);window.scrollTo({top:0,behavior:'smooth'})}
+    function openOrderPage(asCounter=false){counterMode=asCounter;for(const element of boardElements)element.hidden=true;manualPanel.hidden=false;manualPanel.classList.toggle('banco-mode',asCounter);document.getElementById('summaryView').setAttribute('aria-pressed','false');document.getElementById('ordersView').setAttribute('aria-pressed','false');addOrderView.setAttribute('aria-pressed',String(!asCounter));counterView.setAttribute('aria-pressed',String(asCounter));document.getElementById('manualCustomer').hidden=asCounter;document.querySelector('.manual-pickup').hidden=asCounter;document.getElementById('bancoPay').hidden=!asCounter;document.querySelector('.manual-submit').hidden=asCounter;document.getElementById('manualOrderTitle').textContent=asCounter?'BANCO · Vendita immediata':'Aggiungi ordine';document.querySelector('.manual-order-head p').textContent=asCounter?'Scegli gli articoli e usa il tastierino per incassare ed emettere lo scontrino.':"Inserisci cliente, ritiro e articoli. L'ordine comparirà subito nel banco evasione.";document.getElementById('manualCartTitle').textContent=asCounter?'Scontrino':'Ordine';manualForm.noValidate=asCounter;if(!manualSettingsLoaded)loadManualSettings().catch(error=>{manualFeedback.textContent=error.message});else refreshManualDoughStock();if(!asCounter)searchCustomers();window.scrollTo({top:0,behavior:'smooth'});setTimeout(()=>document.getElementById(asCounter?'manualProductSearch':'customerSearch').focus(),0)}
+    function openManualPage(){openOrderPage(false)}
+    function openCounterPage(){openOrderPage(true)}
+    function selectAppPage(page){if(page==='manuale')openManualPage();else if(page==='banco')openCounterPage();else selectDisplayMode(page==='ordini'?'ordini':'totali')}
     document.getElementById('summaryView').addEventListener('click',()=>selectDisplayMode('totali'));
     document.getElementById('ordersView').addEventListener('click',()=>selectDisplayMode('ordini'));
     addOrderView.addEventListener('click',openManualPage);
+    counterView.addEventListener('click',openCounterPage);
     defaultPage.addEventListener('change',()=>{try{localStorage.setItem(pagePreferenceKey,defaultPage.value)}catch(_){}selectAppPage(defaultPage.value)});
     function setSidebarCollapsed(collapsed){document.body.classList.toggle('sidebar-collapsed',collapsed);sidebarToggle.setAttribute('aria-expanded',String(!collapsed));sidebarToggle.setAttribute('aria-label',collapsed?'Apri menu':'Richiudi menu')}
     sidebarToggle.addEventListener('click',()=>{const collapsed=!document.body.classList.contains('sidebar-collapsed');setSidebarCollapsed(collapsed);try{localStorage.setItem(sidebarPreferenceKey,collapsed?'1':'0')}catch(_){}});
@@ -303,6 +307,11 @@
     const manualCartBox=document.getElementById('manualCart');
     const manualProductSearch=document.getElementById('manualProductSearch');
     const manualFeedback=document.getElementById('manualFeedback');
+    let bancoMethod='contanti',bancoReceivedValue='',counterPendingOrder=null;
+    const bancoReceived=document.getElementById('bancoReceived');
+    function renderBancoReceived(){bancoReceived.textContent=bancoReceivedValue?euro(Number(bancoReceivedValue.replace(',','.'))):'€ 0,00'}
+    document.querySelectorAll('[data-banco-method]').forEach(button=>button.addEventListener('click',()=>{bancoMethod=button.dataset.bancoMethod;document.querySelectorAll('[data-banco-method]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));if(bancoMethod==='carta')bancoReceivedValue='';renderBancoReceived()}));
+    for(const key of ['7','8','9','4','5','6','1','2','3','C','0',',']){const button=node(document.getElementById('bancoKeypad'),'button',key);button.type='button';button.onclick=()=>{if(bancoMethod!=='contanti')return;if(key==='C')bancoReceivedValue='';else{const candidate=bancoReceivedValue+key;if(/^\d{0,6}(,\d{0,2})?$/.test(candidate))bancoReceivedValue=candidate}renderBancoReceived()}}
     function setManualFeedback(message,state='status'){
       manualFeedback.textContent=message||'';
       const isError=state==='error';
@@ -467,25 +476,34 @@
     let customerSearchTimer;
     customerSearch.addEventListener('input',()=>{clearTimeout(customerSearchTimer);customerSearchTimer=setTimeout(searchCustomers,220)});
     document.getElementById('manualCustomerEdit').onclick=()=>{manualCustomer.classList.remove('compact');manualCustomerSummary.hidden=true;customerSearch.focus()};
-    manualForm.addEventListener('submit',async event=>{
-      event.preventDefault();
+    async function registerManualOrder(asCounter=false){
+      if(asCounter&&counterPendingOrder){await AlphaPayment.open(counterPendingOrder,{csrf,initialPayment:bancoMethod,initialTender:bancoReceivedValue,onComplete:completeCounterSale});return}
       const fields=new FormData(manualForm);
       const items=manualCart.map(item=>({id:item.id,quantita:item.quantita,...(item.pizzeria?{pizzeria:item.pizzeria}:{})}));
       if(!items.length){manualFeedback.textContent='Aggiungi almeno un articolo.';return}
       const selectedDate=String(fields.get('data_richiesta'));
-      const payload={nome:fields.get('nome'),telefono:fields.get('telefono'),email:fields.get('email'),data_richiesta:selectedDate,ora_richiesta:fields.get('ora_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),salva_cliente:fields.has('salva_cliente'),prodotti:items};
-      const submit=document.getElementById('manualSubmit');submit.disabled=true;setManualFeedback('Registrazione in corso…');
+      const payload=asCounter?{modalita:'banco',salva_cliente:false,prodotti:items}:{nome:fields.get('nome'),telefono:fields.get('telefono'),email:fields.get('email'),data_richiesta:selectedDate,ora_richiesta:fields.get('ora_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),salva_cliente:fields.has('salva_cliente'),prodotti:items};
+      const submit=asCounter?document.getElementById('bancoCheckout'):document.getElementById('manualSubmit');submit.disabled=true;setManualFeedback(asCounter?'Apertura vendita…':'Registrazione in corso…');
       try{
         const response=await AlphaOrders.send('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});
         const result=await response.json();
         if(!response.ok)throw new Error(result.error||'Registrazione non riuscita.');
+        if(asCounter){
+          setManualFeedback('Vendita #'+(result.numero_ordine||result.ordine_id)+' pronta per il pagamento.');
+          counterPendingOrder={id:result.ordine_id,numero:result.numero_ordine};
+          await AlphaPayment.open(counterPendingOrder,{csrf,initialPayment:bancoMethod,initialTender:bancoReceivedValue,onComplete:completeCounterSale});
+          return;
+        }
         setManualFeedback('Ordine #'+(result.numero_ordine||result.ordine_id)+' registrato'+(payload.salva_cliente?' e cliente salvato in rubrica.':'.'));
         manualForm.reset();manualForm.elements.salva_cliente.checked=true;manualDate.value=selectedDate;manualCart=[];renderManualCart();renderManualSlots();customerSearch.value='';customerResults.replaceChildren();manualCustomer.classList.remove('compact');manualCustomerSummary.hidden=true;
         dateField.value=selectedDate;period.value='giorno';await Promise.all([load(),refreshManualDoughStock()]);
         if(document.getElementById('orderHistory').open)await loadHistory();
       }catch(error){setManualFeedback(error.message,'error')}
       finally{submit.disabled=false}
-    });
+    }
+    async function completeCounterSale(){counterPendingOrder=null;manualCart=[];bancoReceivedValue='';renderBancoReceived();renderManualCart();setManualFeedback('Scontrino completato. Pronto per una nuova vendita.');await Promise.all([load(),refreshManualDoughStock()])}
+    manualForm.addEventListener('submit',async event=>{event.preventDefault();await registerManualOrder(false)});
+    document.getElementById('bancoCheckout').addEventListener('click',()=>registerManualOrder(true));
     const historyPanel=document.getElementById('orderHistory');
     const showHistoryButton=document.getElementById('showHistoryButton');
     showHistoryButton.addEventListener('click',()=>{if(!historyPanel.open)historyPanel.showModal();document.body.classList.add('modal-open');showHistoryButton.setAttribute('aria-expanded','true');loadHistory()});
@@ -525,7 +543,7 @@
           if(compact)node(card,'summary','#'+(order.numero||order.id)+' · '+order.nome+' · '+statusNames[order.stato]+' · '+displayDate(order.data_richiesta)+' · € '+Number(order.totale).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}));
           else node(card,'h3','#'+(order.numero||order.id)+' · '+order.nome+' · '+statusNames[order.stato]);
           const content=compact?node(card,'div',undefined,'compact-history-content'):card;
-          node(content,'p',(order.origine==='tavolo'?'Al tavolo':'Da asporto')+' · Per il '+displayDate(order.data_richiesta)+(order.ora_richiesta?' alle '+order.ora_richiesta:'')+' · Inserito '+order.creato_il);
+          node(content,'p',(order.origine==='banco'?'Vendita al banco':order.origine==='tavolo'?'Al tavolo':'Da asporto')+' · Per il '+displayDate(order.data_richiesta)+(order.ora_richiesta?' alle '+order.ora_richiesta:'')+' · Inserito '+order.creato_il);
           const lines=node(content,'ul');for(const product of order.prodotti)node(lines,'li',quantityFormat.format(Number(product.quantita))+' × '+product.nome+' · € '+Number(product.totale).toFixed(2));
           if(!compact)node(content,'strong','Totale € '+Number(order.totale).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}));
           if(order.riferimento)node(content,'p','Riferimento: '+order.riferimento);
@@ -561,7 +579,7 @@
     remoteCallNumber.onclick=()=>{remoteCall.hidden=true};
     document.getElementById('remoteCallDismiss').onclick=()=>{remoteCall.hidden=true};
     async function pollRemoteCalls(){try{const url='/api/ordini/chiamate'+(callCursor===null?'':'?dopo='+encodeURIComponent(callCursor)),response=await fetch(url,{cache:'no-store'});if(!response.ok)return;const result=await response.json();callCursor=result.ultimo_id;for(const call of result.chiamate||[])showRemoteCall(call)}catch(_error){}}
-    let preferredPage=incomingCaller?'manuale':'totali',sidebarCollapsed=false;try{const saved=localStorage.getItem(pagePreferenceKey);if(!incomingCaller&&['totali','ordini','manuale'].includes(saved))preferredPage=saved;sidebarCollapsed=localStorage.getItem(sidebarPreferenceKey)==='1'}catch(_){}if(incomingCaller)customerSearch.value=incomingCaller;setSidebarCollapsed(sidebarCollapsed);defaultPage.value=preferredPage;selectAppPage(preferredPage);
+    let preferredPage=incomingCaller?'manuale':'totali',sidebarCollapsed=false;try{const saved=localStorage.getItem(pagePreferenceKey);if(!incomingCaller&&['totali','ordini','manuale','banco'].includes(saved))preferredPage=saved;sidebarCollapsed=localStorage.getItem(sidebarPreferenceKey)==='1'}catch(_){}if(incomingCaller)customerSearch.value=incomingCaller;setSidebarCollapsed(sidebarCollapsed);defaultPage.value=preferredPage;selectAppPage(preferredPage);
     load();pollRemoteCalls();setInterval(()=>{if(!document.hidden)load({silent:true})},5000);setInterval(()=>{if(!document.hidden)pollRemoteCalls()},3000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden){load({silent:true});pollRemoteCalls()}});
   </script>

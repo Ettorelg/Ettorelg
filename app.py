@@ -5545,8 +5545,8 @@ def api_crea_ordine_menu(slug: str | None = None):
     save_customer = data.get("salva_cliente", False)
     if not isinstance(save_customer, bool):
         return jsonify({"error": "Scelta di salvataggio cliente non valida."}), 400
-    mode = "asporto" if manual else str(data.get("modalita") or "asporto")
-    if mode not in {"asporto", "tavolo"}:
+    mode = str(data.get("modalita") or "asporto")
+    if mode not in ({"asporto", "banco"} if manual else {"asporto", "tavolo"}):
         return jsonify({"error": "Modalità d'ordine non valida."}), 400
     if mode == "tavolo" and save_customer:
         return jsonify({"error": "La rubrica clienti è disponibile solo per gli ordini da asporto."}), 400
@@ -5561,7 +5561,11 @@ def api_crea_ordine_menu(slug: str | None = None):
     items = data.get("prodotti")
     now_rome = datetime.now(ZoneInfo("Europe/Rome"))
     today = now_rome.date()
-    if mode == "tavolo":
+    if mode == "banco":
+        name, phone, email, reference, requested = "BANCO", "", "", "Vendita al banco", today
+        requested_time = f"{now_rome.hour:02d}:{now_rome.minute:02d}"
+        save_customer = False
+    elif mode == "tavolo":
         if not 1 <= len(reference) <= 80:
             return jsonify({"error": "Inserisci il riferimento del tavolo."}), 400
         name, phone, requested = (reference if reference.lower().startswith("tavolo") else "Tavolo " + reference), "", today
@@ -5778,7 +5782,7 @@ def api_crea_ordine_menu(slug: str | None = None):
                 cur.execute("""
                     INSERT INTO ordini_menu (id_negozio,nome_cliente,telefono_cliente,riferimento,note,totale,data_richiesta,ora_richiesta,origine,google_sub_cliente,email_cliente,numero_progressivo)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
-                """, (shop_id, name, phone, reference, notes, total, requested, requested_time or None, "titolare" if manual else mode, customer_google.get("sub") if customer_google else None, email or None, progressive_number))
+                """, (shop_id, name, phone, reference, notes, total, requested, requested_time or None, "banco" if mode == "banco" else ("titolare" if manual else mode), customer_google.get("sub") if customer_google else None, email or None, progressive_number))
                 order_id = cur.fetchone()[0]
                 if request_key:
                     cur.execute("UPDATE ordini_menu SET chiave_richiesta=%s,impronta_richiesta=%s WHERE id=%s", (request_key, request_fingerprint, order_id))

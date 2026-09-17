@@ -3,7 +3,7 @@ window.AlphaPayment = (() => {
   const euro = value => Number(value).toLocaleString('it-IT',{style:'currency',currency:'EUR'});
   function element(parent,tag,text,className){const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(className)el.className=className;parent.append(el);return el}
   async function api(url,body,csrf){const response=await fetch(url,{cache:'no-store',...(body?{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)}:{})});const data=await response.json();if(!response.ok)throw Error(data.error||data.message||'Operazione non riuscita.');return data}
-  async function open(order, {csrf, onComplete=()=>{}}={}) {
+  async function open(order, {csrf, onComplete=()=>{}, initialPayment='contanti', initialTender=''}={}) {
     if(document.querySelector('.payment-dialog'))return;
     const dialog=element(document.body,'dialog',undefined,'payment-dialog');dialog.setAttribute('aria-label','Pagamento ordine');
     const head=element(dialog,'header',undefined,'payment-head');element(head,'h2','Pagamento · ordine #'+(order.numero||order.id));const close=element(head,'button','✕');close.setAttribute('aria-label','Chiudi pagamento');
@@ -12,7 +12,7 @@ window.AlphaPayment = (() => {
     const tools=element(dialog,'nav',undefined,'payment-tools');tools.setAttribute('aria-label','Funzioni pagamento');
     const preview=element(dialog,'pre',undefined,'payment-preview');preview.hidden=true;
     const submit=element(dialog,'button','Caricamento…','payment-submit');submit.disabled=true;
-    let busy=false,info=null,payment='contanti',discountType='euro',active=null,replace=true;
+    let busy=false,info=null,payment=initialPayment==='carta'?'carta':'contanti',discountType='euro',active=null,replace=true;
     const setMessage=(text,error=false)=>{feedback.textContent=text;feedback.classList.toggle('error',error)};
     const setBusy=value=>{busy=value;dialog.querySelectorAll('button,input').forEach(el=>el.disabled=value);if(!value){submit.disabled=!!info?.pagamento; if(payment==='carta'&&tender)tender.disabled=true}};
     close.onclick=()=>{if(!busy)dialog.close()};dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault()});dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
@@ -30,7 +30,7 @@ window.AlphaPayment = (() => {
       const methods=element(right,'div',undefined,'payment-methods');
       for(const [value,label] of [['contanti','💶 Contanti'],['carta','💳 Carta']]){const button=element(methods,'button',label);button.dataset.method=value;button.setAttribute('aria-pressed',String(value===payment));button.onclick=()=>{payment=value;methods.querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el===button)));tender.disabled=value==='carta';select(value==='carta'?discount:tender);update()}}
       element(right,'p','Carta: conferma sul POS esterno prima di registrare.','payment-notice');
-      let label=element(right,'label','Importo ricevuto · contanti');tender=element(label,'input');tender.inputMode='decimal';tender.placeholder='Importo esatto se vuoto';
+      let label=element(right,'label','Importo ricevuto · contanti');tender=element(label,'input');tender.inputMode='decimal';tender.placeholder='Importo esatto se vuoto';tender.value=payment==='contanti'?String(initialTender||''):'';
       label=element(right,'label','Sconto sul totale');discount=element(label,'input');discount.inputMode='decimal';discount.value='0';
       const types=element(right,'div',undefined,'payment-discount-types');for(const [value,text] of [['euro','Sconto €'],['percent','Sconto %']]){const button=element(types,'button',text);button.setAttribute('aria-pressed',String(value===discountType));button.onclick=()=>{discountType=value;types.querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el===button)));select(discount);update()}}
       for(const input of [tender,discount]){input.onfocus=()=>select(input);input.oninput=()=>{replace=false;update()}}

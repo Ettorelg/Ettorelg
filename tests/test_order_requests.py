@@ -959,3 +959,18 @@ def test_manual_dough_stock_spans_above_catalog_and_cart_in_a_compact_row():
     assert stock < workspace < catalog
     assert ".manual-dough-stock-card{display:flex;align-items:center;justify-content:space-between;flex:0 0 180px" in html
     assert ".manual-dough-stock{margin:0;padding:7px 9px" in html
+
+
+def test_counter_sale_page_has_catalog_keypad_and_fiscal_checkout():
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    payment = (root / "static" / "order-payment.js").read_text(encoding="utf-8")
+    endpoint = SOURCE[SOURCE.index('def api_crea_ordine_menu'):SOURCE.index('def order_push_keys')]
+    assert 'id="counterView"' in html
+    assert 'id="bancoKeypad"' in html
+    assert 'id="bancoCheckout"' in html
+    assert "modalita:'banco'" in html
+    assert "AlphaPayment.open" in html
+    assert "initialPayment" in payment and "initialTender" in payment
+    assert '{"asporto", "banco"}' in endpoint
+    assert '"banco" if mode == "banco"' in endpoint
