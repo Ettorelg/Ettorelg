@@ -52,12 +52,12 @@ public class MainActivity extends Activity {
 
     private void buildUi() {
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.rgb(13,22,39));
-        LinearLayout tools = new LinearLayout(this); tools.setPadding(10,8,10,8); tools.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        Button caller = new Button(this); caller.setText("Attiva riconoscimento chiamate"); caller.setOnClickListener(v -> requestCallRole());
-        Button sync = new Button(this); sync.setText("Sincronizza clienti"); sync.setOnClickListener(v -> syncCustomers(true));
-        Button test = new Button(this); test.setText("Prova banco"); test.setOnClickListener(v -> testRelay());
+        LinearLayout tools = new LinearLayout(this); tools.setPadding(8,0,8,0); tools.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        TextView title = new TextView(this); title.setText("Alpha Menu"); title.setTextColor(Color.WHITE); title.setTextSize(14);
+        Button menu = new Button(this); menu.setText("⋮"); menu.setContentDescription("Impostazioni app e aggiornamenti"); menu.setOnClickListener(v -> showAppMenu());
         state = new TextView(this); state.setTextColor(Color.WHITE); state.setPadding(10,0,0,0); state.setText("Stampa Android pronta");
-        tools.addView(caller); tools.addView(sync); tools.addView(test); tools.addView(state, new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1));
+        tools.addView(title, new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1));
+        int size=(int)(44*getResources().getDisplayMetrics().density);tools.addView(menu,new LinearLayout.LayoutParams(size,size));
         webView = new WebView(this);
         WebSettings settings = webView.getSettings(); settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); settings.setUserAgentString(settings.getUserAgentString()+" AlphaMenuAndroid/1.0");
@@ -71,6 +71,15 @@ public class MainActivity extends Activity {
     }
 
     private void requestCallRole(){RoleManager roles=getSystemService(RoleManager.class);if(roles.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)){if(roles.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)){Toast.makeText(this,"Riconoscimento chiamate già attivo",Toast.LENGTH_SHORT).show();return;}startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING),30);}else Toast.makeText(this,"Questo telefono non supporta l’identificazione chiamate",Toast.LENGTH_LONG).show();}
+
+    private void showAppMenu(){
+        new android.app.AlertDialog.Builder(this).setTitle("Impostazioni app")
+            .setItems(new String[]{"Attiva riconoscimento chiamate","Sincronizza clienti","Prova collegamento al banco","Stato collegamento","Aggiornamenti"},(dialog,which)->{
+                switch(which){case 0:requestCallRole();break;case 1:syncCustomers(true);break;case 2:testRelay();break;
+                    case 3:new android.app.AlertDialog.Builder(this).setTitle("Stato collegamento").setMessage(state.getText()).setPositiveButton("Chiudi",null).show();break;
+                    case 4:new AppUpdates(this).show();break;}
+            }).setNegativeButton("Chiudi",null).show();
+    }
 
     private void syncCustomers(boolean announce){executor.execute(()->{try{String cookie=CookieManager.getInstance().getCookie(BASE);if(cookie==null||cookie.isEmpty())throw new IllegalStateException("Accedi prima ad Alpha Menu");HttpURLConnection connection=(HttpURLConnection)new URL(BASE+"/api/ordini/clienti?tutti=1").openConnection();connection.setRequestProperty("Cookie",cookie);connection.setRequestProperty("User-Agent","AlphaMenuAndroid/1.0");connection.setConnectTimeout(8000);connection.setReadTimeout(8000);if(connection.getResponseCode()!=200)throw new IllegalStateException("Accedi prima ad Alpha Menu");BufferedReader reader=new BufferedReader(new InputStreamReader(connection.getInputStream(),StandardCharsets.UTF_8));StringBuilder body=new StringBuilder();for(String line;(line=reader.readLine())!=null;)body.append(line);JSONObject result=new JSONObject(body.toString());CustomerStore.save(this,result.optJSONArray("clienti"));boolean relayReady=syncRelayToken(cookie);int count=result.optJSONArray("clienti")==null?0:result.optJSONArray("clienti").length();runOnUiThread(()->{state.setText(count+" clienti · "+(relayReady?"banco collegato":"banco non collegato"));if(announce)Toast.makeText(this,relayReady?"Rubrica aggiornata e banco collegato":"Rubrica aggiornata, ma banco non collegato",Toast.LENGTH_LONG).show();});}catch(Exception error){if(announce)runOnUiThread(()->Toast.makeText(this,error.getMessage(),Toast.LENGTH_LONG).show());}});}
 

@@ -19,3 +19,17 @@ Funzioni della prima versione:
 5. Collega telefono e stampanti alla stessa rete Wi-Fi.
 
 La rubrica viene aggiornata anche automaticamente quando si apre una pagina Alpha Menu autenticata.
+
+## Menu app e aggiornamenti (1.3.0)
+
+I comandi del telefono sono nel menu **⋮**: riconoscimento chiamate, sincronizzazione,
+prova banco, stato collegamento e aggiornamenti. **Aggiornamenti → Cerca aggiornamenti**
+consulta `/static/android/latest.json` via HTTPS. Il download usa il gestore Android;
+aprire la notifica completata oppure **Aggiornamenti → Apri download** per installare.
+Android richiede la conferma dell'installazione e, se necessario, il permesso per l'origine.
+
+Per pubblicare una versione: incrementare versionCode/versionName, compilare con la
+stessa chiave delle versioni distribuite, copiare l'APK in `static/android/` e aggiornare
+`latest.json` nello stesso commit. Conservare i vecchi APK per i download già avviati.
+La versione privata attuale mantiene la firma delle precedenti build debug distribuite;
+non cambiare la chiave durante un aggiornamento.
