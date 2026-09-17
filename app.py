@@ -5416,7 +5416,8 @@ def api_segnala_chiamata_ordine():
     digits = "".join(character for character in phone if character.isdigit())
     if len(digits) < 6:
         return jsonify({"error": "Numero non valido."}), 400
-    device = str(identity.get("device") or "Telefono Android")[:100]
+    is_test = data.get("test") is True
+    device = str(identity.get("device") or "Telefono Android")[:90] + (" · PROVA" if is_test else "")
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn:
@@ -5450,7 +5451,7 @@ def api_chiamate_ordini():
                               RIGHT(s.telefono_chiave,8)=RIGHT(REGEXP_REPLACE(c.telefono,'[^0-9]','','g'),8))
                            WHERE c.id_negozio=%s AND c.id>%s
                            ORDER BY c.id ASC LIMIT 20""", (shop_id, int(cursor)))
-            calls = [{"id": row[0], "telefono": row[1], "dispositivo": row[2], "ora": row[3], "cliente": row[4] or "Cliente non salvato"} for row in cur.fetchall()]
+            calls = [{"id": row[0], "telefono": row[1], "dispositivo": row[2], "ora": row[3], "cliente": "PROVA COLLEGAMENTO RIUSCITA" if row[1] == "0000000000" else (row[4] or "Cliente non salvato")} for row in cur.fetchall()]
             return jsonify({"ultimo_id": calls[-1]["id"] if calls else int(cursor), "chiamate": calls})
     finally:
         conn.close()

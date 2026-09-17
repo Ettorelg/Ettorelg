@@ -222,6 +222,8 @@ def test_remote_call_receiver_has_order_and_callback_actions():
     assert "'/api/ordini/chiamate'" in html
     assert "/api/ordini/chiamate/ricevuta" in service
     assert 'setRequestProperty("Authorization","Bearer "+token)' in service
+    manifest = (root / "android-app" / "app" / "src" / "main" / "AndroidManifest.xml").read_text(encoding="utf-8")
+    assert "android.permission.READ_CONTACTS" in manifest
 
 
 def test_online_customer_choice_must_be_boolean():
