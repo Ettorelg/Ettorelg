@@ -10,7 +10,7 @@
 <button id="routingSave" disabled>Salva stampanti comande</button><p id="routingMessage" role="status"></p>
 </div>
 {% include 'sections/registratore_fiscale.html' %}
-<div class="orders-settings"><h3>App e collegamento locale</h3><p>Per Epson utilizza Alpha Menu Windows 1.1.4 o successiva, sulla stessa rete del registratore. Chiudi eventuali vecchi programmi di stampa prima di riaprire l’app aggiornata.</p><a href="/static/windows/AlphaMenu-Setup-1.1.4.exe">Scarica Alpha Menu Windows 1.1.4</a><p>La selezione “Carta” registra il pagamento effettuato sul POS: non avvia né verifica la transazione bancaria.</p></div>
+<div class="orders-settings"><h3>App e collegamento locale</h3><p>Per Epson utilizza Alpha Menu Windows 1.1.5 o successiva, sulla stessa rete del registratore. Chiudi eventuali vecchi programmi di stampa prima di riaprire l’app aggiornata.</p><a href="/static/windows/AlphaMenu-Setup-1.1.5.exe">Scarica Alpha Menu Windows 1.1.5</a><p>La selezione “Carta” registra il pagamento effettuato sul POS: non avvia né verifica la transazione bancaria.</p></div>
 </section>
 <script>
 (()=>{const el=id=>document.getElementById('routing'+id);async function api(method='GET',body){const response=await fetch('/api/stampanti/configurazione',{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const data=await response.json();if(!response.ok)throw Error(data.error||'Operazione non riuscita.');return data}

@@ -48,10 +48,16 @@ def _text(value, width):
     return value.ljust(width)
 
 
-def read_programming(config):
+def read_programming(config, batch=None):
+    batch = batch if isinstance(batch, dict) else {}
+    start = int(batch.get('start', 1))
+    count = int(batch.get('count', 25))
+    details = batch.get('details', True) is True
+    if not 1 <= start <= 99 or not 1 <= count <= 25:
+        raise ValueError('Blocco di lettura Epson non valido.')
     departments = []
     used_vat = set()
-    for number in range(1, 100):
+    for number in range(start, min(100, start + count)):
         raw = direct(config, '4202', f'{number:02d}')
         if len(raw) < 67:
             raise ValueError('Risposta reparto Epson incompleta.')
@@ -64,7 +70,7 @@ def read_programming(config):
             if row['vat_group'] not in ('00',) and int(row['vat_group']) not in range(10, 20):
                 used_vat.add(row['vat_group'])
     vat = []
-    for group in sorted(used_vat | {f'{n:02d}' for n in range(1, 10)}):
+    for group in (sorted(used_vat | {f'{n:02d}' for n in range(1, 10)}) if details else []):
         try:
             raw = direct(config, '4205', group)
             vat.append(dict(group=group, rate=raw[2:6]))
@@ -72,18 +78,18 @@ def read_programming(config):
             if group in used_vat:
                 raise
     headers = []
-    for line in range(1, 17):
+    for line in (range(1, 17) if details else []):
         raw = direct(config, '3216', f'{line:02d}')
         headers.append(dict(line=line, text=raw[2:42].rstrip()))
     payments = []
-    for index in range(1, 6):
+    for index in (range(1, 6) if details else []):
         raw = direct(config, '4253', f'{index:02d}')
         payments.append(dict(index=index, description=raw[2:22].rstrip()))
     logo = {}
-    for key, parameter in [('header', 9), ('footer', 10), ('alignment', 22)]:
+    for key, parameter in ([('header', 9), ('footer', 10), ('alignment', 22)] if details else []):
         raw = direct(config, '4215', f'{parameter:02d}')
         logo[key] = int(raw[2:5])
-    serial = direct(config, '3217', _number(config.get('operator', 1), 1, 12, 2))
+    serial = direct(config, '3217', _number(config.get('operator', 1), 1, 12, 2)) if details else ''
     return dict(departments=departments, vat=vat, headers=headers, payments=payments, logo=logo,
                 printer=dict(serial=serial.strip(), model=config.get('model'), ip=config.get('ip')))
 
@@ -167,7 +173,7 @@ def send(config, xml):
 def dispatch(path, data):
     if path in ('/fiscal/config/read', '/fiscal/config/write'):
         config = data.get('config', {})
-        return (read_programming(config) if path.endswith('/read')
+        return (read_programming(config, data.get('batch')) if path.endswith('/read')
                 else write_programming(config, data.get('programming', {})))
     if path == '/fiscal/probe':
         config = data.get('config', {})

@@ -16,7 +16,7 @@ from webview.menu import Menu, MenuAction, MenuSeparator
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 import escpos_bridge as bridge
 
-VERSION = '1.1.4'
+VERSION = '1.1.5'
 BASE = 'https://menu.alphasystemsrl.it'
 DATA = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'AlphaMenu'
 UPDATE_URL = BASE + '/static/windows/latest.json'
