@@ -15,6 +15,123 @@ LOCK = threading.Lock()
 LEDGER = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'AlphaMenu' / 'fiscal-jobs.sqlite3'
 
 
+def _response(xml, command):
+    if not isinstance(xml, str) or len(xml) > 65536 or '<!DOCTYPE' in xml.upper() or '<!ENTITY' in xml.upper():
+        raise ValueError('Risposta Epson non valida.')
+    root = fromstring(xml)
+    response = next((node for node in root.iter() if node.tag.split('}')[-1] == 'response'), None)
+    if response is None or response.get('success') != 'true':
+        raise ValueError('Epson: ' + (response.get('code', 'risposta non riconosciuta') if response is not None else 'risposta non riconosciuta'))
+    info = {node.tag.split('}')[-1]: (node.text or '') for node in response.iter()}
+    if info.get('responseCommand') != command:
+        raise ValueError('Risposta Epson non corrispondente al comando richiesto.')
+    return info.get('responseData', '')
+
+
+def direct(config, command, data):
+    if not command.isdigit() or len(command) != 4 or not isinstance(data, str) or len(data) > 128:
+        raise ValueError('Comando Epson non valido.')
+    xml = send(config, f'<printerCommand><directIO command="{command}" data="{data}" /></printerCommand>')
+    return _response(xml, command)
+
+
+def _number(value, low, high, width):
+    if isinstance(value, bool) or not str(value).isdigit() or not low <= int(value) <= high:
+        raise ValueError(f'Valore Epson consentito: {low}-{high}.')
+    return str(int(value)).zfill(width)
+
+
+def _text(value, width):
+    value = str(value or '').strip()
+    if len(value) > width or any(ord(char) < 32 or ord(char) > 126 for char in value):
+        raise ValueError(f'Testo Epson non valido (massimo {width} caratteri senza accenti).')
+    return value.ljust(width)
+
+
+def read_programming(config):
+    departments = []
+    used_vat = set()
+    for number in range(1, 100):
+        raw = direct(config, '4202', f'{number:02d}')
+        if len(raw) < 67:
+            raise ValueError('Risposta reparto Epson incompleta.')
+        row = dict(number=number, description=raw[2:22].rstrip(), price1=raw[22:31], price2=raw[31:40],
+                   price3=raw[40:49], single=raw[49], vat_group=raw[50:52], price_limit=raw[52:61],
+                   print_group=raw[61:63], product_group=raw[63:65], unit=raw[65:67].rstrip())
+        # Empty factory departments are omitted but remain addressable when creating a new row.
+        if row['description'].strip() or any(raw[22:49].strip('0 ')):
+            departments.append(row)
+            if row['vat_group'] not in ('00',) and int(row['vat_group']) not in range(10, 20):
+                used_vat.add(row['vat_group'])
+    vat = []
+    for group in sorted(used_vat | {f'{n:02d}' for n in range(1, 10)}):
+        try:
+            raw = direct(config, '4205', group)
+            vat.append(dict(group=group, rate=raw[2:6]))
+        except ValueError:
+            if group in used_vat:
+                raise
+    headers = []
+    for line in range(1, 17):
+        raw = direct(config, '3216', f'{line:02d}')
+        headers.append(dict(line=line, text=raw[2:42].rstrip()))
+    payments = []
+    for index in range(1, 6):
+        raw = direct(config, '4253', f'{index:02d}')
+        payments.append(dict(index=index, description=raw[2:22].rstrip()))
+    logo = {}
+    for key, parameter in [('header', 9), ('footer', 10), ('alignment', 22)]:
+        raw = direct(config, '4215', f'{parameter:02d}')
+        logo[key] = int(raw[2:5])
+    serial = direct(config, '3217', _number(config.get('operator', 1), 1, 12, 2))
+    return dict(departments=departments, vat=vat, headers=headers, payments=payments, logo=logo,
+                printer=dict(serial=serial.strip(), model=config.get('model'), ip=config.get('ip')))
+
+
+def write_programming(config, payload):
+    if not isinstance(payload, dict) or payload.get('confirmation') != 'SCRIVI CONFIGURAZIONE EPSON':
+        raise ValueError('Conferma scrittura Epson non valida.')
+    sections = payload.get('sections')
+    data = payload.get('data')
+    if not isinstance(sections, list) or not isinstance(data, dict) or not sections or len(sections) > 5:
+        raise ValueError('Selezionare almeno una sezione valida.')
+    allowed = {'departments', 'vat', 'headers', 'payments', 'logo'}
+    if set(sections) - allowed:
+        raise ValueError('Sezione Epson non valida.')
+    written = []
+    with LOCK:
+        if 'vat' in sections:
+            for row in data.get('vat', []):
+                command = _number(row.get('group'), 1, 59, 2) + _number(row.get('rate'), 1, 9999, 4)
+                direct(config, '4005', command)
+            written.append('IVA')
+        if 'departments' in sections:
+            for row in data.get('departments', []):
+                command = (_number(row.get('number'), 1, 99, 2) + _text(row.get('description'), 20) +
+                           _number(row.get('price1', 0), 0, 999999999, 9) + _number(row.get('price2', 0), 0, 999999999, 9) +
+                           _number(row.get('price3', 0), 0, 999999999, 9) + _number(row.get('single', 0), 0, 1, 1) +
+                           _number(row.get('vat_group'), 0, 59, 2) + _number(row.get('price_limit', 0), 0, 999999999, 9) +
+                           _number(row.get('print_group', 0), 0, 10, 2) + _number(row.get('product_group', 0), 0, 10, 2) +
+                           _text(row.get('unit'), 2))
+                direct(config, '4002', command)
+            written.append('reparti')
+        if 'payments' in sections:
+            for row in data.get('payments', []):
+                direct(config, '4053', _number(row.get('index'), 1, 5, 2) + _text(row.get('description'), 20))
+            written.append('pagamenti')
+        if 'headers' in sections:
+            for row in data.get('headers', []):
+                direct(config, '3016', _number(row.get('line'), 1, 16, 2) + _text(row.get('text'), 40))
+            direct(config, '3016', '99' + (' ' * 40))
+            written.append('intestazione')
+        if 'logo' in sections:
+            logo = data.get('logo', {})
+            for parameter, key, maximum in [(9, 'header', 9), (10, 'footer', 9), (22, 'alignment', 2)]:
+                direct(config, '4015', f'{parameter:02d}' + _number(logo.get(key, 0), 0, maximum, 3))
+            written.append('logo')
+    return dict(ok=True, message='Configurazione inviata: ' + ', '.join(written) + '.', sections=written)
+
+
 def cloud(path, data, secret):
     req = urllib.request.Request(BASE + '/api/fiscale/' + path, data=json.dumps(data).encode(),
                                  headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + secret})
@@ -48,6 +165,10 @@ def send(config, xml):
 
 
 def dispatch(path, data):
+    if path in ('/fiscal/config/read', '/fiscal/config/write'):
+        config = data.get('config', {})
+        return (read_programming(config) if path.endswith('/read')
+                else write_programming(config, data.get('programming', {})))
     if path == '/fiscal/probe':
         config = data.get('config', {})
         operator = int(config.get('operator', 1))
