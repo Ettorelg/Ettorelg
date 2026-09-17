@@ -9,7 +9,7 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <link rel="icon" href="{{ url_for('static', filename='alpha-menu-favicon.png') }}" type="image/png">
   <title>Evasione ordini · Alpha Menu</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='fulfillment-cards.css') }}?v=4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='fulfillment-cards.css') }}?v=5">
   <link rel="stylesheet" href="{{ url_for('static', filename='order-notifications.css') }}?v=1">
   <style>
     *{box-sizing:border-box}[hidden]{display:none!important}
@@ -227,12 +227,13 @@
           if(order.riferimento)node(body,'p','Riferimento: '+order.riferimento);
           if(order.note)node(body,'p','Note: '+order.note);
           if(order.telefono){const phone=node(body,'a','☎ '+order.telefono);phone.href='tel:'+order.telefono.replace(/[^+\d]/g,'')}
-          const actions=node(body,'div',undefined,'actions');
+          const actions=node(summary,'span',undefined,'actions order-summary-actions');
+          // Action clicks must not open or close the order details.
+          actions.addEventListener('click',event=>{event.preventDefault();event.stopPropagation()});
           const printButton=node(actions,'button','🖨️');printButton.type='button';printButton.title='Stampa ordine';printButton.setAttribute('aria-label','Stampa ordine #'+(order.numero||order.id));printButton.addEventListener('click',()=>AlphaOrderPrint.direct(order));
-          const choices=done?[['da_evadere','Riapri','']]:[['in_lavorazione','Pronto',''],['evaso','Segna evaso','finish'],['annullato','Annulla','cancel']];
-          for(const [target,label,style] of choices){
-            if(target===order.stato)continue;
-            const button=node(actions,'button',label,style);button.type='button';
+          const choices=done?[['da_evadere','Riapri','','↶']]:[['in_lavorazione','Pronto','','♨'],['annullato','Annulla','cancel','✕'],['evaso','Segna evaso','finish','✓']];
+          for(const [target,label,style,icon] of choices){
+            const button=node(actions,'button',icon,style);button.type='button';button.title=label;button.setAttribute('aria-label',label+' ordine #'+(order.numero||order.id));button.disabled=target===order.stato;
             button.addEventListener('click',async()=>{
               if(target==='annullato'&&!confirm('Annullare l’ordine #'+(order.numero||order.id)+'?'))return;
               button.disabled=true;

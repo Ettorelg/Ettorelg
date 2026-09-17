@@ -86,6 +86,24 @@
 #groups .actions .finish { background: #1c7653; border-color: #53d5a0; }
 #groups .actions .cancel { background: #693542; border-color: #c57c8a; }
 #groups .actions button:disabled { opacity: .55; cursor: default; }
+#groups .order-summary {
+  grid-template-rows: auto auto auto;
+  grid-template-areas: 'title title title toggle' 'meta count status toggle' 'actions actions actions actions';
+}
+#groups .order-summary-actions { grid-area: actions; margin-top: 5px; }
+#groups .order-summary-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+#groups .order-summary-actions .finish { flex-basis: 66px; width: 66px; }
+#groups .order-summary-actions button:focus-visible { outline: 3px solid #ffcd58; outline-offset: 2px; }
 @media (max-width: 600px) { #groups .actions button { min-height: 44px; } }
 #groups [hidden], .order-search[hidden] { display: none !important; }
 .order-search { display: flex; align-items: center; gap: 9px; width: fit-content; max-width: 100%; margin: 10px 0 2px; color: #c8d9ef; font: 750 .82rem system-ui, sans-serif; }
