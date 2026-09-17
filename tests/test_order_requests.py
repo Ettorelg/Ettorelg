@@ -799,6 +799,18 @@ def test_staff_product_configurator_uses_direct_format_buttons():
     assert "publicSlug&&requestedProduct&&!mixed&&requested?" not in configurator
 
 
+def test_product_customization_compacts_and_orders_ingredient_actions():
+    configurator = (Path(__file__).resolve().parents[1] / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
+    assert "removalLabel.textContent='Togli'" in configurator
+    assert "additionLabel.textContent='Aggiungi'" in configurator
+    assert configurator.index("removalLabel.textContent='Togli'") < configurator.index("additionLabel.textContent='Aggiungi'")
+    assert "document.createTextNode('− '+name)" in configurator
+    assert "label:'+ '+a.nome+' · € '" in configurator
+    assert "Ingredienti da aggiungere (facoltativi)" not in configurator
+    assert "Ingredienti da togliere (facoltativi)" not in configurator
+    assert ".taste-removals label:has(input:checked)" in configurator
+
+
 def test_pickup_choices_show_single_times_instead_of_ranges():
     shared = (Path(__file__).resolve().parents[1] / "static" / "order-request.js").read_text(encoding="utf-8")
     public = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
