@@ -767,12 +767,23 @@ def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_config
     assert "node(manualSlotButtons,'button',option.value)" in html
     assert '.manual-slot-buttons{gap:4px;flex-wrap:wrap;overflow:visible}' in html
     assert '.manual-slot-buttons button{min-width:64px;min-height:31px' in html
+    assert '.manual-categories{flex-wrap:wrap;overflow:visible;padding-bottom:0}' in html
+    assert "for(const format of Object.values(pizza.formati)" not in html
     assert "url_for('manual_order_product_configurator')" in html
     configurator = (Path(__file__).resolve().parents[1] / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
     assert ".embedded .taste .ingredients-summary{display:none}" in configurator
     assert "'public' if public_slug and not order_embed else ''" in configurator
     assert ".embedded{background:#0d1627;color:#f2f6ff}" in configurator
     assert "card.onclick=event=>" in html
+
+
+def test_staff_product_configurator_uses_direct_format_buttons():
+    configurator = (Path(__file__).resolve().parents[1] / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
+    assert 'id="format" hidden aria-hidden="true"' in configurator
+    assert 'id="formatButtons" class="format-buttons"' in configurator
+    assert "const renderFormatButtons=(formats,requested)=>" in configurator
+    assert "Number(price).toLocaleString('it-IT'" in configurator
+    assert "format.value=name;render()" in configurator
 
 
 def test_pickup_choices_show_single_times_instead_of_ranges():

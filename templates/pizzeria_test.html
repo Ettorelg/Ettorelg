@@ -12,7 +12,7 @@
     h1{margin:0 0 8px;font-size:clamp(1.5rem,4vw,2.3rem)}p{line-height:1.5;color:#c9d5e7}
     .notice{border:1px solid #b58a45;background:#332b21;padding:14px 18px;border-radius:13px;margin:18px 0}
     .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.card{background:#19273d;border:1px solid #415574;border-radius:15px;padding:18px;margin:14px 0}
-    label{display:grid;gap:6px;font-weight:600;margin:10px 0}select,input{width:100%;box-sizing:border-box;min-height:42px;background:#101b2e;color:#fff;border:1px solid #7082a1;border-radius:9px;padding:8px;font:inherit}
+    label,.format-choice{display:grid;gap:6px;font-weight:600;margin:10px 0}select,input{width:100%;box-sizing:border-box;min-height:42px;background:#101b2e;color:#fff;border:1px solid #7082a1;border-radius:9px;padding:8px;font:inherit}.format-buttons{display:flex;flex-wrap:wrap;gap:7px}.format-buttons button{min-width:92px;padding:9px 14px;background:#203650;color:#fff;border:1px solid #6485a8}.format-buttons button[aria-pressed=true]{background:#326a9f;border-color:#b8d9ff;box-shadow:0 0 0 2px #b8d9ff33}
     #tastes{display:grid;gap:12px}.taste{border:1px solid #405674;border-radius:12px;padding:14px;margin:0;min-width:0}.taste h3{margin:0 0 10px}.taste-name{display:inline-block;padding:4px 9px;border-radius:8px;background:#073dc4;color:#fff;font:800 .95em system-ui;margin-left:5px}.addition-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}.addition-search{max-width:260px;min-height:34px!important;padding:5px 9px!important;font-size:.86rem!important}
     .choices{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}.choices label{display:flex;align-items:center;gap:7px;border:1px solid #536780;border-radius:9px;padding:8px;margin:0;font-weight:400}.choices input{width:18px;min-height:18px}
     button{background:#ffd06e;color:#132039;border:0;border-radius:10px;padding:12px 18px;font:700 1rem system-ui;cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}.compact-option{font-size:.82rem;opacity:.82}.compact-option select{min-height:34px;padding:5px;font-size:.84rem}.quantity-stepper{display:inline-flex;align-items:center;gap:10px;margin:0 0 10px}.quantity-stepper button{width:38px;height:38px;padding:0;font-size:1.25rem}.quantity-stepper input{width:64px;min-height:38px;text-align:center;font-weight:800}.combine-here{display:block;margin:0 auto 15px;font-size:1.05rem;padding:13px 24px}
@@ -30,7 +30,7 @@
     <div class="card" id="optionsCard">
       <div class="grid">
         <label id="kindWrap">Preparazione<select id="kind"><option value="pizza">Pizza</option><option value="multigusto">Pizza · combina gusti</option><option value="calzone_prodotto">Calzone</option><option value="calzone_multigusto">Calzone · combina gusti</option><option value="panino_prodotto">Panino</option><option value="panino_multigusto">Panino · combina gusti</option></select></label>
-        <label id="formatWrap">Formato<select id="format"></select></label>
+        <div id="formatWrap" class="format-choice"><strong>Formato</strong><select id="format" hidden aria-hidden="true" tabindex="-1"></select><div id="formatButtons" class="format-buttons" role="group" aria-label="Scegli formato"></div></div>
         <label id="cutWrap" hidden>Divisione dei gusti<select id="cut"></select></label>
         <select id="count" hidden></select>
         <label id="doughWrap" class="compact-option">Impasto<select id="dough"></select></label>
@@ -42,11 +42,12 @@
   <script>
   (()=>{
     const csrf={{ csrf_token()|tojson }},publicSlug={{ public_slug|tojson }},base=publicSlug?'/api/menu/'+encodeURIComponent(publicSlug)+'/pizzeria':'/api/pizzeria',params=new URLSearchParams(location.search),requestedKind=params.get('kind'),requestedFormat=params.get('format'),requestedProduct=params.get('product'),requestedCategory=params.get('category');let lastChoice=null;
-    const el=id=>document.getElementById(id), kind=el('kind'),format=el('format'),cut=el('cut'),count=el('count'),dough=el('dough'),tastes=el('tastes'),result=el('result');
+    const el=id=>document.getElementById(id), kind=el('kind'),format=el('format'),formatButtons=el('formatButtons'),cut=el('cut'),count=el('count'),dough=el('dough'),tastes=el('tastes'),result=el('result');
     let products=[],fractions=[],additions=[],ingredients=[],doughs=[],tasteSelections={},formatEquivalences={};
     const message=(text,error=false)=>{result.textContent=text;result.classList.toggle('error',error)};
     let quoteTimer,quoteVersion=0;const scheduleQuote=()=>{if(!publicSlug)return;quoteVersion++;lastChoice=null;if(el('addOrder'))el('addOrder').hidden=true;clearTimeout(quoteTimer);quoteTimer=setTimeout(()=>{const productSelectors=[...tastes.querySelectorAll('.taste-product')];if(chosenFormat()&&productSelectors.length&&productSelectors.every(select=>select.value))el('calculate').click()},180)};
     const fill=(select,options,placeholder)=>{select.replaceChildren(new Option(placeholder,''));options.forEach(item=>select.add(new Option(item.label,item.value)))};
+    const renderFormatButtons=(formats,requested)=>{formatButtons.replaceChildren();formats.forEach(name=>{const price=requested?.formati.find(item=>item.nome===name)?.prezzo,button=document.createElement('button');button.type='button';button.textContent=name+(price==null?'':' · € '+Number(price).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}));button.setAttribute('aria-pressed',String(format.value===name));button.onclick=()=>{if(format.value===name)return;format.value=name;render()};formatButtons.append(button)})};
     const displayedAdditionPrice=(price,share,denominator)=>{
       const value=Number(price)*(denominator?share/denominator:1);
       return value.toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -62,7 +63,7 @@
       let formats=publicSlug&&requestedProduct&&!mixed&&requested?[...new Set(requested.formati.filter(f=>f.disponibile).map(f=>f.nome))]:[...new Set(products.flatMap(p=>p.formati.filter(f=>f.disponibile).map(f=>f.nome)))];
       if(derived&&!requested)formats=formats.filter(name=>products.some(p=>p.tipo_pizzeria===derivativeKind&&p.formati.some(f=>f.nome===name&&f.disponibile)));
       if(mixed)formats=formats.filter(name=>fractions.some(f=>f.formato===name&&f.tagli.length));if(publicSlug&&requestedFormat)formats=formats.filter(name=>name===requestedFormat);
-      fill(format,formats.map(name=>({label:name,value:name})),'Scegli formato');format.value=formats.includes(currentFormat)?currentFormat:formats[0]||'';
+      fill(format,formats.map(name=>({label:name,value:name})),'Scegli formato');format.value=formats.includes(currentFormat)?currentFormat:formats[0]||'';renderFormatButtons(formats,requested);
       el('cutWrap').hidden=!mixed;
       const allowed=(fractions.find(f=>f.formato===chosenFormat())?.tagli||[]);
       const oldCut=cut.value;fill(cut,allowed.map(n=>({label:n===2?'Metà':n===3?'Terzi':'Quarti',value:String(n)})),'Scegli frazionamento');cut.value=allowed.includes(Number(oldCut))?oldCut:String(allowed[0]||'');
