@@ -790,7 +790,11 @@ def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_config
     assert ".embedded .taste .ingredients-summary{display:none}" in configurator
     assert "'public' if public_slug and not order_embed else ''" in configurator
     assert ".embedded{background:#0d1627;color:#f2f6ff}" in configurator
-    assert "card.onclick=event=>" in html
+    assert "card.onclick=()=>addSimpleProduct(product)" in html
+    assert "card.classList.add('configurable','simple-product')" in html
+    assert "node(card,'span',euro(product.prezzo_euro),'manual-product-price')" in html
+    assert ".manual-products{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));grid-auto-rows:68px" in html
+    assert ".manual-product-price{justify-self:end;color:#c8daf0;font-size:.72rem" in html
 
 
 def test_staff_product_configurator_uses_direct_format_buttons():
