@@ -1,7 +1,7 @@
 param([string]$Python = 'python', [string]$Compiler = "$env:LOCALAPPDATA\AlphaMenuBuildTools\Inno\ISCC.exe")
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
-& $Python -m PyInstaller --noconfirm --windowed --onedir --name AlphaMenu --icon ../static/app-icon-512.png --paths ../tools main.py
+& $Python -m PyInstaller --noconfirm --windowed --onedir --name AlphaMenu --icon ../static/app-icon-512.png --paths ../tools --hidden-import epson_bridge main.py
 if ($LASTEXITCODE) { throw 'Compilazione app fallita' }
 & $Python collect_licenses.py
 if ($LASTEXITCODE) { throw 'Raccolta licenze fallita' }
