@@ -44,6 +44,10 @@
     .manual-slot-buttons{gap:4px;flex-wrap:wrap;overflow:visible}.manual-slot-buttons button{min-width:64px;min-height:31px;padding:4px 7px;font-size:.8rem}
     .manual-categories{flex-wrap:wrap;overflow:visible;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid #456584}.manual-categories button.active{background:#f2b83f;border-color:#fff0b8;color:#172033;box-shadow:0 0 0 3px #f2b83f44;font-weight:900}.manual-categories button.active::before{content:'✓ '}
     .manual-extra-fields{display:contents}
+    /* Async stock cards must not enlarge the form's implicit grid column. */
+    .manual-order form{grid-template-columns:minmax(0,1fr)}
+    .manual-order form>*{min-width:0}
+    .manual-dough-stock,.manual-dough-stock-items{min-width:0;max-width:100%}
     html,body{max-width:100%;overflow-x:hidden}
     main,.manual-order,.manual-order form,.manual-order-workspace,.manual-catalog,.manual-cart,.manual-pickup{min-width:0;max-width:100%}
     .manual-catalog-head{min-width:0;flex-wrap:wrap}.manual-catalog-head input{width:min(310px,100%);min-width:0}
