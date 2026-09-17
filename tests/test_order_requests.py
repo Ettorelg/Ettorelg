@@ -781,9 +781,16 @@ def test_staff_product_configurator_uses_direct_format_buttons():
     configurator = (Path(__file__).resolve().parents[1] / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
     assert 'id="format" hidden aria-hidden="true"' in configurator
     assert 'id="formatButtons" class="format-buttons"' in configurator
+    assert '.format-choice{grid-column:1/-1}' in configurator
     assert "const renderFormatButtons=(formats,requested)=>" in configurator
     assert "Number(price).toLocaleString('it-IT'" in configurator
     assert "format.value=name;render()" in configurator
+    assert 'id="cut" hidden aria-hidden="true"' in configurator
+    assert 'id="cutButtons" class="option-buttons"' in configurator
+    assert 'id="dough" hidden aria-hidden="true"' in configurator
+    assert 'id="doughButtons" class="option-buttons"' in configurator
+    assert "renderSelectButtons(cut,cutButtons,render)" in configurator
+    assert "renderSelectButtons(dough,doughButtons,scheduleQuote)" in configurator
 
 
 def test_pickup_choices_show_single_times_instead_of_ranges():
