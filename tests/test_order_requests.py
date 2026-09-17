@@ -765,6 +765,7 @@ def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_config
     assert "onUpdate:renderManualSlotButtons" in html
     assert '<span>Orario</span>' in html
     assert "node(manualSlotButtons,'button',option.value)" in html
+    assert '.manual-slot-buttons{gap:4px;flex-wrap:wrap;overflow:visible}' in html
     assert '.manual-slot-buttons button{min-width:64px;min-height:31px' in html
     assert "url_for('manual_order_product_configurator')" in html
     configurator = (Path(__file__).resolve().parents[1] / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
