@@ -54,5 +54,6 @@ test('manual pickup choices react to quantities and block a full slot',async()=>
   const control=ctx.AlphaOrders.availability({form,date,slot,field,message,quantities:()=>[amount]});
   await control.refresh();assert.equal(submit.disabled,true);assert.equal(slot.options.length,1);
   amount=1;await control.refresh();assert.equal(submit.disabled,false);assert.equal(slot.options[1].value,'18:00');
+  assert.equal(slot.options[1].label,'18:00');
   assert.equal(field.hidden,false);
 });

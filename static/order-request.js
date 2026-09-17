@@ -36,11 +36,9 @@ window.AlphaOrders = (() => {
         if (!response.ok) throw new Error(data.error || 'Disponibilità non verificabile.');
         const selected = slot.value;
         field.hidden = !data.fasce_ritiro_attive; slot.required = !!data.fasce_ritiro_attive;
-        slot.replaceChildren(new Option('Scegli una fascia', ''));
+        slot.replaceChildren(new Option('Scegli un orario', ''));
         for (const start of data.fasce || []) {
-          const minute = Number(start.slice(0,2))*60 + Number(start.slice(3)) + data.minuti_fascia_ritiro;
-          const end = String(Math.floor(minute/60)).padStart(2,'0') + ':' + String(minute%60).padStart(2,'0');
-          slot.add(new Option(start + '–' + end, start));
+          slot.add(new Option(start, start));
         }
         if ((data.fasce || []).includes(selected)) slot.value = selected;
         if (typeof onUpdate === 'function') onUpdate(data);

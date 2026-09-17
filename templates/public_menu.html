@@ -378,11 +378,7 @@
           orderPickupSlot.required=pickupSlotsRequired;
           const previousSlot=orderPickupSlot.value;
           orderPickupSlot.replaceChildren(new Option(menuText('Scegli un orario'),''));
-          for(const slot of info.fasce || []){
-            const minute=Number(slot.slice(0,2))*60+Number(slot.slice(3))+Number(info.minuti_fascia_ritiro||15);
-            const end=String(Math.floor(minute/60)).padStart(2,'0')+':'+String(minute%60).padStart(2,'0');
-            orderPickupSlot.add(new Option(slot+'–'+end,slot));
-          }
+          for(const slot of info.fasce || []) orderPickupSlot.add(new Option(slot,slot));
           if((info.fasce || []).includes(previousSlot)) orderPickupSlot.value=previousSlot;
           orderDateAvailable = info.disponibile;
           orderAvailability.textContent = info.disponibile ? (info.posti_rimanenti === null ? menuText('Data disponibile.') : menuText('Data disponibile: ')+info.posti_rimanenti+menuText(' ordini ancora possibili.')) : (pickupSlotsRequired && !(info.fasce || []).length ? menuText('Nessun orario di ritiro disponibile per questa data.') : menuText('Data completa: scegline un’altra.'));

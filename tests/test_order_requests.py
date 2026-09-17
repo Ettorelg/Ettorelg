@@ -763,12 +763,24 @@ def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_config
     assert "manualCustomer.classList.add('compact')" in html
     assert 'id="manualSlotButtons"' in html
     assert "onUpdate:renderManualSlotButtons" in html
+    assert '<span>Orario</span>' in html
+    assert "node(manualSlotButtons,'button',option.value)" in html
+    assert '.manual-slot-buttons button{min-width:64px;min-height:31px' in html
     assert "url_for('manual_order_product_configurator')" in html
     configurator = (Path(__file__).resolve().parents[1] / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
     assert ".embedded .taste .ingredients-summary{display:none}" in configurator
     assert "'public' if public_slug and not order_embed else ''" in configurator
     assert ".embedded{background:#0d1627;color:#f2f6ff}" in configurator
     assert "card.onclick=event=>" in html
+
+
+def test_pickup_choices_show_single_times_instead_of_ranges():
+    shared = (Path(__file__).resolve().parents[1] / "static" / "order-request.js").read_text(encoding="utf-8")
+    public = (Path(__file__).resolve().parents[1] / "templates" / "public_menu.html").read_text(encoding="utf-8")
+    assert "new Option(start, start)" in shared
+    assert "start + '–' + end" not in shared
+    assert "new Option(slot,slot)" in public
+    assert "slot+'–'+end" not in public
 
 
 def test_manual_order_prominently_shows_current_dough_stock():
