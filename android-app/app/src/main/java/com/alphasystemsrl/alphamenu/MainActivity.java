@@ -53,6 +53,9 @@ public class MainActivity extends Activity {
     private void buildUi() {
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.rgb(13,22,39));
         LinearLayout tools = new LinearLayout(this); tools.setPadding(8,0,8,0); tools.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        android.widget.ImageView logo = new android.widget.ImageView(this); logo.setImageResource(com.alphasystemsrl.alphamenu.R.drawable.alpha_menu_logo); logo.setContentDescription("Logo Alpha Menu");logo.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        int logoSize=(int)(34*getResources().getDisplayMetrics().density);logo.setBackgroundColor(Color.WHITE);
+        LinearLayout.LayoutParams logoParams=new LinearLayout.LayoutParams(logoSize,logoSize);logoParams.setMarginEnd((int)(8*getResources().getDisplayMetrics().density));tools.addView(logo,logoParams);
         TextView title = new TextView(this); title.setText("Alpha Menu"); title.setTextColor(Color.WHITE); title.setTextSize(14);
         Button menu = new Button(this); menu.setText("⋮"); menu.setContentDescription("Impostazioni app e aggiornamenti"); menu.setOnClickListener(v -> showAppMenu());
         state = new TextView(this); state.setTextColor(Color.WHITE); state.setPadding(10,0,0,0); state.setText("Stampa Android pronta");
