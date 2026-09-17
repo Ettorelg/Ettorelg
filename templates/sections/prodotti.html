@@ -104,7 +104,7 @@
   <div class="row">
     <div class="field">
       <label>Nome *</label>
-      <input id="nome" required placeholder="Es. Pizza Margherita" />
+      <input id="nome" required placeholder="Es. PIZZA MARGHERITA" style="text-transform:uppercase" />
     </div>
 
     <div class="field">
@@ -312,6 +312,7 @@
   const modeHint = document.getElementById("modeHint");
 
   const f = (id) => document.getElementById(id);
+  f("nome").addEventListener("input", event => { event.target.value = event.target.value.toUpperCase(); });
 
   let toastTimer;
   function showToast(msg, prominent = false){

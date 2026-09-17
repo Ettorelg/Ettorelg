@@ -63,6 +63,7 @@ def test_valid_rules_have_normalized_prices():
         payload(), {2}, {10: 2}, {"singola": "Singola", "gigante": "Gigante"})
     assert fractions[0]["tagli"] == [2, 3, 4]
     assert fractions[0]["formato"] == "Gigante"
+    assert additions[0]["nome"] == "MOZZARELLA EXTRA"
     assert additions[0]["prezzi"] == {"Singola": "1.50", "Gigante": "3.00"}
 
 

@@ -1211,6 +1211,22 @@ def init_db() -> None:
                     aggiunte JSONB NOT NULL DEFAULT '[]'::jsonb,
                     aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )""")
+                # I nomi del catalogo sono canonici in maiuscolo anche per i dati
+                # creati prima dell'introduzione di questa regola.
+                cur.execute("UPDATE categorie SET nome=UPPER(nome) WHERE nome<>UPPER(nome)")
+                cur.execute("UPDATE prodotti SET nome=UPPER(nome) WHERE nome<>UPPER(nome)")
+                cur.execute("""UPDATE pizzeria_varianti_config AS config
+                    SET aggiunte=COALESCE((
+                        SELECT jsonb_agg(
+                            jsonb_set(item, '{nome}', to_jsonb(UPPER(COALESCE(item->>'nome',''))), TRUE)
+                            ORDER BY posizione
+                        )
+                        FROM jsonb_array_elements(config.aggiunte) WITH ORDINALITY AS variante(item,posizione)
+                    ), '[]'::jsonb)
+                    WHERE EXISTS (
+                        SELECT 1 FROM jsonb_array_elements(config.aggiunte) AS variante(item)
+                        WHERE COALESCE(item->>'nome','')<>UPPER(COALESCE(item->>'nome',''))
+                    )""")
                 cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_preparazione_config (
                     id_negozio INTEGER PRIMARY KEY REFERENCES negozi(id) ON DELETE CASCADE,
                     impasti JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -1304,6 +1320,8 @@ def init_db() -> None:
                         ordine INTEGER NOT NULL DEFAULT 0
                     )
                 """)
+                cur.execute("UPDATE varianti_prodotti SET nome=UPPER(nome) WHERE nome<>UPPER(nome)")
+                cur.execute("UPDATE righe_ordini_menu SET nome_prodotto=UPPER(nome_prodotto) WHERE nome_prodotto<>UPPER(nome_prodotto)")
 
                 cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS piano_programmato TEXT")
                 cur.execute("ALTER TABLE licenze_utenti ADD COLUMN IF NOT EXISTS cambio_piano_il DATE")
@@ -4817,7 +4835,7 @@ def normalize_pizzeria_variants(payload, category_ids, product_categories, forma
     for item in payload["aggiunte"]:
         if not isinstance(item, dict) or not isinstance(item.get("nome"), str):
             raise ValueError("Aggiunta non valida.")
-        name = item["nome"].strip()
+        name = item["nome"].strip().upper()
         category_id, product_id = item.get("id_categoria"), item.get("id_prodotto")
         category_ids_target = item.get("id_categorie", [category_id] if category_id is not None else [])
         if not isinstance(category_ids_target, list) or len(category_ids_target) > 100 or any(type(value) is not int for value in category_ids_target):
@@ -5171,13 +5189,13 @@ def api_pizzeria_varianti():
         with conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT id,nome FROM categorie WHERE id_negozio=%s ORDER BY nome,id", (shop_id,))
-                categories = [{"id": row[0], "nome": row[1]} for row in cur.fetchall()]
+                categories = [{"id": row[0], "nome": row[1].upper()} for row in cur.fetchall()]
                 cur.execute("""SELECT DISTINCT p.id,p.nome,p.id_categoria
                     FROM prodotti p JOIN pizzeria_formati f
                       ON f.id_prodotto=p.id AND f.id_negozio=p.id_negozio
                     WHERE p.id_negozio=%s AND p.unita_prezzo='pezzo'
                     ORDER BY p.nome,p.id""", (shop_id,))
-                products = [{"id": row[0], "nome": row[1], "id_categoria": row[2]} for row in cur.fetchall()]
+                products = [{"id": row[0], "nome": row[1].upper(), "id_categoria": row[2]} for row in cur.fetchall()]
                 cur.execute("""SELECT DISTINCT nome FROM (
                     SELECT nome FROM pizzeria_formati WHERE id_negozio=%s
                     UNION ALL
@@ -5199,8 +5217,12 @@ def api_pizzeria_varianti():
                         (shop_id, json.dumps(fractions), json.dumps(additions)))
                 cur.execute("SELECT frazioni,aggiunte FROM pizzeria_varianti_config WHERE id_negozio=%s", (shop_id,))
                 row = cur.fetchone()
+                saved_additions = row[1] if row else []
+                for addition in saved_additions:
+                    if isinstance(addition, dict) and isinstance(addition.get("nome"), str):
+                        addition["nome"] = addition["nome"].upper()
         return jsonify({"attivo": False, "categorie": categories, "prodotti": products, "formati": formats,
-                        "frazioni": row[0] if row else [], "aggiunte": row[1] if row else []})
+                        "frazioni": row[0] if row else [], "aggiunte": saved_additions})
     finally:
         conn.close()
 
@@ -6112,7 +6134,7 @@ def public_menu(slug: str):
                 """,
                 (shop["id"], shop["ordine_categorie_personalizzato"]),
             )
-            categories = [{"id": item[0], "nome": item[1], "prodotti": []} for item in cur.fetchall()]
+            categories = [{"id": item[0], "nome": item[1].upper(), "prodotti": []} for item in cur.fetchall()]
             category_map = {category["id"]: category for category in categories}
 
             cur.execute(
@@ -6158,7 +6180,7 @@ def public_menu(slug: str):
                 if detected_allergens != (product[10] or []):
                     allergen_updates.append((detected_allergens, product[0]))
                 category["prodotti"].append({
-                    "id": product[0], "nome": product[1], "descrizione": product[2],
+                    "id": product[0], "nome": product[1].upper(), "descrizione": product[2],
                     "note": product[3], "prezzo": f"{product[4]:.2f}".replace(".", ","), "unita_prezzo": product[12],
                     "sottocategoria_id": product[6], "sottocategoria": product[7],
                     "immagine_url": product[8] if shop["piano"] == "professional" else "",
@@ -6207,6 +6229,12 @@ def public_menu(slug: str):
                         product["sottocategoria"] = translations.get(("sottocategoria", product["sottocategoria_id"], "nome"), product["sottocategoria"])
                         product["etichette"] = [translations.get(("prodotto", product["id"], f"etichetta_{i}"), value) for i, value in enumerate(product["etichette"])]
                         product["allergeni"] = [translations.get(("prodotto", product["id"], f"allergene_{i}"), value) for i, value in enumerate(product["allergeni"])]
+
+            # Anche le traduzioni dei nomi rispettano la regola visiva del catalogo.
+            for category in categories:
+                category["nome"] = category["nome"].upper()
+                for product in category["prodotti"]:
+                    product["nome"] = product["nome"].upper()
 
             if shop["modulo_pizzeria_attivo"]:
                 product_lookup = {product["id"]: product for category in categories for product in category["prodotti"]}
@@ -6476,13 +6504,13 @@ def api_prodotti_list():
                 allergen_updates.append((detected_allergens, r[0]))
             items.append({
                 "id": r[0],
-                "nome": r[1],
+                "nome": r[1].upper(),
                 "descrizione": r[2] or "",
                 "prezzo_euro": str(r[3]),
                 "unita_prezzo": r[14],
                 "disponibile": bool(r[4]),
                 "id_categoria": r[5],
-                "categoria_nome": r[6] or "",
+                "categoria_nome": (r[6] or "").upper(),
                 "id_sottocategoria": r[7],
                 "sottocategoria_nome": r[8] or "",
                 "immagine_url": r[9] or "",
@@ -6535,7 +6563,7 @@ def api_categorie_list():
             for category_id, name, kind, formats, combine_tastes, taste_categories, taste_products, variants_enabled in rows:
                 available_formats = formats if isinstance(formats, list) else legacy_formats.get(category_id, [])
                 inferred_kind = "calzone" if "calzon" in name.casefold() else "panino" if "panin" in name.casefold() else "pizza"
-                cats.append({"id": category_id, "nome": name,
+                cats.append({"id": category_id, "nome": name.upper(),
                              "tipo_pizzeria": kind or (inferred_kind if available_formats else "standard"),
                              "formati": available_formats,
                              "combina_gusti": bool(combine_tastes),
@@ -6833,12 +6861,12 @@ def parse_imported_menu_text(raw_text: str) -> list[dict]:
         next_line = lines[index + 1] if index + 1 < len(lines) else ""
         next_price = only_price.match(next_line)
         if next_price and len(line) <= 100:
-            items.append({"categoria": category, "nome": line[:100], "descrizione": "", "prezzo": next_price.group(1).replace(",", ".")})
+            items.append({"categoria": category.upper(), "nome": line[:100].upper(), "descrizione": "", "prezzo": next_price.group(1).replace(",", ".")})
             skip_next = True
             continue
         match = price_line.match(line)
         if match and match.group(1).strip():
-            items.append({"categoria": category, "nome": match.group(1).strip(" .-")[:100], "descrizione": "", "prezzo": match.group(2).replace(",", ".")})
+            items.append({"categoria": category.upper(), "nome": match.group(1).strip(" .-")[:100].upper(), "descrizione": "", "prezzo": match.group(2).replace(",", ".")})
             continue
         letters = [char for char in line if char.isalpha()]
         uppercase_ratio = sum(char.isupper() for char in letters) / max(1, len(letters))
@@ -7537,7 +7565,7 @@ def api_categorie_full():
                 legacy_formats.setdefault(category_id, []).append(format_name)
             items = [{
                 "id": r[0],
-                "nome": r[1],
+                "nome": r[1].upper(),
                 "ordine": int(r[2]) if r[2] is not None else 0,
                 "visibile": bool(r[3]),
                 "visibile_da": r[4].isoformat() if r[4] else "",
