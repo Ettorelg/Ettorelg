@@ -37,6 +37,7 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from flask import Flask, render_template, request, redirect, session, send_from_directory, send_file, url_for, abort, jsonify
 
 from db_config import build_db_config
+from fiscal_printers import MODELS as FISCAL_MODELS, validate_config as validate_fiscal_config, receipt_xml
 
 app = Flask(__name__)
 PUSH_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="order-push")
@@ -1155,6 +1156,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS criterio_limite_fascia VARCHAR(10) NOT NULL DEFAULT 'ordini'")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS stampante_ip VARCHAR(45) NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS stampante_riepilogo_ip VARCHAR(45) NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS registratore_fiscale JSONB NOT NULL DEFAULT '{}'::jsonb")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS modulo_pizzeria_attivo BOOLEAN NOT NULL DEFAULT FALSE")
                 cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_formati (
                     id BIGSERIAL PRIMARY KEY,
@@ -5886,6 +5888,47 @@ def api_stampanti_categorie():
         return jsonify({"stampante_ip": row[0] if row else "", "stampante_riepilogo_ip": row[1] if row else "", "categorie": categories})
     finally:
         conn.close()
+
+
+@app.route('/api/ordini/registratore-fiscale', methods=['GET', 'PUT'])
+def api_registratore_fiscale():
+    shop_id = order_notification_shop_id()
+    if not shop_id or (request.method == 'PUT' and session.get('employee_id')):
+        return jsonify(error='Configurazione riservata al titolare.'), 403
+    config = None
+    if request.method == 'PUT':
+        try:
+            config = validate_fiscal_config(request.get_json(silent=True))
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                if config is not None:
+                    cur.execute('UPDATE negozi SET registratore_fiscale=%s::jsonb WHERE id=%s', (json.dumps(config), shop_id))
+                cur.execute('SELECT registratore_fiscale FROM negozi WHERE id=%s', (shop_id,))
+                row = cur.fetchone()
+                return jsonify(config=row[0] if row else {}, models=FISCAL_MODELS)
+    finally:
+        conn.close()
+
+
+@app.get('/api/ordini/<int:order_id>/tracciato-fiscale')
+def api_tracciato_fiscale(order_id):
+    result = api_ordine_per_stampa(order_id)
+    if isinstance(result, tuple):
+        return result
+    configuration = api_registratore_fiscale()
+    if isinstance(configuration, tuple):
+        return configuration
+    try:
+        xml = receipt_xml(result.get_json()['ordine'], configuration.get_json()['config'], request.args.get('pagamento', 'contanti'))
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
+    return app.response_class(xml, mimetype='application/xml', headers={
+        'Content-Disposition': f'attachment; filename="anteprima-ordine-{order_id}.xml"',
+        'Cache-Control': 'no-store', 'X-Fiscal-Mode': 'preview'})
 
 
 @app.get("/api/ordini/notifiche/chiave")

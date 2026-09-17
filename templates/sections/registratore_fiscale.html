@@ -1,0 +1,34 @@
+<div class="orders-settings" id="fiscalSettings">
+  <strong>3 · Registratore fiscale</strong>
+  <p>Configura il registratore per la preparazione degli scontrini.</p>
+  <label>Marca<select id="fiscalBrand"><option value="">Nessun registratore</option><option value="epson">Epson</option><option value="axon_micrelec">Axon-Micrelec</option><option value="altro">Altro produttore</option></select></label>
+  <div id="fiscalFields" hidden>
+    <label>Modello<select id="fiscalModel"></select></label>
+    <label>IP Ethernet<input id="fiscalIp" placeholder="192.168.1.70" maxlength="45"></label>
+    <label>Porta<input id="fiscalPort" type="number" min="1" max="65535" value="80"></label>
+    <label>Operatore Epson<input id="fiscalOperator" type="number" min="1" max="12" value="1"></label>
+    <p id="fiscalSupport"></p>
+    <p>Associa le categorie ai reparti già programmati sul registratore. Il reparto determina l’IVA: verifica la corrispondenza con il tecnico.</p>
+    <div id="fiscalDepartments"></div>
+  </div>
+  <button id="fiscalSave" type="button" disabled>Salva registratore</button>
+  <details id="fiscalPreview" hidden><summary>Anteprima tracciato Epson</summary>
+    <p>Genera soltanto il file XML. Non emette scontrini e non modifica lo stato dell’ordine. L’invio al registratore richiede il collaudo del collegamento.</p>
+    <label>ID interno ordine<input id="fiscalOrder" type="number" min="1" placeholder="ID interno, non numero giornaliero"></label>
+    <label>Pagamento<select id="fiscalPayment"><option value="contanti">Contanti</option><option value="carta">Carta</option></select></label>
+    <button id="fiscalDownload" type="button">Scarica anteprima XML</button>
+  </details>
+  <p id="fiscalMessage" role="status"></p>
+</div>
+<script>
+(()=>{
+ const el=id=>document.getElementById('fiscal'+id);let models={},saved={};
+ function brandChanged(model){const brand=el('Brand').value;el('Fields').hidden=!brand;el('Model').replaceChildren();for(const name of models[brand]||[]){const option=new Option(name,name);el('Model').add(option)}if(model)el('Model').value=model;el('Support').textContent=brand==='epson'?'Epson ePOS Fiscal · preparazione XML disponibile. Emissione non ancora attiva.':'Modello predisposto · protocollo da integrare. Emissione non disponibile.';el('Preview').hidden=saved.brand!=='epson'}
+ async function responseData(response){const data=await response.json();if(!response.ok)throw Error(data.error||'Operazione non riuscita.');return data}
+ async function load(){try{const data=await responseData(await fetch('/api/ordini/registratore-fiscale'));models=data.models;saved=data.config||{};el('Brand').value=saved.brand||'';brandChanged(saved.model);el('Ip').value=saved.ip||'';el('Port').value=saved.port||80;el('Operator').value=saved.operator||1;
+ const categories=await responseData(await fetch('/api/categorie'));const list=categories.items;if(!Array.isArray(list))throw Error('Impossibile caricare le categorie.');el('Departments').replaceChildren();for(const cat of list){const label=document.createElement('label');label.textContent=cat.nome+' · reparto';const input=document.createElement('input');input.type='number';input.min='1';input.max='99';input.dataset.category=cat.id;input.value=saved.departments?.[cat.id]||'';input.placeholder='Da configurare';label.append(input);el('Departments').append(label)}el('Save').disabled=false;
+ }catch(error){el('Message').textContent=error.message}}
+ el('Brand').onchange=()=>brandChanged();el('Save').onclick=async()=>{el('Save').disabled=true;try{const departments={};el('Departments').querySelectorAll('input').forEach(input=>{if(input.value)departments[input.dataset.category]=input.value});const data=await responseData(await fetch('/api/ordini/registratore-fiscale',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand:el('Brand').value,model:el('Model').value,ip:el('Ip').value.trim(),port:el('Port').value,operator:el('Operator').value,departments})}));saved=data.config;brandChanged(saved.model);el('Message').textContent='Configurazione salvata. Emissione fiscale non ancora attiva.'}catch(error){el('Message').textContent=error.message}finally{el('Save').disabled=false}};
+ el('Download').onclick=async()=>{try{const id=el('Order').value;if(!/^[1-9]\d*$/.test(id))throw Error('Inserire l’ID interno dell’ordine.');const response=await fetch('/api/ordini/'+id+'/tracciato-fiscale?pagamento='+el('Payment').value);if(!response.ok){await responseData(response);return}const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download='anteprima-ordine-'+id+'.xml';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(error){el('Message').textContent=error.message}};load();
+})();
+</script>
