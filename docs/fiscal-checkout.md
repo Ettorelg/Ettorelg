@@ -11,7 +11,7 @@ Dashboard → Stampanti e pagamenti (sotto Lingue): IP comande, riepilogo,
 categorie, marca/modello RT, IP/porta HTTP, operatore, reparti IVA,
 totalizzatori contanti/carta. I dati delle stampanti non sono impostati nell'app.
 Altre marche sono memorizzabili ma non emettono documenti. Per ora l'emissione
-è limitata a FP-81II RT. Windows 1.1.2 include il trasporto; Android non ancora.
+è limitata a FP-81II RT. Windows 1.1.3 include il trasporto; Android non ancora.
 
 Prima salvare in **Prova** e usare **Verifica collegamento** dall'app Windows
 sulla stessa LAN: invia solo `queryPrinterStatus`, non una vendita.

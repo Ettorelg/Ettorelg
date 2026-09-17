@@ -219,7 +219,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith('/fiscal/') and self._trusted() and epson_bridge:
             try:
                 size = int(self.headers.get('Content-Length', '0'))
-                if not 1 <= size <= 65536 or self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
+                content_type = self.headers.get('Content-Type', '').split(';')[0].strip()
+                if not 1 <= size <= 65536 or content_type not in ('application/json', 'text/plain'):
                     raise ValueError('Richiesta non valida.')
                 result = epson_bridge.dispatch(self.path, json.loads(self.rfile.read(size)))
                 self._headers(200)
