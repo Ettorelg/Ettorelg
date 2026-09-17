@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 11
+BRIDGE_VERSION = 12
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
@@ -65,7 +65,7 @@ def receipt(order, large_category_ids=None, summary=False):
 
     if summary:
         line("RIEPILOGO", True, centered=True)
-    line("ORDINE #" + clean(order.get("id"), 30), True, centered=True)
+    line("ORDINE #" + clean(order.get("numero", order.get("id")), 30), True, centered=True)
     if order.get("origine") == "tavolo":
         line("AL TAVOLO")
     line("DATA: " + clean(order.get("data_richiesta"), 30), double_height=True)

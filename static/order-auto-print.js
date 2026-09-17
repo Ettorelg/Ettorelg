@@ -51,7 +51,8 @@
       const {ordine} = await response.json();
       const printed = await AlphaOrderPrint.direct(ordine, {quiet: true, automatic: true});
       save({enabled: true, cursor: item.id});
-      indicator.textContent = printed ? 'Stampato automaticamente ordine #' + item.id : 'Ordine #' + item.id + ': nessuna stampante assegnata alle sue categorie.';
+      const visibleNumber = ordine.numero || item.id;
+      indicator.textContent = printed ? 'Stampato automaticamente ordine #' + visibleNumber : 'Ordine #' + visibleNumber + ': nessuna stampante assegnata alle sue categorie.';
     }
   }
 

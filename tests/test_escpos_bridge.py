@@ -36,6 +36,12 @@ def test_receipt_contains_order_and_escpos_cut_without_control_injection():
     assert payload.endswith((b"\x1d!\x00\x1bE\x00\n" * 4) + b"\x1dV\x00")
 
 
+def test_receipt_prints_progressive_number_but_keeps_internal_id_separate():
+    payload = bridge.receipt({"id": 208, "numero": 3, "prodotti": []})
+    assert b"ORDINE #3" in payload
+    assert b"ORDINE #208" not in payload
+
+
 def test_mixed_category_order_routes_once_per_matching_printer():
     order = {"id": 10, "prodotti": [
         {"id_categoria": 1, "nome": "Pizza", "quantita": 1},

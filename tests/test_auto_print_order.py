@@ -46,9 +46,21 @@ def test_print_order_is_scoped_to_current_shop():
         session["shop_id"] = 7
         result = endpoint(db)(8)
     assert db.cur.params == (7, 8)
+    assert result.json["ordine"]["id"] == 8
+    assert result.json["ordine"]["numero"] == 8
     assert result.json["ordine"]["prodotti"][0]["nome"] == "Pizza"
     assert result.json["ordine"]["prodotti"][0]["id_categoria"] == 3
     assert result.json["ordine"]["prodotti"][0]["unita_prezzo"] == "kg"
+
+
+def test_internal_id_is_not_replaced_by_the_reusable_progressive_number():
+    db = Connection([(3, date(2026, 9, 14), "20:00", "Mario", "333", "", "", 10,
+                      "asporto", "14/09/2026 19:00", "Pizza", 1, 10, 3, "Pizze", "pezzo")])
+    with FLASK.test_request_context("/api/ordini/208/stampa"):
+        session["shop_id"] = 7
+        result = endpoint(db)(208)
+    assert result.json["ordine"]["id"] == 208
+    assert result.json["ordine"]["numero"] == 3
 
 
 def test_print_order_rejects_anonymous_access():

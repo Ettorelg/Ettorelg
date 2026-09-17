@@ -5775,7 +5775,10 @@ def api_ordine_per_stampa(order_id: int):
             return jsonify({"error": "Ordine non trovato."}), 404
         first = rows[0]
         return jsonify({"ordine": {
-            "id": first[0], "data_richiesta": first[1].isoformat(), "ora_richiesta": first[2],
+            # L'ID interno serve per recuperare e deduplicare l'ordine; il numero
+            # progressivo è soltanto il riferimento leggibile sullo scontrino.
+            "id": order_id, "numero": first[0],
+            "data_richiesta": first[1].isoformat(), "ora_richiesta": first[2],
             "nome": first[3], "telefono": first[4], "riferimento": first[5],
             "note": first[6], "totale": str(first[7]), "origine": first[8],
             "creato_il": first[9], "prodotti": [
