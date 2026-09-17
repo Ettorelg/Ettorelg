@@ -74,8 +74,11 @@
   #productForm{padding:22px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.022));box-shadow:0 14px 34px rgba(0,0,0,.16)}
   .form-section-label{display:flex;align-items:center;gap:10px;margin:22px 0 12px;color:#dbe8ff;font-size:13px;font-weight:850;letter-spacing:.05em;text-transform:uppercase}.form-section-label:first-of-type{margin-top:0}.form-section-label::after{content:"";height:1px;flex:1;background:rgba(110,168,254,.25)}
   #productForm>.field{margin-top:13px}
+  .product-schedule-actions{display:flex;justify-content:flex-start;margin:10px 0}
+  .product-schedule-actions .btn{flex:0 0 auto;width:auto;padding:8px 11px;font-size:13px;line-height:1.15}
   @media(max-width:760px){
     .products-head{display:block}.products-head .btn{margin-top:12px}.row{display:grid;grid-template-columns:1fr}.field{min-width:0!important;max-width:none!important}#productForm{padding:15px}.actions .btn{flex:1;justify-content:center}.tag-option{flex:1;min-width:135px}.products-list-panel{padding:15px;margin-top:24px}.products-list-heading::before,.products-list-heading::after{display:none}
+    .product-schedule-actions{margin:7px 0}.product-schedule-actions .btn{flex:0 0 auto;width:auto;min-height:34px;padding:7px 9px;font-size:12px;justify-content:flex-start}
     #table{border:0;background:transparent}#table thead{display:none}#table tbody{display:grid;gap:12px}#table tr{display:grid;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.035)}#table td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border:0}#table td:nth-child(2)::before{content:"Categoria";color:#9eabca;font-size:12px}#table td:nth-child(3)::before{content:"Prezzo";color:#9eabca;font-size:12px}#table td:nth-child(4)::before{content:"Stato";color:#9eabca;font-size:12px}#table td.right{white-space:normal;display:flex}#table td.right .btn{flex:1;justify-content:center}
   }
 </style>
@@ -125,7 +128,7 @@
     </div>
   </div>
 
-  <div class="actions" style="margin:10px 0"><button class="btn" type="button" id="toggleProductSchedule">🕒 Programma visibilità (opzionale)</button></div>
+  <div class="actions product-schedule-actions"><button class="btn" type="button" id="toggleProductSchedule" aria-expanded="false">🕒 Programma visibilità (opzionale)</button></div>
   <div id="productScheduleFields" class="row hidden" style="margin:0 0 12px;padding:12px;border:1px dashed rgba(110,168,254,.45);border-radius:12px">
     <div class="field"><label>Dal giorno</label><input id="visibile_da" type="date"></div><div class="field"><label>Al giorno</label><input id="visibile_fino" type="date"></div><div class="field"><label>Dalle ore</label><input id="ora_inizio" type="time"></div><div class="field"><label>Alle ore</label><input id="ora_fine" type="time"></div>
   </div>
@@ -473,6 +476,8 @@
       f("imagePreview").style.display = "none";
       f("imagePreview").removeAttribute("src");
       f("disponibile").value = "true";
+      f("productScheduleFields").classList.add("hidden");
+      f("toggleProductSchedule").setAttribute("aria-expanded", "false");
       pizzaProductFields.classList.add('hidden');pizzaFormatBox.replaceChildren();f("varianti_abilitate_override").value="inherit";
       f("id_categoria").value = categoryId;
       renderCategoryFormats();
@@ -509,6 +514,8 @@
       if (p.immagine_url) { f("imagePreview").src = p.immagine_url; f("imagePreview").style.display = "block"; }
       else { f("imagePreview").style.display = "none"; f("imagePreview").removeAttribute("src"); }
       f("disponibile").value = p.disponibile ? "true" : "false";
+      f("productScheduleFields").classList.add("hidden");
+      f("toggleProductSchedule").setAttribute("aria-expanded", "false");
       f("id_categoria").value = p.id_categoria ? String(p.id_categoria) : "";
       f("varianti_abilitate_override").value=p.varianti_abilitate_override===true?"true":p.varianti_abilitate_override===false?"false":"inherit";
       await loadSubcategories(p.id_categoria, p.id_sottocategoria);
@@ -951,7 +958,11 @@
     return escapeHtml(s).replaceAll("'","&#39;");
   }
 
-  document.getElementById("toggleProductSchedule").addEventListener("click",()=>f("productScheduleFields").classList.toggle("hidden"));
+  document.getElementById("toggleProductSchedule").addEventListener("click",event=>{
+    const fields=f("productScheduleFields");
+    const expanded=fields.classList.toggle("hidden")===false;
+    event.currentTarget.setAttribute("aria-expanded",String(expanded));
+  });
     // bootstrap
   (async function init(){
     resetForm();
