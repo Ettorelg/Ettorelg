@@ -767,7 +767,7 @@ def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_config
     assert "node(manualSlotButtons,'button',option.value)" in html
     assert '.manual-slot-buttons{gap:4px;flex-wrap:wrap;overflow:visible}' in html
     assert '.manual-slot-buttons button{min-width:64px;min-height:31px' in html
-    assert '.manual-categories{flex-wrap:wrap;overflow:visible;padding-bottom:0}' in html
+    assert '.manual-categories{flex-wrap:wrap;overflow:visible;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid #456584}' in html
     assert "for(const format of Object.values(pizza.formati)" not in html
     assert "url_for('manual_order_product_configurator')" in html
     configurator = (Path(__file__).resolve().parents[1] / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
