@@ -629,7 +629,7 @@ def test_fulfillment_api_returns_shop_scoped_open_and_completed_orders():
             assert "o.stato IN ('da_evadere','in_lavorazione','evaso')" in sql
             assert params[0] == 7
         def fetchall(self):
-                return [(19, 4, day, "12:15", "Mario Rossi", "+39123456", "", "", "da_evadere", Decimal("6.00"), "cliente", "12/09/2026 09:00", "Articolo", Decimal("1.5"), Decimal("6.00"), 3, 2, "Primi", 1, 4)]
+                return [(19, 4, day, "12:15", "Mario Rossi", "+39123456", "", "", "da_evadere", Decimal("6.00"), "cliente", "12/09/2026 09:00", "Articolo", Decimal("1.5"), Decimal("6.00"), 3, 2, "Primi", 1, 4, {"_stampa": {"tipo": "Pizza", "formato": "Doppia", "impasto": "Classico", "gusti": [{"nome": "MARGHERITA", "quota": "", "senza": ["pomodoro"], "aggiunte": ["prosciutto"]}]}})]
 
     db = SimpleNamespace(cursor=lambda: Cursor(), close=lambda: None)
     scope = {
@@ -646,6 +646,7 @@ def test_fulfillment_api_returns_shop_scoped_open_and_completed_orders():
     assert result["ordini"][0]["ora_richiesta"] == "12:15"
     assert result["ordini"][0]["numero"] == 4
     assert result["ordini"][0]["prodotti"][0]["quantita"] == "1.5"
+    assert result["ordini"][0]["prodotti"][0]["configurazione"]["_stampa"]["gusti"][0]["nome"] == "MARGHERITA"
 
 
 def test_fulfillment_page_always_shows_product_totals_and_completed_orders():
@@ -696,6 +697,18 @@ def test_fulfillment_orders_are_compact_and_expandable():
     assert "minmax(min(100%, 365px), 1fr)" in cards_css
     assert "const body=node(card,'div',undefined,'order-card-body')" in html
     assert "expandedOrderIds.has(String(order.id))" in html
+
+
+def test_fulfillment_orders_show_product_names_then_variants_like_public_review():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert "function pizzeriaPresentation(product)" in html
+    assert "mixed?' · combina gusti':''" in html
+    assert "title:(taste.quota?taste.quota+' · ':'')+baseType+' · '+taste.nome" in html
+    assert "...(taste.senza||[]).map(name=>'− '+name)" in html
+    assert "...(taste.aggiunte||[]).map(name=>'+ '+name)" in html
+    assert "appendProductGroups(line,presentation,'order-product-groups'" in html
+    assert "appendProductGroups(row,{meta:item.meta||'',groups:item.groups||[]},'manual-cart-groups'" in html
+    assert ".manual-cart-groups{display:grid" in html
 
 
 def test_fulfillment_product_section_follows_date_and_navigation_is_lateral():

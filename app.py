@@ -5910,7 +5910,7 @@ def api_ordini_evasione():
                        o.riferimento,o.note,o.stato,o.totale,o.origine,
                        TO_CHAR(o.creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
                        r.nome_prodotto,r.quantita,r.totale_riga,r.id_prodotto,
-                       c.id,c.nome,c.ordine,p.ordine
+                       c.id,c.nome,c.ordine,p.ordine,r.configurazione
                 FROM ordini_menu o
                 LEFT JOIN righe_ordini_menu r ON r.id_ordine=o.id
                 LEFT JOIN prodotti p ON p.id=r.id_prodotto AND p.id_negozio=o.id_negozio
@@ -5941,7 +5941,8 @@ def api_ordini_evasione():
                                           "id_prodotto": row[15], "id_categoria": row[16],
                                           "categoria": row[17] or "Senza categoria",
                                           "ordine_categoria": row[18] if row[18] is not None else 999999,
-                                          "ordine_prodotto": row[19] if row[19] is not None else 999999})
+                                          "ordine_prodotto": row[19] if row[19] is not None else 999999,
+                                          "configurazione": row[20]})
         return jsonify({"ordini": list(orders_by_id.values()), "da": start.isoformat(), "a": (end - timedelta(days=1)).isoformat()})
     finally:
         conn.close()
