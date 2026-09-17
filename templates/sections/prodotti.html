@@ -126,12 +126,6 @@
   </div>
 
   <div class="actions" style="margin:10px 0"><button class="btn" type="button" id="toggleProductSchedule">🕒 Programma visibilità (opzionale)</button></div>
-  <div id="productPizzeriaFields" class="hidden" style="padding:14px;border:1px solid rgba(110,168,254,.45);border-radius:12px;margin-bottom:14px">
-    <strong id="productFormatsTitle">Formati disponibili per questo prodotto</strong>
-    <p class="muted">I formati provengono dalla categoria. Spunta quelli venduti per questo articolo e assegna a ciascuno prezzo e impasti.</p>
-    <div class="field" style="max-width:360px;margin:10px 0"><label>Varianti del prodotto</label><select id="varianti_abilitate_override"><option value="inherit">Eredita dalla categoria</option><option value="true">Abilitate per questo prodotto</option><option value="false">Disabilitate per questo prodotto</option></select><small class="muted" id="productVariantsHint"></small></div>
-    <div id="productPizzaFormats"></div>
-  </div>
   <div id="productScheduleFields" class="row hidden" style="margin:0 0 12px;padding:12px;border:1px dashed rgba(110,168,254,.45);border-radius:12px">
     <div class="field"><label>Dal giorno</label><input id="visibile_da" type="date"></div><div class="field"><label>Al giorno</label><input id="visibile_fino" type="date"></div><div class="field"><label>Dalle ore</label><input id="ora_inizio" type="time"></div><div class="field"><label>Alle ore</label><input id="ora_fine" type="time"></div>
   </div>
@@ -164,6 +158,13 @@
       <img id="imagePreview" class="image-preview" alt="Anteprima immagine selezionata" />
       <div class="muted">Facoltativa. In modifica puoi caricare una nuova immagine per sostituire.</div>
     </div>
+  </div>
+
+  <div id="productPizzeriaFields" class="hidden" style="padding:14px;border:1px solid rgba(110,168,254,.45);border-radius:12px;margin:14px 0">
+    <strong id="productFormatsTitle">Formati disponibili per questo prodotto</strong>
+    <p class="muted">I formati provengono dalla categoria. Spunta quelli venduti per questo articolo e assegna a ciascuno prezzo e impasti.</p>
+    <div class="field" style="max-width:360px;margin:10px 0"><label>Varianti del prodotto</label><select id="varianti_abilitate_override"><option value="inherit">Eredita dalla categoria</option><option value="true">Abilitate per questo prodotto</option><option value="false">Disabilitate per questo prodotto</option></select><small class="muted" id="productVariantsHint"></small></div>
+    <div id="productPizzaFormats"></div>
   </div>
 
   <div class="form-section-label">3 · Descrizione e caratteristiche</div>
