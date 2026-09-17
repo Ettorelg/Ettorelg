@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 13
+BRIDGE_VERSION = 14
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
@@ -103,7 +103,7 @@ def receipt(order, large_category_ids=None, summary=False):
                 if not isinstance(taste, dict):
                     continue
                 prefix = (clean(taste.get("quota"), 10) + " ") if taste.get("quota") else ""
-                line("  >| " + prefix + clean(taste.get("nome"), 100).upper(), double_width=product_emphasis, bold=True)
+                line("  >> " + prefix + clean(taste.get("nome"), 100).upper(), double_width=product_emphasis, bold=True)
                 for removed in taste.get("senza", [])[:40]:
                     line("     -" + clean(removed, 100).upper(), double_height=product_emphasis)
                 for addition in taste.get("aggiunte", [])[:20]:

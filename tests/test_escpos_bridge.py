@@ -163,7 +163,7 @@ def test_configured_multitaste_product_prints_flavors_and_changes_hierarchically
                 {"quota": "1/2", "nome": "Margherita", "senza": ["Salame"], "aggiunte": ["Prosciutto"]}]}}}]}
     payload = bridge.receipt(order, {"1"})
     assert b"1 x PIZZA MULTIGUSTO" in payload
-    assert b"  >| 1/2 RIANELLA" in payload and b"  >| 1/2 MARGHERITA" in payload
+    assert b"  >> 1/2 RIANELLA" in payload and b"  >> 1/2 MARGHERITA" in payload
     assert b"     -AGLIO" in payload and b"     +PROSCIUTTO" in payload
     assert b"\x1d!\x10\x1bE\x00     -AGLIO" in payload
     assert b"\x1d!\x10\x1bE\x00     +PROSCIUTTO" in payload
