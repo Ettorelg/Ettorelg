@@ -5367,12 +5367,14 @@ def api_ordini_clienti():
     if not shop_id:
         return jsonify({"error": "Configura prima il negozio."}), 409
     query = str(request.args.get("q") or "").strip()[:80]
+    sync_all = request.args.get("tutti") == "1"
+    limit = 500 if sync_all else 20
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
             cur.execute("""SELECT id,nome,telefono,email FROM clienti_ordini_salvati
                            WHERE id_negozio=%s AND (%s='' OR nome ILIKE %s OR telefono ILIKE %s OR email ILIKE %s)
-                           ORDER BY aggiornato_il DESC,id DESC LIMIT 20""", (shop_id, query, f"%{query}%", f"%{query}%", f"%{query}%"))
+                           ORDER BY aggiornato_il DESC,id DESC LIMIT %s""", (shop_id, query, f"%{query}%", f"%{query}%", f"%{query}%", limit))
             return jsonify({"clienti": [{"id": row[0], "nome": row[1], "telefono": row[2], "email": row[3]} for row in cur.fetchall()]})
     finally:
         conn.close()

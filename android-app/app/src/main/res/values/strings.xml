@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Alpha Menu</string>
+    <string name="call_screening_description">Riconosce i clienti Alpha Menu dalle chiamate in ingresso.</string>
+</resources>

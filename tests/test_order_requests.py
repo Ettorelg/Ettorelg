@@ -169,7 +169,8 @@ def test_saved_customer_search_matches_email_and_returns_it():
         def __exit__(self, *_): return False
         def execute(self, sql, params):
             assert "email ILIKE %s" in sql
-            assert params[-1] == "%mario@example.it%"
+            assert params[-2] == "%mario@example.it%"
+            assert params[-1] == 20
         def fetchall(self): return [(2, "Mario", "3331234567", "mario@example.it")]
 
     db = SimpleNamespace(cursor=lambda: Cursor(), close=lambda: None)
@@ -181,6 +182,35 @@ def test_saved_customer_search_matches_email_and_returns_it():
         session["user_id"] = 11
         result = scope["api_ordini_clienti"]().get_json()
     assert result["clienti"][0]["email"] == "mario@example.it"
+
+
+def test_android_customer_sync_can_request_the_complete_address_book():
+    node = copy.deepcopy(next(item for item in TREE.body if isinstance(item, ast.FunctionDef) and item.name == "api_ordini_clienti"))
+    node.decorator_list = []
+
+    class Cursor:
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def execute(self, sql, params):
+            assert "LIMIT %s" in sql
+            assert params[-1] == 500
+        def fetchall(self): return []
+
+    db = SimpleNamespace(cursor=lambda: Cursor(), close=lambda: None)
+    scope = {"request": request, "session": session, "jsonify": jsonify,
+             "get_user_shop_id": lambda user_id: 7,
+             "psycopg2": SimpleNamespace(connect=lambda **kwargs: db), "build_db_config": lambda: {}}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "app.py", "exec"), scope)
+    with FLASK.test_request_context("/api/ordini/clienti?tutti=1"):
+        session["user_id"] = 11
+        assert scope["api_ordini_clienti"]().get_json() == {"clienti": []}
+
+
+def test_android_incoming_caller_opens_prefilled_manual_order():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert "new URLSearchParams(location.search).get('caller')" in html
+    assert "Cliente riconosciuto dalla chiamata" in html
+    assert "if(incomingCaller)customerSearch.value=incomingCaller" in html
 
 
 def test_online_customer_choice_must_be_boolean():
