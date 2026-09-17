@@ -63,7 +63,7 @@ def restrict_employee_access():
     employee_id = session.get("employee_id")
     if not employee_id:
         return None
-    allowed = {"employee_orders", "api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti", "api_disponibilita_ordini", "api_crea_ordine_menu", "api_aggiorna_ordine", "api_ordini_notifiche", "api_ordini_push_key", "api_ordini_push_subscription", "logout", "static", "pwa_manifest", "pwa_service_worker"}
+    allowed = {"employee_orders", "api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti", "api_disponibilita_ordini", "api_crea_ordine_menu", "api_aggiorna_ordine", "api_ordini_notifiche", "api_ordini_push_key", "api_ordini_push_subscription", "api_token_dispositivo_chiamate", "api_chiamate_ordini", "logout", "static", "pwa_manifest", "pwa_service_worker"}
     if (request.endpoint == "api_disponibilita_ordini" and request.path != "/api/ordini/disponibilita") or request.endpoint not in allowed or (request.endpoint in {"api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti"} and request.method != "GET") or (request.endpoint == "api_crea_ordine_menu" and request.path != "/api/ordini/manuale"):
         if request.path.startswith("/api/"):
             return jsonify({"error": "Accesso non consentito al dipendente."}), 403
@@ -134,6 +134,10 @@ def apple_client_secret() -> str | None:
 
 def apple_state_serializer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(app.secret_key, salt="apple-sign-in")
+
+
+def call_device_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(app.secret_key, salt="alpha-menu-call-device")
 
 
 oauth = OAuth(app)
@@ -1277,6 +1281,14 @@ def init_db() -> None:
                     )
                 """)
                 cur.execute("ALTER TABLE clienti_ordini_salvati ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''")
+                cur.execute("""CREATE TABLE IF NOT EXISTS chiamate_ordini (
+                    id BIGSERIAL PRIMARY KEY,
+                    id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                    telefono VARCHAR(40) NOT NULL,
+                    dispositivo VARCHAR(100) NOT NULL DEFAULT 'Telefono Android',
+                    ricevuta_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""")
+                cur.execute("CREATE INDEX IF NOT EXISTS chiamate_ordini_negozio_data ON chiamate_ordini (id_negozio,id DESC)")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS righe_ordini_menu (
                         id BIGSERIAL PRIMARY KEY,
@@ -1400,7 +1412,7 @@ def run_daily_reminder_check():
 def enforce_csrf():
     if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
         return None
-    if request.endpoint in ("paypal_webhook", "auth_apple_callback", "track_category_open", "track_product_open"):
+    if request.endpoint in ("paypal_webhook", "auth_apple_callback", "track_category_open", "track_product_open", "api_segnala_chiamata_ordine"):
         return None
     supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token", "")
     expected = session.get("csrf_token", "")
@@ -5376,6 +5388,70 @@ def api_ordini_clienti():
                            WHERE id_negozio=%s AND (%s='' OR nome ILIKE %s OR telefono ILIKE %s OR email ILIKE %s)
                            ORDER BY aggiornato_il DESC,id DESC LIMIT %s""", (shop_id, query, f"%{query}%", f"%{query}%", f"%{query}%", limit))
             return jsonify({"clienti": [{"id": row[0], "nome": row[1], "telefono": row[2], "email": row[3]} for row in cur.fetchall()]})
+    finally:
+        conn.close()
+
+
+@app.get("/api/ordini/chiamate/token")
+def api_token_dispositivo_chiamate():
+    shop_id = order_notification_shop_id()
+    if not shop_id:
+        return jsonify({"error": "Accesso al locale richiesto."}), 403
+    device = str(request.args.get("dispositivo") or "Telefono Android").strip()[:100]
+    return jsonify({"token": call_device_serializer().dumps({"shop": shop_id, "device": device})})
+
+
+@app.post("/api/ordini/chiamate/ricevuta")
+def api_segnala_chiamata_ordine():
+    authorization = request.headers.get("Authorization", "")
+    if not authorization.startswith("Bearer "):
+        return jsonify({"error": "Dispositivo non autorizzato."}), 401
+    try:
+        identity = call_device_serializer().loads(authorization[7:], max_age=90 * 86400)
+        shop_id = int(identity["shop"])
+    except (BadSignature, SignatureExpired, KeyError, TypeError, ValueError):
+        return jsonify({"error": "Ricollega il telefono ad Alpha Menu."}), 401
+    data = request.get_json(silent=True) or {}
+    phone = str(data.get("telefono") or "").strip()[:40]
+    digits = "".join(character for character in phone if character.isdigit())
+    if len(digits) < 6:
+        return jsonify({"error": "Numero non valido."}), 400
+    device = str(identity.get("device") or "Telefono Android")[:100]
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO chiamate_ordini (id_negozio,telefono,dispositivo) VALUES (%s,%s,%s) RETURNING id", (shop_id, phone, device))
+                call_id = cur.fetchone()[0]
+        return jsonify({"ok": True, "id": call_id}), 201
+    finally:
+        conn.close()
+
+
+@app.get("/api/ordini/chiamate")
+def api_chiamate_ordini():
+    shop_id = order_notification_shop_id()
+    if not shop_id:
+        return jsonify({"error": "Accesso al locale richiesto."}), 403
+    cursor = request.args.get("dopo")
+    if cursor is not None and (not cursor.isdecimal() or len(cursor) > 18):
+        return jsonify({"error": "Riferimento non valido."}), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn.cursor() as cur:
+            if cursor is None:
+                cur.execute("SELECT COALESCE(MAX(id),0) FROM chiamate_ordini WHERE id_negozio=%s", (shop_id,))
+                return jsonify({"ultimo_id": cur.fetchone()[0], "chiamate": []})
+            cur.execute("""SELECT c.id,c.telefono,c.dispositivo,
+                                  TO_CHAR(c.ricevuta_il AT TIME ZONE 'Europe/Rome','HH24:MI'),s.nome
+                           FROM chiamate_ordini c
+                           LEFT JOIN clienti_ordini_salvati s ON s.id_negozio=c.id_negozio AND
+                             (s.telefono_chiave=REGEXP_REPLACE(c.telefono,'[^0-9]','','g') OR
+                              RIGHT(s.telefono_chiave,8)=RIGHT(REGEXP_REPLACE(c.telefono,'[^0-9]','','g'),8))
+                           WHERE c.id_negozio=%s AND c.id>%s
+                           ORDER BY c.id ASC LIMIT 20""", (shop_id, int(cursor)))
+            calls = [{"id": row[0], "telefono": row[1], "dispositivo": row[2], "ora": row[3], "cliente": row[4] or "Cliente non salvato"} for row in cur.fetchall()]
+            return jsonify({"ultimo_id": calls[-1]["id"] if calls else int(cursor), "chiamate": calls})
     finally:
         conn.close()
 

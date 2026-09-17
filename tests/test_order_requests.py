@@ -213,6 +213,17 @@ def test_android_incoming_caller_opens_prefilled_manual_order():
     assert "if(incomingCaller)customerSearch.value=incomingCaller" in html
 
 
+def test_remote_call_receiver_has_order_and_callback_actions():
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    service = (root / "android-app" / "app" / "src" / "main" / "java" / "com" / "alphasystemsrl" / "alphamenu" / "AlphaCallScreeningService.java").read_text(encoding="utf-8")
+    assert 'id="remoteCallOrder"' in html
+    assert 'id="remoteCallBack"' in html
+    assert "'/api/ordini/chiamate'" in html
+    assert "/api/ordini/chiamate/ricevuta" in service
+    assert 'setRequestProperty("Authorization","Bearer "+token)' in service
+
+
 def test_online_customer_choice_must_be_boolean():
     db = FakeConnection()
     data = payload(1)
@@ -837,6 +848,17 @@ def test_manual_order_fits_intermediate_and_mobile_viewports_without_page_overfl
     assert ".manual-combine button{flex:1 1 180px;min-width:0;white-space:normal}" in html
     assert ".manual-products{width:100%;grid-template-columns:repeat(2,minmax(0,1fr));max-height:270px}" in html
     assert "@media(max-width:560px){.manual-products{grid-template-columns:1fr}" in html
+
+
+def test_fulfillment_smartphone_layout_prioritizes_touch_controls_and_compact_content():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert "@media(max-width:600px){body{font-size:14px}" in html
+    assert ".side-view-nav{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}" in html
+    assert ".manual-slot-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}" in html
+    assert ".manual-categories{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}" in html
+    assert ".manual-combine{display:grid;grid-template-columns:1fr;gap:5px}" in html
+    assert ".manual-products{grid-template-columns:1fr;grid-auto-rows:58px;gap:6px;max-height:290px}" in html
+    assert ".manual-submit{position:sticky;bottom:5px" in html
 
 
 def test_staff_product_configurator_uses_direct_format_buttons():

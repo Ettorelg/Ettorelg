@@ -9,9 +9,16 @@ import android.net.Uri;
 import android.telecom.Call;
 import android.telecom.CallScreeningService;
 import org.json.JSONObject;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class AlphaCallScreeningService extends CallScreeningService {
     static final String CHANNEL_CALLS = "alpha_menu_calls";
+    private static final ExecutorService RELAY = Executors.newSingleThreadExecutor();
 
     @Override public void onScreenCall(Call.Details details) {
         CallResponse response = new CallResponse.Builder()
@@ -24,6 +31,25 @@ public class AlphaCallScreeningService extends CallScreeningService {
         if (phone.isEmpty()) return;
         JSONObject customer = CustomerStore.find(this, phone);
         showCaller(phone, customer);
+        relayCaller(phone);
+    }
+
+    private void relayCaller(String phone) {
+        String token=CustomerStore.relayToken(this);
+        if(token.isEmpty())return;
+        RELAY.execute(()->{
+            try {
+                HttpURLConnection connection=(HttpURLConnection)new URL("https://menu.alphasystemsrl.it/api/ordini/chiamate/ricevuta").openConnection();
+                connection.setRequestMethod("POST");connection.setDoOutput(true);
+                connection.setRequestProperty("Authorization","Bearer "+token);
+                connection.setRequestProperty("Content-Type","application/json; charset=utf-8");
+                connection.setConnectTimeout(8000);connection.setReadTimeout(8000);
+                byte[] payload=new JSONObject().put("telefono",phone).toString().getBytes(StandardCharsets.UTF_8);
+                connection.setFixedLengthStreamingMode(payload.length);
+                try(OutputStream output=connection.getOutputStream()){output.write(payload);}
+                connection.getResponseCode();connection.disconnect();
+            } catch(Exception ignored) { }
+        });
     }
 
     private void showCaller(String phone, JSONObject customer) {
