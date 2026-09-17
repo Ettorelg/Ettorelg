@@ -9,8 +9,10 @@ from decimal import Decimal, InvalidOperation
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 try:
     import epson_bridge
-except ImportError:
+    EPSON_IMPORT_ERROR = None
+except ImportError as exc:
     epson_bridge = None
+    EPSON_IMPORT_ERROR = str(exc)
 
 
 HOST = "127.0.0.1"
@@ -211,7 +213,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._trusted() or self.path != "/health":
             return self._reply(403, "Richiesta non consentita.")
         self._headers(200)
-        self.wfile.write(json.dumps({"message": "Programma di stampa pronto.", "version": BRIDGE_VERSION, "fiscal": bool(epson_bridge)}).encode("utf-8"))
+        self.wfile.write(json.dumps({"message": "Programma di stampa pronto.", "version": BRIDGE_VERSION, "fiscal": bool(epson_bridge), "fiscal_error": EPSON_IMPORT_ERROR}).encode("utf-8"))
 
     def do_POST(self):
         if self.path.startswith('/fiscal/') and self._trusted() and epson_bridge:
