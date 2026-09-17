@@ -768,6 +768,7 @@ def test_manual_order_compacts_customer_and_uses_direct_slots_and_private_config
     assert '.manual-slot-buttons{gap:4px;flex-wrap:wrap;overflow:visible}' in html
     assert '.manual-slot-buttons button{min-width:64px;min-height:31px' in html
     assert '.manual-categories{flex-wrap:wrap;overflow:visible;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid #456584}' in html
+    assert ".manual-categories button.active::before{content:'✓ '}" in html
     assert "for(const format of Object.values(pizza.formati)" not in html
     assert "url_for('manual_order_product_configurator')" in html
     configurator = (Path(__file__).resolve().parents[1] / "templates" / "pizzeria_test.html").read_text(encoding="utf-8")
@@ -782,6 +783,9 @@ def test_staff_product_configurator_uses_direct_format_buttons():
     assert 'id="format" hidden aria-hidden="true"' in configurator
     assert 'id="formatButtons" class="format-buttons"' in configurator
     assert '.format-choice{grid-column:1/-1}' in configurator
+    assert ".format-buttons button[aria-pressed=true]::before,.option-buttons button[aria-pressed=true]::before{content:'✓ '" in configurator
+    assert 'background:#f2b83f;color:#172033' in configurator
+    assert '.embedded .format-buttons button[aria-pressed=true],.embedded .option-buttons button[aria-pressed=true]{background:#f2b83f;color:#172033}' in configurator
     assert "const renderFormatButtons=(formats,requested)=>" in configurator
     assert "Number(price).toLocaleString('it-IT'" in configurator
     assert "format.value=name;render()" in configurator
