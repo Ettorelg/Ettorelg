@@ -861,6 +861,15 @@ def test_manual_dough_stock_updates_from_selected_cart_items_before_submission()
     assert "I formati non elencati sono illimitati" not in html
 
 
+def test_manual_order_emphasizes_insufficient_dough_stock_errors():
+    html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
+    assert ".manual-feedback.is-error" in html
+    assert ".manual-feedback.is-stock-error::before{content:'⚠ SCORTE INSUFFICIENTI'" in html
+    assert "isError&&/^Panette insufficienti/i.test(message||'')" in html
+    assert "manualFeedback.scrollIntoView({behavior:'smooth',block:'center'})" in html
+    assert "catch(error){setManualFeedback(error.message,'error')}" in html
+
+
 def test_manual_dough_stock_spans_above_catalog_and_cart_in_a_compact_row():
     html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
     stock = html.index('id="manualDoughStock"')
