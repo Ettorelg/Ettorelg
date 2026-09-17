@@ -35,18 +35,8 @@
     </div>
     <button id="pickupSave" type="button">Salva modalità di ritiro</button>
   </div>
-  <div class="orders-settings">
-    <strong>2 · Stampante ricevute 80 mm</strong>
-    <p>Imposta gli IP fissi. Le stampanti di categoria si configurano nella sezione Categorie.</p>
-    <label>Indirizzo IP stampante <input id="printerIp" inputmode="decimal" autocomplete="off" placeholder="192.168.1.50" maxlength="45"></label>
-    <label style="margin-top:12px">IP stampante di riepilogo (opzionale) <input id="summaryPrinterIp" inputmode="decimal" autocomplete="off" placeholder="192.168.1.60" maxlength="45"></label>
-    <p>La stampante riepilogo riceve l’ordine completo; lascia vuoto per disattivarla.</p>
-    <div class="orders-help">Per la stampa diretta, avvia il programma locale e attiva la stampa automatica nel banco su un solo PC.</div>
-    <p><a href="{{ url_for('scarica_programma_stampa') }}" download>Scarica programma di stampa per PC</a></p>
-    <button id="printerSave" type="button">Salva stampanti</button>
-  </div>
+  <div class="orders-settings"><strong>Stampanti e pagamenti</strong><p>Le configurazioni sono nella sezione dedicata sotto Lingue.</p><a href="#stampanti">Apri Stampanti e pagamenti →</a></div>
   <p id="ordersMessage" role="status"></p>
-  {% include 'sections/registratore_fiscale.html' %}
 </section>
 <script>
   const orderMessage=document.getElementById('ordersMessage');
@@ -62,8 +52,6 @@
   const pickupMinutes=document.getElementById('pickupMinutes');
   const pickupCapacity=document.getElementById('pickupCapacity');
   const pickupCriterion=document.getElementById('pickupCriterion');
-  const printerIp=document.getElementById('printerIp');
-  const summaryPrinterIp=document.getElementById('summaryPrinterIp');
   const weekdayNames=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
   function renderWeeklyPickup(schedule){
     weeklyPickup.replaceChildren();
@@ -90,8 +78,6 @@
     pickupMinutes.value=String(data.minuti_fascia_ritiro||15);
     pickupCapacity.value=String(data.limite_fascia_ritiro||0);
     pickupCriterion.value=data.criterio_limite_fascia||'ordini';
-    printerIp.value=data.stampante_ip||'';
-    summaryPrinterIp.value=data.stampante_riepilogo_ip||'';
     pickupHours.hidden=!data.fasce_ritiro_attive;
     orderState.textContent=ordersActive?'Attivi: il cliente può scegliere una data per l’asporto.':'Disattivati: il menu resta consultabile.';
     orderToggle.textContent=ordersActive?'Disattiva asporto':'Attiva asporto';orderToggle.classList.toggle('off',ordersActive);orderToggle.disabled=false;
@@ -105,7 +91,6 @@
   }
   orderToggle.addEventListener('click',async()=>{orderToggle.disabled=true;try{await saveOrdersConfig({asporto_attivi:!ordersActive},'Impostazione asporto salvata.')}catch(error){orderMessage.textContent=error.message;orderToggle.disabled=false}});
   tableOrdersToggle.addEventListener('click',async()=>{tableOrdersToggle.disabled=true;try{await saveOrdersConfig({tavolo_attivi:!tableOrdersActive},'Impostazione tavoli salvata.')}catch(error){orderMessage.textContent=error.message;tableOrdersToggle.disabled=false}});
-  document.getElementById('printerSave').addEventListener('click',async()=>{const button=document.getElementById('printerSave');button.disabled=true;try{await saveOrdersConfig({stampante_ip:printerIp.value.trim(),stampante_riepilogo_ip:summaryPrinterIp.value.trim()},'Stampanti salvate. Riavvia il programma locale aggiornato sul PC.')}catch(error){orderMessage.textContent=error.message}finally{button.disabled=false}});
   document.getElementById('ordersSaveLimit').addEventListener('click',async()=>{
     const limit=Number(ordersLimit.value);if(!Number.isInteger(limit)||limit<0||limit>10000){orderMessage.textContent='Inserisci un limite da 0 a 10000.';return}
     try{await saveOrdersConfig({limite_giornaliero:limit},'Limite giornaliero salvato.')}catch(error){orderMessage.textContent=error.message}

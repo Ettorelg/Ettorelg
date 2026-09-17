@@ -7,6 +7,10 @@ import textwrap
 import threading
 from decimal import Decimal, InvalidOperation
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+try:
+    import epson_bridge
+except ImportError:
+    epson_bridge = None
 
 
 HOST = "127.0.0.1"
@@ -207,9 +211,20 @@ class Handler(BaseHTTPRequestHandler):
         if not self._trusted() or self.path != "/health":
             return self._reply(403, "Richiesta non consentita.")
         self._headers(200)
-        self.wfile.write(json.dumps({"message": "Programma di stampa pronto.", "version": BRIDGE_VERSION}).encode("utf-8"))
+        self.wfile.write(json.dumps({"message": "Programma di stampa pronto.", "version": BRIDGE_VERSION, "fiscal": bool(epson_bridge)}).encode("utf-8"))
 
     def do_POST(self):
+        if self.path.startswith('/fiscal/') and self._trusted() and epson_bridge:
+            try:
+                size = int(self.headers.get('Content-Length', '0'))
+                if not 1 <= size <= 65536 or self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
+                    raise ValueError('Richiesta non valida.')
+                result = epson_bridge.dispatch(self.path, json.loads(self.rfile.read(size)))
+                self._headers(200)
+                self.wfile.write(json.dumps(result).encode('utf-8'))
+            except Exception as exc:
+                self._reply(409, str(exc))
+            return
         if not self._trusted() or self.path != "/print":
             return self._reply(403, "Richiesta non consentita.")
         if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":

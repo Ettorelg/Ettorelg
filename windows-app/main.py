@@ -16,7 +16,7 @@ from webview.menu import Menu, MenuAction, MenuSeparator
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 import escpos_bridge as bridge
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 BASE = 'https://menu.alphasystemsrl.it'
 DATA = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'AlphaMenu'
 UPDATE_URL = BASE + '/static/windows/latest.json'
@@ -47,9 +47,9 @@ def validate_update(data):
 
 
 def bridge_health():
-    with request('http://127.0.0.1:17891/health') as response:
+    with request(f'http://127.0.0.1:{bridge.PORT}/health') as response:
         data = json.load(response)
-    if data.get('version') != bridge.BRIDGE_VERSION:
+    if data.get('version') != bridge.BRIDGE_VERSION or not data.get('fiscal'):
         raise ValueError('Un vecchio programma di stampa è già aperto. Chiudilo e riavvia Alpha Menu.')
 
 
@@ -123,11 +123,13 @@ def main():
         return
     server = None
     bridge_error = None
+    smoke = '--smoke-test' in sys.argv
+    if smoke:
+        bridge.PORT = 17892
     try:
         server = start_bridge()
     except Exception as exc:
         bridge_error = str(exc)
-    smoke = '--smoke-test' in sys.argv
     window = webview.create_window('Alpha Menu', BASE + '/ordini/evasione',
         width=1280, height=850, min_size=(360, 560), maximized=not smoke, hidden=smoke,
         background_color='#0d1727')
@@ -136,7 +138,7 @@ def main():
         try:
             bridge_health()
             message('Collegamento di stampa pronto.\nStampanti ESC/POS Ethernet, porta 9100.\n'
-                    'Configura gli IP in Impostazioni ordini.\nLa stampa fiscale non è ancora attiva.')
+                    'Configura gli IP in Stampanti e pagamenti.\nEpson FP-81II RT disponibile dopo configurazione e collaudo.')
         except Exception as exc:
             message(str(exc), True)
 
@@ -146,7 +148,7 @@ def main():
 
     menu = [Menu('Alpha Menu', [
         MenuAction('Banco ordini', lambda: navigate('/ordini/evasione')),
-        MenuAction('Impostazioni ordini e stampanti', lambda: navigate('/dashboard_user#ordini')),
+        MenuAction('Stampanti e pagamenti', lambda: navigate('/dashboard_user#stampanti')),
         MenuAction('Stato collegamento stampa', print_status),
         MenuSeparator(),
         MenuAction('Cerca aggiornamenti', lambda: threading.Thread(target=updates, args=(window,), daemon=True).start()),
@@ -161,7 +163,7 @@ def main():
                 window.destroy()
             window.evaluate_js("""(async()=>{
                 try {
-                    const response=await fetch('http://127.0.0.1:17891/health',{signal:AbortSignal.timeout(8000)});
+                    const response=await fetch('http://127.0.0.1:17892/health',{signal:AbortSignal.timeout(8000)});
                     return {title:document.title,url:location.href,bridge:await response.json(),ok:response.ok};
                 } catch(error) { return {error:String(error)}; }
             })()""", callback=complete)

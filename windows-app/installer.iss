@@ -1,7 +1,7 @@
 [Setup]
 AppId={{4B329E79-E28A-41C8-A282-FD6EBF2B0F48}
 AppName=Alpha Menu
-AppVersion=1.0.0
+AppVersion=1.1.0
 AppPublisher=Alpha System srl
 AppPublisherURL=https://menu.alphasystemsrl.it
 DefaultDirName={localappdata}\Programs\Alpha Menu
@@ -10,7 +10,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\static\windows
-OutputBaseFilename=AlphaMenu-Setup-1.0.0
+OutputBaseFilename=AlphaMenu-Setup-1.1.0
 SetupIconFile=alpha-menu.ico
 UninstallDisplayIcon={app}\AlphaMenu.exe
 Compression=lzma2

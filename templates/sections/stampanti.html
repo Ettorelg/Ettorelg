@@ -1,0 +1,19 @@
+<style>
+.printer-settings{max-width:1100px}.printer-settings .orders-settings{padding:20px;margin:16px 0;border:1px solid #526981;border-radius:14px;background:#192b43}.printer-settings label{display:grid;gap:6px;margin:12px 0}.printer-settings input,.printer-settings select{max-width:100%;min-height:42px;padding:8px;border-radius:8px;border:1px solid #617c97;background:#0e1c30;color:white}.printer-settings button{padding:11px 16px;border-radius:9px;background:#285f99;color:white;border:1px solid #86b1df;cursor:pointer}.printer-settings [hidden]{display:none!important}.printer-settings .printer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:0 16px}.printer-settings .warning{padding:12px;background:#644c1e;border:1px solid #f4c152;border-radius:9px}.printer-settings input[type=checkbox]{min-height:20px;width:20px}.printer-settings p[role=status]{white-space:pre-wrap}
+</style>
+<section class="printer-settings">
+<h2>Stampanti e pagamenti</h2>
+<p>Configura qui le stampanti delle comande e il registratore fiscale. Le impostazioni sono condivise dai dispositivi del locale.</p>
+<div class="orders-settings"><h3>Comande · stampanti di rete 80 mm</h3>
+<div class="printer-grid"><label>Stampante generale<input id="routingMain" placeholder="192.168.1.50"></label><label>Stampante riepilogo<input id="routingSummary" placeholder="192.168.1.60"></label></div>
+<details><summary>Stampanti per categoria</summary><p>Lascia vuoto per utilizzare la stampante generale.</p><div id="routingCategories" class="printer-grid"></div></details>
+<button id="routingSave" disabled>Salva stampanti comande</button><p id="routingMessage" role="status"></p>
+</div>
+{% include 'sections/registratore_fiscale.html' %}
+<div class="orders-settings"><h3>App e collegamento locale</h3><p>Per Epson utilizza Alpha Menu Windows 1.1.0 o successiva, sulla stessa rete del registratore. Chiudi eventuali vecchi programmi di stampa prima di riaprire l’app aggiornata.</p><a href="/static/windows/AlphaMenu-Setup-1.1.0.exe">Scarica Alpha Menu Windows 1.1.0</a><p>La selezione “Carta” registra il pagamento effettuato sul POS: non avvia né verifica la transazione bancaria.</p></div>
+</section>
+<script>
+(()=>{const el=id=>document.getElementById('routing'+id);async function api(method='GET',body){const response=await fetch('/api/stampanti/configurazione',{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const data=await response.json();if(!response.ok)throw Error(data.error||'Operazione non riuscita.');return data}
+async function load(){try{const data=await api();el('Main').value=data.main;el('Summary').value=data.summary;for(const cat of data.categories){const label=document.createElement('label');label.textContent=cat.nome;const input=document.createElement('input');input.dataset.id=cat.id;input.value=cat.ip;input.placeholder='IP stampante (opzionale)';label.append(input);el('Categories').append(label)}el('Save').disabled=false}catch(error){el('Message').textContent=error.message}}
+el('Save').onclick=async()=>{el('Save').disabled=true;try{await api('PUT',{main:el('Main').value,summary:el('Summary').value,categories:[...el('Categories').querySelectorAll('input')].map(input=>({id:input.dataset.id,ip:input.value}))});el('Message').textContent='Stampanti salvate.'}catch(error){el('Message').textContent=error.message}finally{el('Save').disabled=false}};load()})();
+</script>

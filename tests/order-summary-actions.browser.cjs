@@ -14,6 +14,7 @@ const assert=require('node:assert/strict');
         window.calls=[];
         const setup=`${nodeCode}
           const grid=document.getElementById('grid'),order={id:123,numero:16,nome:'Cliente prova',stato:'da_evadere',ora_richiesta:'12:00',creato_il:'17/09/2026'},expandedOrderIds=new Set(),visibleProducts=()=>[],quantityFormat=new Intl.NumberFormat('it-IT'),AlphaOrderPrint={direct:o=>window.calls.push(['print',o.id])},csrf='test',historyPanel={open:false},status={};
+          const AlphaPayment={open:o=>window.calls.push(['payment',o.id])};
           const fetch=async(url,options)=>{window.calls.push([url,JSON.parse(options.body).stato]);return {ok:true,json:async()=>({})}},load=async()=>{},loadHistory=async()=>{};
         `;
         new Function(setup+cardCode)();
@@ -29,7 +30,7 @@ const assert=require('node:assert/strict');
       await page.getByRole('button',{name:'Annulla ordine #16',exact:true}).click();
       await page.getByRole('button',{name:'Segna evaso ordine #16',exact:true}).focus();
       await page.keyboard.press('Enter');
-      assert.deepEqual(await page.evaluate(()=>window.calls),[['print',123],['/api/ordini/123','in_lavorazione'],['/api/ordini/123','evaso']]);
+      assert.deepEqual(await page.evaluate(()=>window.calls),[['print',123],['/api/ordini/123','in_lavorazione'],['payment',123]]);
       assert.equal(await card.evaluate(e=>e.open),false,'Actions must not toggle details');
       await page.locator('.order-summary-main strong').click();
       assert.equal(await card.evaluate(e=>e.open),true);

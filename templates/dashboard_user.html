@@ -106,6 +106,7 @@
         <button class="nav-item" data-section="pizzeria" data-requires-shop="1" data-module="pizzeria" {% if not pizzeria_active %}hidden{% endif %}><div class="icon">🍕</div><div class="label">Pizzeria</div></button>
 
         <button class="nav-item" data-section="lingue" data-requires-shop="1"><div class="icon">🌐</div><div class="label">Lingue</div></button>
+        <button class="nav-item" data-section="stampanti" data-requires-shop="1"><div class="icon">🖨️</div><div class="label">Stampanti e pagamenti</div></button>
         <button class="nav-item" data-section="statistiche" data-requires-shop="1" data-module="analytics" {% if not orders_active and not pizzeria_active %}hidden{% endif %}><div class="icon">📊</div><div class="label">Statistiche</div></button>
         <button class="nav-item" data-section="licenze"><div class="icon">🔐</div><div class="label">Licenze</div></button>
         <button class="nav-item" data-section="account"><div class="icon">👤</div><div class="label">Account</div></button>
@@ -192,7 +193,7 @@
       } catch (_) {}
     }
     showExpiryWarning();
-    const shopRequiredSections = new Set(['prodotti', 'varianti', 'categorie', 'formati', 'sottocategorie', 'allergeni', 'menu_online', 'ordini', 'clienti', 'pizzeria', 'qrcode', 'anteprima', 'lingue', 'statistiche']);
+    const shopRequiredSections = new Set(['prodotti', 'varianti', 'categorie', 'formati', 'sottocategorie', 'allergeni', 'menu_online', 'ordini', 'clienti', 'pizzeria', 'qrcode', 'anteprima', 'lingue', 'statistiche', 'stampanti']);
 
     function syncShopLocks(){
       // Tutte le sezioni restano visibili e selezionabili. loadSection guida
@@ -257,6 +258,7 @@
       clienti: "Clienti",
       pizzeria: "Pizzeria",
       lingue: "Lingue e traduzioni",
+      stampanti: "Stampanti e pagamenti",
       statistiche: "Statistiche",
       licenze: "Licenze",
       account: "Account"

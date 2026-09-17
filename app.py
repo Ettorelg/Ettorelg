@@ -65,6 +65,7 @@ def restrict_employee_access():
     if not employee_id:
         return None
     allowed = {"employee_orders", "api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti", "api_disponibilita_ordini", "api_crea_ordine_menu", "api_aggiorna_ordine", "api_ordini_notifiche", "api_ordini_push_key", "api_ordini_push_subscription", "api_token_dispositivo_chiamate", "api_chiamate_ordini", "logout", "static", "pwa_manifest", "pwa_service_worker"}
+    allowed.update({'api_pagamento_info', 'api_pagamento_prepara', 'api_pagamento_recupera', 'api_ordine_per_stampa', 'api_stampanti_categorie', 'api_registratore_fiscale'})
     if (request.endpoint == "api_disponibilita_ordini" and request.path != "/api/ordini/disponibilita") or request.endpoint not in allowed or (request.endpoint in {"api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti"} and request.method != "GET") or (request.endpoint == "api_crea_ordine_menu" and request.path != "/api/ordini/manuale"):
         if request.path.startswith("/api/"):
             return jsonify({"error": "Accesso non consentito al dipendente."}), 403
@@ -1270,6 +1271,19 @@ def init_db() -> None:
                     )
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS ordini_menu_negozio_data ON ordini_menu (id_negozio, creato_il DESC)")
+                cur.execute("""CREATE TABLE IF NOT EXISTS pagamenti_ordini (
+                    id TEXT PRIMARY KEY,
+                    id_ordine BIGINT NOT NULL REFERENCES ordini_menu(id) ON DELETE CASCADE,
+                    id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                    stato TEXT NOT NULL,
+                    riepilogo JSONB NOT NULL,
+                    payload JSONB NOT NULL,
+                    segreto TEXT NOT NULL,
+                    risposta JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    creato_il TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS pagamento_ordine_attivo ON pagamenti_ordini(id_ordine) WHERE stato<>'non_emesso'")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS clienti_ordini_salvati (
                         id BIGSERIAL PRIMARY KEY,
@@ -1414,7 +1428,7 @@ def run_daily_reminder_check():
 def enforce_csrf():
     if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
         return None
-    if request.endpoint in ("paypal_webhook", "auth_apple_callback", "track_category_open", "track_product_open", "api_segnala_chiamata_ordine"):
+    if request.endpoint in ("paypal_webhook", "auth_apple_callback", "track_category_open", "track_product_open", "api_segnala_chiamata_ordine", "api_fiscale_lavoro", "api_fiscale_esito"):
         return None
     supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token", "")
     expected = session.get("csrf_token", "")
@@ -3736,6 +3750,7 @@ def dashboard_user_section(section: str):
         "anteprima",
         "licenze",
         "lingue",
+        "stampanti",
         "statistiche",
         "account",
     }
@@ -3751,7 +3766,7 @@ def dashboard_user_section(section: str):
 
     shop_required_sections = {
         "prodotti", "varianti", "categorie", "formati", "sottocategorie", "allergeni",
-        "menu_online", "ordini", "clienti", "pizzeria", "qrcode", "anteprima", "lingue", "statistiche",
+        "menu_online", "ordini", "clienti", "pizzeria", "qrcode", "anteprima", "lingue", "statistiche", "stampanti",
     }
     if section in shop_required_sections and not get_user_shop_id(session["user_id"]):
         return (
@@ -5947,6 +5962,42 @@ def api_registratore_fiscale():
         conn.close()
 
 
+@app.route('/api/stampanti/configurazione', methods=['GET', 'PUT'])
+def api_stampanti_configurazione():
+    shop_id = order_notification_shop_id()
+    if not shop_id or session.get('employee_id'):
+        return jsonify(error='Configurazione riservata al titolare.'), 403
+    data = request.get_json(silent=True) or {}
+    try:
+        if request.method == 'PUT':
+            main_ip, summary_ip = local_printer_ip(data.get('main', '')), local_printer_ip(data.get('summary', ''))
+            categories = data.get('categories', [])
+            if not isinstance(categories, list) or len(categories) > 500:
+                raise ValueError('Categorie non valide.')
+            updates = [(int(row['id']), local_printer_ip(row['ip'])) for row in categories]
+    except (ValueError, KeyError, TypeError) as error:
+        return jsonify(error=str(error)), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT id,nome,stampante_ip FROM categorie WHERE id_negozio=%s ORDER BY id', (shop_id,))
+                rows = cur.fetchall()
+                if request.method == 'PUT':
+                    owned = {row[0] for row in rows}
+                    if any(category not in owned for category, _ in updates):
+                        return jsonify(error='Categoria non appartenente al locale.'), 400
+                    cur.execute('UPDATE negozi SET stampante_ip=%s,stampante_riepilogo_ip=%s WHERE id=%s', (main_ip, summary_ip, shop_id))
+                    for category, ip in updates:
+                        cur.execute('UPDATE categorie SET stampante_ip=%s WHERE id=%s AND id_negozio=%s', (ip, category, shop_id))
+                    return jsonify(ok=True)
+                cur.execute('SELECT stampante_ip,stampante_riepilogo_ip FROM negozi WHERE id=%s', (shop_id,))
+                main_ip, summary_ip = cur.fetchone()
+                return jsonify(main=main_ip, summary=summary_ip, categories=[dict(id=row[0], nome=row[1], ip=row[2] or '') for row in rows])
+    finally:
+        conn.close()
+
+
 @app.get('/api/ordini/<int:order_id>/tracciato-fiscale')
 def api_tracciato_fiscale(order_id):
     result = api_ordine_per_stampa(order_id)
@@ -6190,6 +6241,15 @@ def api_aggiorna_ordine(order_id: int):
     try:
         with conn:
             with conn.cursor() as cur:
+                cur.execute('SELECT stato FROM ordini_menu WHERE id=%s AND id_negozio=%s FOR UPDATE', (order_id, shop_id))
+                cur.execute("SELECT id FROM pagamenti_ordini WHERE id_ordine=%s AND id_negozio=%s AND stato<>'non_emesso'", (order_id, shop_id))
+                if cur.fetchone():
+                    return jsonify(error='Pagamento registrato o emissione da verificare: lo stato non può essere modificato manualmente.'), 409
+                if status == 'evaso':
+                    cur.execute('SELECT registratore_fiscale FROM negozi WHERE id=%s', (shop_id,))
+                    fiscal_row = cur.fetchone()
+                    if fiscal_row and (fiscal_row[0] or {}).get('brand'):
+                        return jsonify(error='Completa l’ordine dalla schermata pagamento del registratore fiscale.'), 409
                 cur.execute("""
                     UPDATE ordini_menu SET stato=%s,aggiornato_il=NOW()
                     WHERE id=%s AND id_negozio=%s AND (%s=FALSE OR stato IN ('da_evadere','in_lavorazione')) RETURNING id
@@ -7958,6 +8018,10 @@ def api_sottocategorie_delete(sottocategoria_id: int):
     finally:
         conn.close()
 
+
+from checkout import register_checkout
+register_checkout(app, lambda: psycopg2.connect(**build_db_config()), order_notification_shop_id,
+                  api_ordine_per_stampa, api_registratore_fiscale)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true")

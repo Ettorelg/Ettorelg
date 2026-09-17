@@ -17,11 +17,17 @@ class Cursor:
     def __init__(self, found=True):
         self.found = found
         self.params = None
+        self.query = ''
+        self.payment = False
+        self.fiscal = {}
 
     def __enter__(self): return self
     def __exit__(self, *_): return False
-    def execute(self, _query, params): self.params = params
-    def fetchone(self): return (123,) if self.found else None
+    def execute(self, _query, params): self.params = params; self.query = _query
+    def fetchone(self):
+        if 'FROM pagamenti_ordini' in self.query: return (123,) if self.payment else None
+        if 'SELECT registratore_fiscale' in self.query: return (self.fiscal,)
+        return (123,) if self.found else None
 
 
 class Connection:
@@ -60,6 +66,15 @@ def test_employee_can_cancel_order_in_own_shop():
         response = endpoint(db)(123)
     assert response.get_json() == {"ok": True, "stato": "annullato"}
     assert db.cur.params == ("annullato", 123, 7, True)
+
+
+def test_cannot_bypass_payment_or_mutate_pending_fiscal_attempt():
+    for payment, fiscal in [(True, {}), (False, {'brand': 'epson'})]:
+        db = Connection(); db.cur.payment=payment; db.cur.fiscal=fiscal
+        with FLASK.test_request_context('/api/ordini/123', method='PATCH', json={'stato':'evaso'}):
+            session.update(employee_id=8, employee_shop_id=7)
+            _, code = endpoint(db)(123)
+        assert code == 409
 
 
 def test_employee_cannot_reopen_or_change_order_to_working():

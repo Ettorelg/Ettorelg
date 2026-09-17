@@ -1,4 +1,4 @@
-# Alpha Menu per Windows 1.0.0
+# Alpha Menu per Windows 1.1.0
 
 App Windows 10/11 x64 con logo Alpha Menu, finestra WebView2 dedicata,
 sessione persistente e bridge ESC/POS integrato (stessa implementazione del PC).
@@ -7,17 +7,20 @@ Non modifica i dati degli ordini o le impostazioni esistenti durante l'installaz
 
 ## Uso
 
-1. Installa `AlphaMenu-Setup-1.0.0.exe` e apri Alpha Menu dal desktop.
+1. Installa `AlphaMenu-Setup-1.1.0.exe` e apri Alpha Menu dal desktop.
 2. Accedi con l'account titolare/staff.
-3. Menu **Alpha Menu → Impostazioni ordini e stampanti**: configura gli IP.
+3. Menu **Alpha Menu → Stampanti e pagamenti**: configura gli IP.
 4. **Stato collegamento stampa** verifica il bridge, non la raggiungibilità fisica delle stampanti.
 5. Mantieni l'app aperta per la stampa automatica, da attivare nel banco.
 
-Se il vecchio bridge versione 14 è aperto, viene riutilizzato senza interromperlo.
-Un bridge precedente viene segnalato: chiuderlo e riaprire l'app.
+Se un bridge versione 14 con capacità fiscale è aperto, viene riutilizzato.
+Un bridge precedente o senza capacità fiscale viene segnalato: chiuderlo e riaprire l'app.
 Evitare più banchi con stampa automatica attiva: potrebbero stampare duplicati.
 Il riconoscimento chiamate richiede l'app Android/centralino; questa versione non
-legge chiamate Windows. L'emissione fiscale non è implementata.
+legge chiamate Windows. L'emissione Epson FP-81II RT richiede modalità reale
+esplicitamente abilitata e reparti/totalizzatori verificati con il tecnico.
+La modalità prova è predefinita e non trasmette documenti.
+Vedi `../docs/fiscal-checkout.md` per il collaudo e gli esiti incerti.
 
 ## Aggiornamenti
 
