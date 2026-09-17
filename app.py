@@ -5273,6 +5273,39 @@ def api_pizzeria_preparazione():
         conn.close()
 
 
+@app.put('/api/pizzeria/preparazione/ordine')
+def api_pizzeria_preparazione_ordine():
+    shop_id = order_notification_shop_id()
+    if not shop_id:
+        return jsonify(error='Accesso al locale richiesto.'), 403
+    payload = request.get_json(silent=True)
+    order = payload.get('ordine') if isinstance(payload, dict) else None
+    if (not isinstance(order, list) or len(order) > 60 or
+            any(not isinstance(key, list) or len(key) != 2 or
+                any(not isinstance(part, str) or not part or len(part) > 80 for part in key)
+                for key in order)):
+        return jsonify(error='Ordine panette non valido.'), 400
+    keys = [tuple(key) for key in order]
+    if len(set(keys)) != len(keys):
+        return jsonify(error='Panette duplicate.'), 400
+    conn = psycopg2.connect(**build_db_config())
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                # Lock current stock: changing position must never restore consumed quantities.
+                cur.execute('SELECT panette FROM pizzeria_preparazione_config WHERE id_negozio=%s FOR UPDATE', (shop_id,))
+                row = cur.fetchone()
+                stocks = row[0] if row else []
+                by_key = {(stock['impasto'], stock['nome']): stock for stock in stocks}
+                if set(keys) != set(by_key):
+                    return jsonify(error='Le panette sono cambiate. Riapri la pagina e riprova.'), 409
+                sorted_stocks = [by_key[key] for key in keys]
+                cur.execute('UPDATE pizzeria_preparazione_config SET panette=%s::jsonb,aggiornato_il=NOW() WHERE id_negozio=%s', (json.dumps(sorted_stocks), shop_id))
+        return jsonify(panette=sorted_stocks)
+    finally:
+        conn.close()
+
+
 @app.route("/api/pizzeria/delivery/configurazione", methods=["GET", "PUT"])
 def api_pizzeria_delivery_configurazione():
     if "user_id" not in session or session.get("employee_id"):

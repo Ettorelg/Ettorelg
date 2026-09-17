@@ -44,6 +44,9 @@
     .manual-slot-buttons{gap:4px;flex-wrap:wrap;overflow:visible}.manual-slot-buttons button{min-width:64px;min-height:31px;padding:4px 7px;font-size:.8rem}
     .manual-categories{flex-wrap:wrap;overflow:visible;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid #456584}.manual-categories button.active{background:#f2b83f;border-color:#fff0b8;color:#172033;box-shadow:0 0 0 3px #f2b83f44;font-weight:900}.manual-categories button.active::before{content:'✓ '}
     .manual-extra-fields{display:contents}
+    .manual-dough-stock-card .dough-description{display:grid;gap:1px;line-height:1.15}
+    .manual-dough-stock-card .dough-description strong{white-space:normal;max-width:125px;overflow-wrap:anywhere}
+    .manual-dough-stock-items{touch-action:pan-y;user-select:none}
     /* Async stock cards must not enlarge the form's implicit grid column. */
     .manual-order form{grid-template-columns:minmax(0,1fr)}
     .manual-order form>*{min-width:0}
@@ -114,6 +117,7 @@
   </main>
   {% include '_legal_footer.html' %}
   <script src="{{ url_for('static', filename='order-request.js') }}?v=1"></script>
+  <script src="{{ url_for('static', filename='dough-reorder.js') }}?v=1"></script>
   <script src="{{ url_for('static', filename='order-print.js') }}?v=14"></script>
   <script src="{{ url_for('static', filename='order-auto-print.js') }}?v=4"></script>
 <script>
@@ -364,27 +368,21 @@
       if(!visible.length)node(manualProductsBox,'p','Nessun prodotto trovato.','manual-hint');
     }
     manualProductSearch.addEventListener('input',renderManualCatalog);
-    let manualDoughStockSaving=false;
+    let manualDoughStockSaving=false,manualDoughStockDragging=false;
+    const doughContainer=document.getElementById('manualDoughStockItems');
+    if(doughContainer)AlphaDoughReorder(doughContainer,{disabled:()=>manualDoughStockSaving,
+      onStart:()=>{manualDoughStockDragging=true},onFinish:save=>{manualDoughStockDragging=false;if(save)saveManualDoughStockOrder();else renderManualDoughStock()}});
     async function saveManualDoughStockOrder(){
       const items=document.getElementById('manualDoughStockItems'),note=document.getElementById('manualDoughStockNote');if(!items||manualDoughStockSaving)return;
       const indexes=[...items.querySelectorAll('.manual-dough-stock-card[data-stock-index]')].map(card=>Number(card.dataset.stockIndex));
       if(indexes.length!==(manualPreparation.panette||[]).length||indexes.every((value,index)=>value===index))return;
       manualDoughStockSaving=true;const previous=[...(manualPreparation.panette||[])];manualPreparation.panette=indexes.map(index=>previous[index]);note.hidden=false;note.textContent='Salvataggio del nuovo ordine…';
-      try{const response=await fetch('/api/pizzeria/preparazione',{method:'PUT',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({impasti:manualPreparation.impasti||[],panette:manualPreparation.panette})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'Riordinamento non riuscito.');manualPreparation=result;renderManualDoughStock()}
+      try{const response=await fetch('/api/pizzeria/preparazione/ordine',{method:'PUT',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({ordine:manualPreparation.panette.map(stock=>[stock.impasto,stock.nome])})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'Riordinamento non riuscito.');manualPreparation.panette=result.panette;renderManualDoughStock()}
       catch(error){manualPreparation.panette=previous;renderManualDoughStock();manualFeedback.textContent=error.message}
       finally{manualDoughStockSaving=false}
     }
-    function enableDoughStockLongPress(card){
-      let timer=null,active=false,startX=0,startY=0,lastX=0,pointerId=null;
-      const clear=()=>{if(timer){clearTimeout(timer);timer=null}};
-      const moveToPointer=x=>{const items=card.parentElement;if(!items)return;const siblings=[...items.querySelectorAll('.manual-dough-stock-card')].filter(item=>item!==card),target=siblings.find(item=>{const rect=item.getBoundingClientRect();return x<rect.left+rect.width/2});if(target)items.insertBefore(card,target);else items.append(card);const bounds=items.getBoundingClientRect();if(x<bounds.left+24)items.scrollLeft-=24;else if(x>bounds.right-24)items.scrollLeft+=24};
-      card.onpointerdown=event=>{if(manualDoughStockSaving||event.button!==0)return;event.preventDefault();startX=lastX=event.clientX;startY=event.clientY;pointerId=event.pointerId;card.setPointerCapture?.(pointerId);clear();timer=setTimeout(()=>{active=true;card.classList.add('is-reordering');try{navigator.vibrate?.(25)}catch(_error){}},500)};
-      card.onpointermove=event=>{event.preventDefault();if(!active){if(Math.hypot(event.clientX-startX,event.clientY-startY)>12){clear();card.parentElement.scrollLeft-=event.clientX-lastX;lastX=event.clientX}return}moveToPointer(event.clientX)};
-      const finish=event=>{clear();const wasActive=active;active=false;card.classList.remove('is-reordering');if(card.hasPointerCapture?.(pointerId))card.releasePointerCapture(pointerId);if(!wasActive)return;event.preventDefault();saveManualDoughStockOrder()};
-      card.onpointerup=finish;card.onpointercancel=finish;card.onpointerleave=event=>{if(!active)clear()};
-      card.oncontextmenu=event=>event.preventDefault();
-    }
     function renderManualDoughStock(){
+      if(manualDoughStockDragging)return;
       const box=document.getElementById('manualDoughStock'),items=document.getElementById('manualDoughStockItems'),note=document.getElementById('manualDoughStockNote');
       if(!box||!items||!note)return;
       const previousScroll=items.scrollLeft;
@@ -398,9 +396,9 @@
         note.textContent='Imposta eventuali quantità dalla sezione Formati.';return;
       }
       for(const [stockIndex,stock] of stocks.entries()){
-        const card=node(items,'div',undefined,'manual-dough-stock-card'),copy=node(card,'div');
-        card.dataset.stockIndex=String(stockIndex);card.tabIndex=0;card.setAttribute('aria-label',(stock.impasto||'Impasto')+' '+(stock.nome||'Panetta')+'. Tieni premuto e trascina per spostare.');enableDoughStockLongPress(card);
-        node(copy,'strong',(stock.impasto||'Impasto')+' · '+(stock.nome||'Panetta'));
+        const card=node(items,'div',undefined,'manual-dough-stock-card'),copy=node(card,'div',undefined,'dough-description');
+        card.dataset.stockIndex=String(stockIndex);card.tabIndex=0;card.setAttribute('aria-label',(stock.impasto||'Impasto')+' '+(stock.nome||'Panetta')+'. Tieni premuto e trascina per spostare, oppure Alt e frecce.');
+        node(copy,'strong',stock.impasto||'Impasto');node(copy,'strong',stock.nome||'Panetta');
         const stockFormats=new Set((stock.formati||[]).map(value=>String(value).trim().toLocaleLowerCase('it'))),stockDough=String(stock.impasto||'Classico').trim().toLocaleLowerCase('it');
         const reserved=manualCart.reduce((sum,item)=>{const config=item.pizzeria;if(!config||String(config.impasto||'Classico').trim().toLocaleLowerCase('it')!==stockDough||!stockFormats.has(String(config.formato||'Singola').trim().toLocaleLowerCase('it')))return sum;return sum+Number(item.quantita||0)},0);
         const unlimited=Boolean(stock.illimitate),quantity=Math.max(0,Number(stock.quantita||0)),remaining=quantity-reserved,shown=Math.max(0,remaining);

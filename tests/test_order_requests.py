@@ -923,15 +923,9 @@ def test_manual_order_prominently_shows_current_dough_stock():
 def test_manual_dough_stocks_stay_on_one_row_and_support_persistent_long_press_reordering():
     html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
     assert ".manual-dough-stock-items{display:flex;flex-wrap:nowrap" in html
-    assert "function enableDoughStockLongPress(card)" in html
-    assert "timer=setTimeout(()=>{active=true" in html
     assert "touch-action:none" in html
-    assert "card.setPointerCapture?.(pointerId)" in html
-    assert "card.parentElement.scrollLeft-=event.clientX-lastX" in html
-    assert "siblings.find(item=>" in html
-    assert "if(target)items.insertBefore(card,target);else items.append(card)" in html
-    assert "document.elementFromPoint" not in html
-    assert "fetch('/api/pizzeria/preparazione',{method:'PUT'" in html
+    assert "dough-reorder.js" in html
+    assert "fetch('/api/pizzeria/preparazione/ordine',{method:'PUT'" in html
     assert "note.hidden=false;note.textContent='Salvataggio del nuovo ordine…'" in html
     assert "Tieni premuto e trascina per spostare" in html
 
