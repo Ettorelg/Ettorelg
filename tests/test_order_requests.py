@@ -795,6 +795,8 @@ def test_staff_product_configurator_uses_direct_format_buttons():
     assert 'id="doughButtons" class="option-buttons"' in configurator
     assert "renderSelectButtons(cut,cutButtons,render)" in configurator
     assert "renderSelectButtons(dough,doughButtons,scheduleQuote)" in configurator
+    assert "publicSlug&&requestedProduct&&requested?" in configurator
+    assert "publicSlug&&requestedProduct&&!mixed&&requested?" not in configurator
 
 
 def test_pickup_choices_show_single_times_instead_of_ranges():

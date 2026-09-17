@@ -61,7 +61,7 @@
     function render(){
       const currentFormat=format.value,mixed=kind.value.endsWith('multigusto'),derivativeKind=kind.value==='multigusto'?'pizza':kind.value.replace('_multigusto',''),derived=derivativeKind==='calzone'||derivativeKind==='panino';
       const requested=products.find(product=>String(product.id)===requestedProduct);
-      let formats=publicSlug&&requestedProduct&&!mixed&&requested?[...new Set(requested.formati.filter(f=>f.disponibile).map(f=>f.nome))]:[...new Set(products.flatMap(p=>p.formati.filter(f=>f.disponibile).map(f=>f.nome)))];
+      let formats=publicSlug&&requestedProduct&&requested?[...new Set(requested.formati.filter(f=>f.disponibile).map(f=>f.nome))]:[...new Set(products.flatMap(p=>p.formati.filter(f=>f.disponibile).map(f=>f.nome)))];
       if(derived&&!requested)formats=formats.filter(name=>products.some(p=>p.tipo_pizzeria===derivativeKind&&p.formati.some(f=>f.nome===name&&f.disponibile)));
       if(mixed)formats=formats.filter(name=>fractions.some(f=>f.formato===name&&f.tagli.length));if(publicSlug&&requestedFormat)formats=formats.filter(name=>name===requestedFormat);
       fill(format,formats.map(name=>({label:name,value:name})),'Scegli formato');format.value=formats.includes(currentFormat)?currentFormat:formats[0]||'';renderFormatButtons(formats,requested);
