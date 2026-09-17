@@ -801,8 +801,11 @@ def test_manual_order_fits_intermediate_and_mobile_viewports_without_page_overfl
     html = (Path(__file__).resolve().parents[1] / "templates" / "fulfillment_dashboard.html").read_text(encoding="utf-8")
     assert "html,body{max-width:100%;overflow-x:hidden}" in html
     assert "main,.manual-order,.manual-order form,.manual-order-workspace,.manual-catalog,.manual-cart,.manual-pickup{min-width:0;max-width:100%}" in html
-    assert ".manual-order-workspace{grid-template-columns:minmax(0,1fr)}" in html
-    assert ".manual-products{grid-template-columns:repeat(2,minmax(0,1fr));max-height:270px}" in html
+    assert ".manual-order-workspace{width:100%;grid-template-columns:minmax(0,1fr)}" in html
+    assert ".manual-order{width:calc(100vw - 20px);max-width:calc(100vw - 20px);padding:10px}" in html
+    assert ".manual-catalog-head input{flex:1 1 240px;width:auto;max-width:100%}" in html
+    assert ".manual-combine button{flex:1 1 180px;min-width:0;white-space:normal}" in html
+    assert ".manual-products{width:100%;grid-template-columns:repeat(2,minmax(0,1fr));max-height:270px}" in html
     assert "@media(max-width:560px){.manual-products{grid-template-columns:1fr}" in html
 
 
