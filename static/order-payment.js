@@ -2,7 +2,7 @@ window.AlphaPayment = (() => {
   const extraFunctions = new Map();
   const euro = value => Number(value).toLocaleString('it-IT',{style:'currency',currency:'EUR'});
   function element(parent,tag,text,className){const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(className)el.className=className;parent.append(el);return el}
-  async function api(url,body,csrf){const local=url.startsWith('http://127.0.0.1:17891/');const response=await fetch(url,{cache:'no-store',...(body?{method:'POST',headers:local?{'Content-Type':'text/plain'}:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)}:{})});const data=await response.json();if(!response.ok)throw Error(data.error||data.message||'Operazione non riuscita.');return data}
+  async function api(url,body,csrf){const local=url.startsWith('http://127.0.0.1:17891/');if(local&&window.pywebview?.api?.fiscal_request){const result=await window.pywebview.api.fiscal_request(new URL(url).pathname,body||{});if(!result.ok)throw Error(result.message||'Operazione locale non riuscita.');return result.data}const response=await fetch(url,{cache:'no-store',...(body?{method:'POST',headers:local?{'Content-Type':'text/plain'}:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)}:{})});const data=await response.json();if(!response.ok)throw Error(data.error||data.message||'Operazione non riuscita.');return data}
   async function open(order, {csrf, onComplete=()=>{}, initialPayment='contanti', initialTender=''}={}) {
     if(document.querySelector('.payment-dialog'))return;
     const dialog=element(document.body,'dialog',undefined,'payment-dialog');dialog.setAttribute('aria-label','Pagamento ordine');

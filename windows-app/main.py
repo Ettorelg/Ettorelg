@@ -16,11 +16,33 @@ from webview.menu import Menu, MenuAction, MenuSeparator
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 import escpos_bridge as bridge
 
-VERSION = '1.1.5'
+VERSION = '1.1.6'
 BASE = 'https://menu.alphasystemsrl.it'
 DATA = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'AlphaMenu'
 UPDATE_URL = BASE + '/static/windows/latest.json'
 UPDATE_LOCK = threading.Lock()
+
+
+class LocalApi:
+    """Direct WebView-to-Python bridge; avoids browser loopback/CORS restrictions."""
+    ALLOWED = {'/health', '/fiscal/probe', '/fiscal/emit', '/fiscal/recover',
+               '/fiscal/config/read', '/fiscal/config/write'}
+
+    def fiscal_request(self, path, data=None):
+        try:
+            if path not in self.ALLOWED:
+                raise ValueError('Operazione locale non consentita.')
+            if path == '/health':
+                result = {'message': 'Programma di stampa pronto.', 'version': bridge.BRIDGE_VERSION,
+                          'fiscal': bool(bridge.epson_bridge), 'fiscal_error': bridge.EPSON_IMPORT_ERROR}
+            elif not bridge.epson_bridge:
+                raise ValueError(bridge.EPSON_IMPORT_ERROR or 'Componente Epson non disponibile.')
+            else:
+                result = bridge.epson_bridge.dispatch(path, data or {})
+            return {'ok': True, 'data': result}
+        except Exception as exc:
+            logging.exception('Local fiscal request failed')
+            return {'ok': False, 'message': str(exc)}
 
 
 def request(url):
@@ -130,7 +152,7 @@ def main():
         server = start_bridge()
     except Exception as exc:
         bridge_error = str(exc)
-    window = webview.create_window('Alpha Menu', BASE + '/ordini/evasione',
+    window = webview.create_window('Alpha Menu', BASE + '/ordini/evasione', js_api=LocalApi(),
         width=1280, height=850, min_size=(360, 560), maximized=not smoke, hidden=smoke,
         background_color='#0d1727')
 
