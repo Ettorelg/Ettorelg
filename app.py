@@ -1157,6 +1157,7 @@ def init_db() -> None:
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS criterio_limite_fascia VARCHAR(10) NOT NULL DEFAULT 'ordini'")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS stampante_ip VARCHAR(45) NOT NULL DEFAULT ''")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS stampante_riepilogo_ip VARCHAR(45) NOT NULL DEFAULT ''")
+                cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS stampanti_non_fiscali JSONB NOT NULL DEFAULT '[]'::jsonb")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS registratore_fiscale JSONB NOT NULL DEFAULT '{}'::jsonb")
                 cur.execute("ALTER TABLE negozi ADD COLUMN IF NOT EXISTS modulo_pizzeria_attivo BOOLEAN NOT NULL DEFAULT FALSE")
                 cur.execute("""CREATE TABLE IF NOT EXISTS pizzeria_formati (
@@ -5935,7 +5936,7 @@ def api_ordine_per_stampa(order_id: int):
                        TO_CHAR(o.ora_richiesta,'HH24:MI'),o.nome_cliente,o.telefono_cliente,
                        o.riferimento,o.note,o.totale,o.origine,
                        TO_CHAR(o.creato_il AT TIME ZONE 'Europe/Rome','DD/MM/YYYY HH24:MI'),
-                       r.nome_prodotto,r.quantita,r.totale_riga,p.id_categoria,c.nome,p.unita_prezzo,r.configurazione
+                       r.nome_prodotto,r.quantita,r.totale_riga,p.id_categoria,c.nome,p.unita_prezzo,r.configurazione,r.id_prodotto
                 FROM ordini_menu o
                 LEFT JOIN righe_ordini_menu r ON r.id_ordine=o.id
                 LEFT JOIN prodotti p ON p.id=r.id_prodotto AND p.id_negozio=o.id_negozio
@@ -5957,7 +5958,7 @@ def api_ordine_per_stampa(order_id: int):
             "creato_il": first[9], "prodotti": [
                 {"nome": row[10], "quantita": str(row[11]), "totale": str(row[12]),
                  "id_categoria": row[13], "categoria": row[14] or "", "unita_prezzo": row[15] or "",
-                 "configurazione": row[16] if len(row) > 16 else None}
+                 "configurazione": row[16] if len(row) > 16 else None, "id_prodotto": row[17] if len(row) > 17 else None}
                 for row in rows if row[10] is not None
             ]
         }})
@@ -5973,11 +5974,11 @@ def api_stampanti_categorie():
     conn = psycopg2.connect(**build_db_config())
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT stampante_ip,stampante_riepilogo_ip FROM negozi WHERE id=%s", (shop_id,))
+            cur.execute("SELECT stampante_ip,stampante_riepilogo_ip,stampanti_non_fiscali FROM negozi WHERE id=%s", (shop_id,))
             row = cur.fetchone()
             cur.execute("SELECT id,nome,stampante_ip FROM categorie WHERE id_negozio=%s AND stampante_ip<>'' ORDER BY id", (shop_id,))
             categories = [{"id_categoria": item[0], "nome": item[1], "ip": item[2]} for item in cur.fetchall()]
-        return jsonify({"stampante_ip": row[0] if row else "", "stampante_riepilogo_ip": row[1] if row else "", "categorie": categories})
+        return jsonify({"stampante_ip": row[0] if row else "", "stampante_riepilogo_ip": row[1] if row else "", "categorie": categories, "stampanti": row[2] if row and row[2] else []})
     finally:
         conn.close()
 
@@ -6015,6 +6016,25 @@ def api_stampanti_configurazione():
     try:
         if request.method == 'PUT':
             main_ip, summary_ip = local_printer_ip(data.get('main', '')), local_printer_ip(data.get('summary', ''))
+            printers = data.get('printers', [])
+            if not isinstance(printers, list) or len(printers) > 50:
+                raise ValueError('Elenco stampanti non valido.')
+            normalized_printers = []
+            for index, printer in enumerate(printers):
+                if not isinstance(printer, dict):
+                    raise ValueError('Configurazione stampante non valida.')
+                name = str(printer.get('name', '')).strip()[:60]
+                if not name:
+                    raise ValueError('Assegna un nome a ogni stampante.')
+                normalized_printers.append({
+                    'id': str(printer.get('id') or f'printer-{index + 1}')[:80],
+                    'name': name,
+                    'ip': local_printer_ip(printer.get('ip', '')),
+                    'copies': max(1, min(9, int(printer.get('copies', 1)))),
+                    'role': printer.get('role') if printer.get('role') in ('comanda', 'preconto', 'riepilogo') else 'comanda',
+                    'category_ids': sorted({int(value) for value in printer.get('category_ids', [])}),
+                    'product_ids': sorted({int(value) for value in printer.get('product_ids', [])}),
+                })
             categories = data.get('categories', [])
             if not isinstance(categories, list) or len(categories) > 500:
                 raise ValueError('Categorie non valide.')
@@ -6027,17 +6047,22 @@ def api_stampanti_configurazione():
             with conn.cursor() as cur:
                 cur.execute('SELECT id,nome,stampante_ip FROM categorie WHERE id_negozio=%s ORDER BY id', (shop_id,))
                 rows = cur.fetchall()
+                cur.execute('SELECT id,nome,id_categoria FROM prodotti WHERE id_negozio=%s ORDER BY nome', (shop_id,))
+                product_rows = cur.fetchall()
                 if request.method == 'PUT':
                     owned = {row[0] for row in rows}
+                    owned_products = {row[0] for row in product_rows}
                     if any(category not in owned for category, _ in updates):
                         return jsonify(error='Categoria non appartenente al locale.'), 400
-                    cur.execute('UPDATE negozi SET stampante_ip=%s,stampante_riepilogo_ip=%s WHERE id=%s', (main_ip, summary_ip, shop_id))
+                    if any(set(printer['category_ids']) - owned or set(printer['product_ids']) - owned_products for printer in normalized_printers):
+                        return jsonify(error='Associazione categoria o prodotto non valida.'), 400
+                    cur.execute('UPDATE negozi SET stampante_ip=%s,stampante_riepilogo_ip=%s,stampanti_non_fiscali=%s::jsonb WHERE id=%s', (main_ip, summary_ip, json.dumps(normalized_printers), shop_id))
                     for category, ip in updates:
                         cur.execute('UPDATE categorie SET stampante_ip=%s WHERE id=%s AND id_negozio=%s', (ip, category, shop_id))
                     return jsonify(ok=True)
-                cur.execute('SELECT stampante_ip,stampante_riepilogo_ip FROM negozi WHERE id=%s', (shop_id,))
-                main_ip, summary_ip = cur.fetchone()
-                return jsonify(main=main_ip, summary=summary_ip, categories=[dict(id=row[0], nome=row[1], ip=row[2] or '') for row in rows])
+                cur.execute('SELECT stampante_ip,stampante_riepilogo_ip,stampanti_non_fiscali FROM negozi WHERE id=%s', (shop_id,))
+                main_ip, summary_ip, printers = cur.fetchone()
+                return jsonify(main=main_ip, summary=summary_ip, printers=printers or [], categories=[dict(id=row[0], nome=row[1], ip=row[2] or '') for row in rows], products=[dict(id=row[0], nome=row[1], category_id=row[2]) for row in product_rows])
     finally:
         conn.close()
 

@@ -42,15 +42,16 @@ window.AlphaOrderPrint = (() => {
       if (!routesResponse.ok || !orderResponse.ok) throw new Error('Impossibile leggere le stampanti o l’ordine.');
       const routes = await routesResponse.json();
       const currentOrder = (await orderResponse.json()).ordine;
-      if (!routes.stampante_ip && !routes.stampante_riepilogo_ip && !(routes.categorie || []).length) throw new Error('Imposta una stampante generale, di riepilogo o per categoria.');
-      const mode = automatic || quiet ? 'all' : await chooseMode(currentOrder.numero || currentOrder.id, Boolean(routes.stampante_riepilogo_ip), Boolean(routes.stampante_ip || (routes.categorie || []).length));
+      if (!routes.stampante_ip && !routes.stampante_riepilogo_ip && !(routes.categorie || []).length && !(routes.stampanti || []).length) throw new Error('Imposta almeno una stampante per comande, preconti o riepilogo.');
+      const named=routes.stampanti||[],hasSummary=Boolean(routes.stampante_riepilogo_ip||named.some(item=>item.role==='preconto'||item.role==='riepilogo')),hasOther=Boolean(routes.stampante_ip||(routes.categorie||[]).length||named.some(item=>item.role==='comanda'));
+      const mode = automatic || quiet ? 'all' : await chooseMode(currentOrder.numero || currentOrder.id, hasSummary, hasOther);
       if (!mode) return false;
       const healthResponse = await fetch('http://127.0.0.1:17891/health', {signal: AbortSignal.timeout(5000)});
       const health = await healthResponse.json();
       if (!healthResponse.ok || health.version !== 14) throw new Error('Aggiorna il programma di stampa sul PC e riavvialo per usare il nuovo formato degli scontrini.');
       const response = await fetch('http://127.0.0.1:17891/print', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({printer_ip: routes.stampante_ip, summary_ip: routes.stampante_riepilogo_ip, printers: routes.categorie, order: currentOrder, automatic, mode}),
+        body: JSON.stringify({printer_ip: routes.stampante_ip, summary_ip: routes.stampante_riepilogo_ip, printers: (routes.stampanti || []).length ? routes.stampanti : routes.categorie, order: currentOrder, automatic, mode}),
         signal: AbortSignal.timeout(30000)
       });
       const result = await response.json();

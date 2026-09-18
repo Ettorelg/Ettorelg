@@ -17,7 +17,7 @@ except ImportError as exc:
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 16
+BRIDGE_VERSION = 17
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
@@ -83,16 +83,18 @@ def receipt(order, large_category_ids=None, summary=False):
             line(label + ": " + clean(order[field]), field == "nome")
     line("-" * 42)
     products = order["prodotti"][:100]
+    selected_categories = large_category_ids.get("categories", set()) if isinstance(large_category_ids, dict) else large_category_ids
+    selected_products = large_category_ids.get("products", set()) if isinstance(large_category_ids, dict) else set()
     if large_category_ids is not None and not summary:
         products = sorted(products, key=lambda product: (
-            not isinstance(product, dict) or str(product.get("id_categoria")) not in large_category_ids))
+            not isinstance(product, dict) or (str(product.get("id_categoria")) not in (selected_categories or set()) and str(product.get("id_prodotto")) not in selected_products)))
     summary_started = summary
     for product in products:
         if not isinstance(product, dict):
             continue
         name = clean(product.get("nome"), 200)
         is_weight = product.get("unita_prezzo") == "kg" or name.lower().endswith(" (kg)")
-        is_large = not summary and large_category_ids is not None and str(product.get("id_categoria")) in large_category_ids
+        is_large = not summary and large_category_ids is not None and (str(product.get("id_categoria")) in (selected_categories or set()) or str(product.get("id_prodotto")) in selected_products)
         product_emphasis = not summary and (large_category_ids is None or is_large)
         if large_category_ids is not None and not summary and not is_large and not summary_started:
             line("-" * 42)
@@ -162,6 +164,30 @@ def print_targets(order, printers, default_ip):
 def print_jobs(order, printers, default_ip, summary_ip, mode="all"):
     if mode not in ("all", "summary", "auto"):
         raise ValueError("Modalità di stampa non valida.")
+    modern = bool(printers and isinstance(printers[0], dict) and ('category_ids' in printers[0] or 'product_ids' in printers[0] or 'role' in printers[0]))
+    if modern:
+        jobs = []
+        present_categories = {int(item.get('id_categoria')) for item in order.get('prodotti', []) if isinstance(item, dict) and item.get('id_categoria') is not None}
+        present_products = {int(item.get('id_prodotto')) for item in order.get('prodotti', []) if isinstance(item, dict) and item.get('id_prodotto') is not None}
+        for printer in printers:
+            ip = printer.get('ip', '')
+            if not valid_printer_ip(ip):
+                raise ValueError('IP stampante non valido.')
+            role = printer.get('role', 'comanda')
+            if mode == 'summary' and role not in ('preconto', 'riepilogo'):
+                continue
+            if mode != 'summary' and role in ('preconto', 'riepilogo') and mode != 'auto':
+                continue
+            categories = set(map(int, printer.get('category_ids', [])))
+            products = set(map(int, printer.get('product_ids', [])))
+            if role == 'comanda' and (categories or products) and not (categories & present_categories or products & present_products):
+                continue
+            selection = None if role in ('preconto', 'riepilogo') or not (categories or products) else {'categories': set(map(str, categories)), 'products': set(map(str, products))}
+            job_role = 'riepilogo' if role in ('preconto', 'riepilogo') else 'categoria'
+            jobs.extend((ip, selection, job_role) for _ in range(max(1, min(9, int(printer.get('copies', 1))))))
+        if mode == 'summary' and not jobs:
+            raise ValueError('Configura una stampante di preconto o riepilogo prima di stamparlo.')
+        return jobs
     summary_ip = summary_ip or ""
     if summary_ip and not valid_printer_ip(summary_ip):
         raise ValueError("IP stampante di riepilogo non valido.")

@@ -105,6 +105,29 @@ def test_manual_summary_mode_requires_summary_printer():
         bridge.print_jobs(order, [], "", "", "unexpected")
 
 
+def test_named_printer_routes_products_and_respects_copy_count():
+    order = {"id": 20, "prodotti": [
+        {"id_prodotto": 11, "id_categoria": 2, "nome": "Acqua", "quantita": 1},
+        {"id_prodotto": 12, "id_categoria": 1, "nome": "Pizza", "quantita": 1},
+    ]}
+    printers = [{"name": "BIBITE", "ip": "192.168.2.31", "role": "comanda",
+                 "copies": 2, "category_ids": [], "product_ids": [11]}]
+    jobs = bridge.print_jobs(order, printers, "", "", "all")
+    assert len(jobs) == 2
+    assert jobs[0][0] == "192.168.2.31"
+    assert jobs[0][1] == {"categories": set(), "products": {"11"}}
+    payload = bridge.receipt(order, jobs[0][1])
+    assert payload.index(b"1 x Acqua") < payload.index(b"RIEPILOGO") < payload.index(b"1 x Pizza")
+
+
+def test_named_summary_printer_uses_its_own_copy_count():
+    order = {"id": 21, "prodotti": []}
+    printers = [{"name": "PRECONTO", "ip": "192.168.2.40", "role": "preconto",
+                 "copies": 3, "category_ids": [], "product_ids": []}]
+    jobs = bridge.print_jobs(order, printers, "", "", "summary")
+    assert jobs == [("192.168.2.40", None, "riepilogo")] * 3
+
+
 def test_prices_only_appear_as_final_total_on_summary():
     order = {"id": 14, "prodotti": [
         {"id_categoria": 1, "nome": "Pizza", "quantita": 2.0, "totale": 20},

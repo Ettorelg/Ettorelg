@@ -81,7 +81,7 @@
       } else {
         const response = await fetch('/api/ordini/stampanti', {cache: 'no-store'});
         const config = await response.json();
-        if (!response.ok || (!config.stampante_ip && !config.stampante_riepilogo_ip && !(config.categorie || []).length)) throw new Error('Configura prima una stampante generale, di riepilogo o per categoria.');
+        if (!response.ok || (!config.stampante_ip && !config.stampante_riepilogo_ip && !(config.categorie || []).length && !(config.stampanti || []).length)) throw new Error('Configura prima una stampante generale, di riepilogo o per categoria.');
         const baseline = await notifications();
         save({enabled: true, cursor: Number(baseline.ultimo_id)});
         indicator.textContent = 'Attiva: stamperò i nuovi ordini da adesso. Lascia aperta questa pagina e il programma sul PC.';
