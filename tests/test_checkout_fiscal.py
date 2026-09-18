@@ -98,6 +98,8 @@ class PaymentDB:
             self.payment=dict(id=args[0],order=args[1],shop=args[2],state=args[3],totals=json.loads(args[4]),payload=json.loads(args[5]),secret=args[6])
         elif sql.startswith('SELECT segreto,stato,payload'):
             if self.payment:self.result=(self.payment['secret'],self.payment['state'],self.payment['payload'])
+        elif sql.startswith('SELECT payload FROM pagamenti_ordini'):
+            if self.payment:self.result=(self.payment['payload'],)
         elif sql.startswith('SELECT segreto,stato,riepilogo'):
             if self.payment:self.result=(self.payment['secret'],self.payment['state'],self.payment['totals'],self.payment['order'],self.payment['shop'])
         elif "SET stato='inviato'" in sql:self.payment['state']='inviato'
@@ -122,3 +124,20 @@ def test_server_attempt_can_only_be_claimed_once_and_only_success_closes_order()
     success=client.post('/api/fiscale/esito',json={'id':job['id'],'xml':RESPONSE},headers=headers)
     assert success.json['state']=='emesso' and db.order_state=='evaso'
     assert client.post('/api/fiscale/esito',json={'id':job['id'],'error':'Late error'},headers=headers).json['state']=='emesso'
+
+
+def test_axon_server_requires_matching_provider_and_amount():
+    app=Flask(__name__);db=PaymentDB()
+    config=CONFIG|dict(brand='axon_micrelec',model='Dado RT / RT30',live=True,verified=True,card_index=4)
+    register_checkout(app,lambda:db,lambda:7,lambda _:jsonify(ordine=ORDER),lambda:jsonify(config=validate_config(config)))
+    client=app.test_client()
+    prepared=client.post('/api/ordini/123/pagamento',json=dict(payment='carta',action='confirm'))
+    assert prepared.status_code==200
+    job=prepared.json['job'];headers={'Authorization':'Bearer '+job['secret']}
+    assert job['xml']['brand']=='axon_micrelec'
+    assert client.post('/api/fiscale/lavoro',json={'id':job['id']},headers=headers).status_code==200
+    result=client.post('/api/fiscale/esito',json={'id':job['id'],'xml':RESPONSE},headers=headers)
+    assert result.json['state']=='incerto'
+    proof=dict(brand='axon_micrelec',before=0,number=1,zno=2,date='18-09-2026',serial='ABC',amount='12.50')
+    result=client.post('/api/fiscale/esito',json={'id':job['id'],'axon':proof},headers=headers)
+    assert result.json['state']=='emesso' and db.order_state=='evaso'

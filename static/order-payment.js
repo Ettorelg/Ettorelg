@@ -41,7 +41,7 @@ window.AlphaPayment = (() => {
       for(const [label,handler] of extraFunctions){const button=element(tools,'button',label);button.onclick=()=>handler(info.ordine)}
       const mode=info.config?.status;
       submit.textContent=!info.config?.brand?'Registra pagamento · senza fiscale':mode==='live'?'Incassa ed emetti documento':'Prova pagamento · nessuna emissione';
-      setMessage(!info.config?.brand?'Nessun registratore configurato: il pagamento non produce un documento fiscale.':mode==='live'?'Modalità reale · il documento verrà emesso dalla Epson.':'Modalità prova · genera l’anteprima, senza stampare e senza evadere l’ordine.');
+      setMessage(!info.config?.brand?'Nessun registratore configurato: il pagamento non produce un documento fiscale.':mode==='live'?'Modalità reale · il documento verrà emesso dal registratore '+info.config.model+'.':'Modalità prova · genera l’anteprima, senza stampare e senza evadere l’ordine.');
       submit.disabled=false;
       if(info.pagamento){submit.disabled=true;const done=['emesso','registrato'].includes(info.pagamento.stato);setMessage(done?'Pagamento già completato.':'Tentativo fiscale già presente. Non riprovare l’emissione: verifica il registratore e recupera l’esito sullo stesso PC.',!done);if(!done){const recoverButton=element(tools,'button','Recupera esito');recoverButton.onclick=recover;if(info.can_resolve){const verify=element(tools,'button','Verifica manuale · titolare');verify.onclick=async()=>{const confirmation=prompt('Solo dopo aver verificato il giornale del registratore e risolto eventuali documenti aperti con il tecnico. Se il documento esiste NON sbloccare: recupera l’esito. Per confermare che NON è stato emesso, scrivi CONFERMO NON EMESSO');if(confirmation!=='CONFERMO NON EMESSO')return;const note=prompt('Descrivi la verifica effettuata sul registratore (minimo 12 caratteri):');if(!note)return;setBusy(true);try{await api('/api/ordini/'+order.id+'/pagamento/verifica-non-emesso',{confirmation,note},csrf);dialog.close();dialog.remove();await open(order,{csrf,onComplete})}catch(error){setMessage(error.message,true)}finally{setBusy(false)}}}}}
       submit.onclick=async()=>{
@@ -49,7 +49,7 @@ window.AlphaPayment = (() => {
         try{
           const quote=await api('/api/ordini/'+order.id+'/pagamento',payload('preview'),csrf);
           dueLabel.textContent=euro(quote.totals.due);changeLabel.textContent=euro(quote.totals.change);
-          if(info.config?.brand&&mode!=='live'){preview.textContent=quote.xml||'';preview.hidden=false;setMessage('Anteprima verificata. Nessun documento emesso; ordine invariato.');return}
+          if(info.config?.brand&&mode!=='live'){preview.textContent=typeof quote.xml==='string'?quote.xml:JSON.stringify(quote.xml,null,2);preview.hidden=false;setMessage('Anteprima verificata. Nessun documento emesso; ordine invariato.');return}
           if(!confirm((info.config?.brand?'Emettere il documento fiscale':'Registrare il pagamento senza documento fiscale')+' di '+euro(quote.totals.due)+' con '+payment+'?'+(payment==='carta'?' Conferma solo dopo l’esito positivo del POS.':'')))return;
           if(info.config?.brand){const health=await api('http://127.0.0.1:17891/health');if(!health.fiscal)throw Error('Aggiorna Alpha Menu Windows alla versione 1.1.0 e chiudi il vecchio programma di stampa.')}
           const result=await api('/api/ordini/'+order.id+'/pagamento',payload('confirm'),csrf);

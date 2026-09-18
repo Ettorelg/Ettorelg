@@ -43,11 +43,11 @@ def validate_config(data):
                 operator=integer(data.get('operator', 1), 1, 12),
                 departments={str(integer(k, 1, 2147483647)): integer(v, 1, 99)
                              for k, v in departments.items()},
-                cash_index=integer(data.get('cash_index', 1), 0, 5),
-                card_index=integer(data.get('card_index', 1), 1, 10),
+                cash_index=integer(data.get('cash_index', 1), 1 if brand == 'axon_micrelec' else 0, 20 if brand == 'axon_micrelec' else 5),
+                card_index=integer(data.get('card_index', 1), 1, 20 if brand == 'axon_micrelec' else 10),
                 status=('live' if data.get('live') is True and data.get('verified') is True
-                        and data['model'] == 'FP-81II RT' else 'preview') if brand == 'epson' else 'unsupported',
-                live=data.get('live') is True and data.get('verified') is True and brand == 'epson' and data['model'] == 'FP-81II RT',
+                        and data['model'] in ('FP-81II RT', 'Dado RT / RT30') else 'preview') if brand in ('epson', 'axon_micrelec') else 'unsupported',
+                live=data.get('live') is True and data.get('verified') is True and data['model'] in ('FP-81II RT', 'Dado RT / RT30'),
                 verified=data.get('verified') is True)
 
 
@@ -88,6 +88,8 @@ def payment_totals(order, data):
 
 def receipt_xml(order, config, payment, settlement=None):
     config = validate_config(config)
+    if config.get('brand') == 'axon_micrelec':
+        return axon_receipt(order, config, payment, settlement)
     if config.get('brand') != 'epson':
         raise ValueError('Tracciato disponibile soltanto per Epson ePOS Fiscal.')
     if payment not in ('contanti', 'carta'):
@@ -129,6 +131,40 @@ def receipt_xml(order, config, payment, settlement=None):
                index=str(config['cash_index'] if payment == 'contanti' else config['card_index']), justification='1')
     SubElement(root, 'endFiscalReceipt', operator=operator)
     return tostring(root, encoding='unicode')
+
+
+def axon_receipt(order, config, payment, settlement=None):
+    # Reuse the same authoritative quantity, rounding and line-total validation.
+    shadow = dict(config, brand='epson', model='FP-81II RT', cash_index=1, card_index=1)
+    root = fromstring(receipt_xml(order, shadow, payment, settlement))
+    commands, departments = [], set()
+    for row in root.findall('printRecItem'):
+        import unicodedata
+        name = unicodedata.normalize('NFKD', row.get('description')).encode('ascii', 'ignore').decode().replace('/', '-').strip()
+        if not name:
+            raise ValueError('Descrizione articolo Axon vuota.')
+        dept = row.get('department')
+        departments.add(dept)
+        commands.append('/'.join(['3', 'S', name[:30], '', row.get('quantity').replace(',', '.'), row.get('unitPrice').replace(',', '.'), dept, '', '', '', ''])+'/')
+    due = amount(settlement['due'] if settlement else order['totale'])
+    if settlement and amount(settlement['discount']):
+        commands.append(f'4/{amount(settlement["discount"]):.2f}/SCONTO//0/1/1/')
+    index = config['cash_index'] if payment == 'contanti' else config['card_index']
+    tendered = amount(settlement['tendered']) if settlement and payment == 'contanti' else due
+    commands.append(f'5/{index}/{tendered:.2f}////'+('PC' if payment == 'contanti' else 'PE')+'///')
+    return dict(brand='axon_micrelec', commands=commands, departments=sorted(departments),
+                payment=payment, payment_index=index, due=str(due))
+
+
+def parse_axon_response(result, expected):
+    if not isinstance(result, dict) or result.get('brand') != 'axon_micrelec':
+        raise ValueError('Risposta Axon mancante. Verificare il registratore, non reinviare.')
+    try:
+        if int(result['number']) != int(result['before']) + 1 or int(result['number']) < 1 or int(result['zno']) < 1 or not result['date'] or not result['serial'] or amount(result['amount']) != amount(expected):
+            raise ValueError()
+    except (KeyError, TypeError, ValueError):
+        raise ValueError('Esito Axon incompleto o totale non corrispondente. Non reinviare.')
+    return result
 
 
 def parse_fiscal_response(xml, expected=None):

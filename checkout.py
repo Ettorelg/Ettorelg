@@ -4,7 +4,7 @@ import json
 import secrets
 import uuid
 from flask import jsonify, request, session
-from fiscal_printers import payment_totals, receipt_xml, parse_fiscal_response
+from fiscal_printers import payment_totals, receipt_xml, parse_fiscal_response, parse_axon_response
 
 
 def register_checkout(app, connect, shop_id_for_request, read_order, read_config):
@@ -48,7 +48,7 @@ def register_checkout(app, connect, shop_id_for_request, read_order, read_config
                 raise ValueError('Operazione non valida.')
             if action == 'preview':
                 return jsonify(totals=totals, xml=xml, mode=config.get('status', 'none'))
-            if config.get('brand') and not (config.get('status') == 'live' and config.get('model') == 'FP-81II RT'):
+            if config.get('brand') and not (config.get('status') == 'live' and config.get('model') in ('FP-81II RT', 'Dado RT / RT30')):
                 raise ValueError('Modalità prova: nessun documento viene emesso. Abilita la modalità reale nella dashboard dopo il collaudo.')
         except (ValueError, TypeError, KeyError) as exc:
             return jsonify(error=str(exc)), 400
@@ -162,7 +162,11 @@ def register_checkout(app, connect, shop_id_for_request, read_order, read_config
                     if row[1] not in ('inviato', 'incerto'):
                         return jsonify(error='Tentativo non inviato al registratore.'), 409
                     try:
-                        info = parse_fiscal_response(data.get('xml'), row[2]['due'])
+                        cur.execute('SELECT payload FROM pagamenti_ordini WHERE id=%s', (data['id'],))
+                        payload = cur.fetchone()[0]
+                        info = (parse_axon_response(data.get('axon'), row[2]['due'])
+                                if payload['config'].get('brand') == 'axon_micrelec'
+                                else parse_fiscal_response(data.get('xml'), row[2]['due']))
                         state = 'emesso'
                     except ValueError as exc:
                         info = dict(error=str(exc), dettaglio=str(data.get('error', ''))[:300])

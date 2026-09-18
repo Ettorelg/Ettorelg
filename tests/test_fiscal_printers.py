@@ -35,7 +35,7 @@ def test_invalid_network_targets(ip):
 
 
 def test_other_brands_can_be_saved_but_cannot_generate_epson_commands():
-    settings = config(); settings.update(brand='axon_micrelec', model='Dado RT / RT30')
+    settings = config(); settings.update(brand='altro', model='Altro modello')
     assert validate_config(settings)['status'] == 'unsupported'
     with pytest.raises(ValueError): receipt_xml(order(), settings, 'contanti')
 

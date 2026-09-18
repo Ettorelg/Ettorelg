@@ -8,6 +8,13 @@ import sqlite3
 import threading
 import urllib.request
 import uuid
+try:
+    from . import axon_bridge
+except ImportError:
+    try:
+        import axon_bridge
+    except ImportError:
+        from tools import axon_bridge
 from xml.etree.ElementTree import Element, SubElement, fromstring, tostring
 
 BASE = 'https://menu.alphasystemsrl.it'
@@ -223,10 +230,18 @@ def send(config, xml):
 def dispatch(path, data):
     if path in ('/fiscal/config/read', '/fiscal/config/write'):
         config = data.get('config', {})
+        if config.get('brand') == 'axon_micrelec':
+            with LOCK:
+                return (axon_bridge.read_programming(config, data.get('batch')) if path.endswith('/read')
+                        else axon_bridge.write_programming(config, data.get('programming', {})))
         return (read_programming(config, data.get('batch')) if path.endswith('/read')
                 else write_programming(config, data.get('programming', {})))
     if path == '/fiscal/probe':
         config = data.get('config', {})
+        if config.get('brand') == 'axon_micrelec':
+            with LOCK:
+                axon_bridge.idle(config)
+            return dict(ok=True, message='Axon raggiungibile e libero. Nessun documento emesso.')
         operator = int(config.get('operator', 1))
         if not 1 <= operator <= 12:
             raise ValueError('Operatore non valido.')
@@ -263,7 +278,10 @@ def dispatch(path, data):
                 db.commit()
                 result = {'id': job_id}
                 try:
-                    result['xml'] = send(job['config'], job['xml'])
+                    if job['config'].get('brand') == 'axon_micrelec':
+                        result['axon'] = axon_bridge.emit(job['config'], job['xml'])
+                    else:
+                        result['xml'] = send(job['config'], job['xml'])
                 except Exception as exc:
                     result['error'] = str(exc)
                 db.execute('UPDATE jobs SET result=? WHERE id=?', (json.dumps(result), job_id))
