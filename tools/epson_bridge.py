@@ -21,7 +21,17 @@ def _response(xml, command):
     root = fromstring(xml)
     response = next((node for node in root.iter() if node.tag.split('}')[-1] == 'response'), None)
     if response is None or response.get('success') != 'true':
-        raise ValueError('Epson: ' + (response.get('code', 'risposta non riconosciuta') if response is not None else 'risposta non riconosciuta'))
+        if response is None:
+            raise ValueError('Epson: risposta non riconosciuta')
+        code = response.get('code', 'risposta non riconosciuta')
+        status = response.get('status', '')
+        explanations = {
+            '17': 'operazione non consentita nello stato attuale; per IVA e intestazione la giornata fiscale deve essere chiusa',
+            '21': 'uno dei dati inviati non è ammesso dal registratore',
+        }
+        detail = explanations.get(status)
+        suffix = (f' · codice {status}' if status else '') + (f' · {detail}' if detail else '')
+        raise ValueError('Epson: ' + code + suffix)
     info = {node.tag.split('}')[-1]: (node.text or '') for node in response.iter()}
     if info.get('responseCommand') != command:
         raise ValueError('Risposta Epson non corrispondente al comando richiesto.')
@@ -109,7 +119,10 @@ def write_programming(config, payload):
         if 'vat' in sections:
             for row in data.get('vat', []):
                 command = _number(row.get('group'), 1, 59, 2) + _number(row.get('rate'), 1, 9999, 4)
-                direct(config, '4005', command)
+                try:
+                    direct(config, '4005', command)
+                except ValueError as exc:
+                    raise ValueError(f'Aliquota IVA gruppo {row.get("group")}: {exc}') from exc
             written.append('IVA')
         if 'departments' in sections:
             for row in data.get('departments', []):
@@ -119,21 +132,36 @@ def write_programming(config, payload):
                            _number(row.get('vat_group'), 0, 59, 2) + _number(row.get('price_limit', 0), 0, 999999999, 9) +
                            _number(row.get('print_group', 0), 0, 10, 2) + _number(row.get('product_group', 0), 0, 10, 2) +
                            _text(row.get('unit'), 2))
-                direct(config, '4002', command)
+                try:
+                    direct(config, '4002', command)
+                except ValueError as exc:
+                    raise ValueError(f'Reparto {row.get("number")}: {exc}') from exc
             written.append('reparti')
         if 'payments' in sections:
             for row in data.get('payments', []):
-                direct(config, '4053', _number(row.get('index'), 1, 5, 2) + _text(row.get('description'), 20))
+                try:
+                    direct(config, '4053', _number(row.get('index'), 1, 5, 2) + _text(row.get('description'), 20))
+                except ValueError as exc:
+                    raise ValueError(f'Pagamento contanti {row.get("index")}: {exc}') from exc
             written.append('pagamenti')
         if 'headers' in sections:
             for row in data.get('headers', []):
-                direct(config, '3016', _number(row.get('line'), 1, 16, 2) + _text(row.get('text'), 40))
-            direct(config, '3016', '99' + (' ' * 40))
+                try:
+                    direct(config, '3016', _number(row.get('line'), 1, 16, 2) + _text(row.get('text'), 40))
+                except ValueError as exc:
+                    raise ValueError(f'Intestazione riga {row.get("line")}: {exc}. Esegui prima la chiusura giornaliera.') from exc
+            try:
+                direct(config, '3016', '99' + (' ' * 40))
+            except ValueError as exc:
+                raise ValueError(f'Conferma intestazione: {exc}. Esegui prima la chiusura giornaliera.') from exc
             written.append('intestazione')
         if 'logo' in sections:
             logo = data.get('logo', {})
             for parameter, key, maximum in [(9, 'header', 9), (10, 'footer', 9), (22, 'alignment', 2)]:
-                direct(config, '4015', f'{parameter:02d}' + _number(logo.get(key, 0), 0, maximum, 3))
+                try:
+                    direct(config, '4015', f'{parameter:02d}' + _number(logo.get(key, 0), 0, maximum, 3))
+                except ValueError as exc:
+                    raise ValueError(f'Logo parametro {parameter}: {exc}') from exc
             written.append('logo')
     return dict(ok=True, message='Configurazione inviata: ' + ', '.join(written) + '.', sections=written)
 

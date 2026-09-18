@@ -14,6 +14,11 @@ class EpsonProgrammingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'corrispondente'):
             epson_bridge._response(xml, '4205')
 
+    def test_response_explains_day_open_error(self):
+        xml = '<response success="false" code="PRINTER ERROR" status="17"><addInfo><lastCommand>16</lastCommand></addInfo></response>'
+        with self.assertRaisesRegex(ValueError, 'giornata fiscale deve essere chiusa'):
+            epson_bridge._response(xml, '3016')
+
     def test_write_requires_explicit_confirmation(self):
         with self.assertRaisesRegex(ValueError, 'Conferma'):
             epson_bridge.write_programming({}, {'sections': ['logo'], 'data': {'logo': {}}})
@@ -26,6 +31,13 @@ class EpsonProgrammingTests(unittest.TestCase):
         self.assertEqual([call.args[1:] for call in direct.call_args_list],
                          [('4015', '09001'), ('4015', '10000'), ('4015', '22002')])
         self.assertTrue(result['ok'])
+
+    def test_header_write_identifies_rejected_line(self):
+        payload = {'confirmation': 'SCRIVI CONFIGURAZIONE EPSON', 'sections': ['headers'],
+                   'data': {'headers': [{'line': 1, 'text': 'NEGOZIO'}]}}
+        with patch.object(epson_bridge, 'direct', side_effect=ValueError('Epson: PRINTER ERROR')):
+            with self.assertRaisesRegex(ValueError, 'Intestazione riga 1.*chiusura giornaliera'):
+                epson_bridge.write_programming({}, payload)
 
 
 if __name__ == '__main__':
