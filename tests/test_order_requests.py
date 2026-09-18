@@ -984,9 +984,11 @@ def test_counter_sale_page_has_catalog_keypad_and_fiscal_checkout():
     endpoint = SOURCE[SOURCE.index('def api_crea_ordine_menu'):SOURCE.index('def order_push_keys')]
     assert 'id="counterView"' in html
     assert 'id="bancoKeypad"' in html
-    assert 'id="bancoCheckout"' in html
+    assert 'id="bancoCheckout"' not in html
+    assert "registerManualOrder(true,true)" in html
+    assert "Modifica carrello" not in html
     assert "modalita:'banco'" in html
     assert "AlphaPayment.open" in html
-    assert "initialPayment" in payment and "initialTender" in payment
+    assert "initialPayment" in payment and "initialTender" in payment and "autoSubmit" in payment
     assert '{"asporto", "banco"}' in endpoint
     assert '"banco" if mode == "banco"' in endpoint

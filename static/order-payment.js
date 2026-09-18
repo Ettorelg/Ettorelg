@@ -3,7 +3,7 @@ window.AlphaPayment = (() => {
   const euro = value => Number(value).toLocaleString('it-IT',{style:'currency',currency:'EUR'});
   function element(parent,tag,text,className){const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(className)el.className=className;parent.append(el);return el}
   async function api(url,body,csrf){const local=url.startsWith('http://127.0.0.1:17891/');if(local&&window.pywebview?.api?.fiscal_request){const result=await window.pywebview.api.fiscal_request(new URL(url).pathname,body||{});if(!result.ok)throw Error(result.message||'Operazione locale non riuscita.');return result.data}const response=await fetch(url,{cache:'no-store',...(body?{method:'POST',headers:local?{'Content-Type':'text/plain'}:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)}:{})});const data=await response.json();if(!response.ok)throw Error(data.error||data.message||'Operazione non riuscita.');return data}
-  async function open(order, {csrf, onComplete=()=>{}, initialPayment='contanti', initialTender=''}={}) {
+  async function open(order, {csrf, onComplete=()=>{}, initialPayment='contanti', initialTender='', autoSubmit=false}={}) {
     if(document.querySelector('.payment-dialog'))return;
     const paymentUrl=(order.sale?'/api/banco/vendite/':'/api/ordini/')+order.id+'/pagamento';
     const dialog=element(document.body,'dialog',undefined,'payment-dialog');dialog.setAttribute('aria-label','Pagamento ordine');
@@ -52,13 +52,14 @@ window.AlphaPayment = (() => {
           const quote=await api(paymentUrl,payload('preview'),csrf);
           dueLabel.textContent=euro(quote.totals.due);changeLabel.textContent=euro(quote.totals.change);
           if(info.config?.brand&&mode!=='live'){preview.textContent=typeof quote.xml==='string'?quote.xml:JSON.stringify(quote.xml,null,2);preview.hidden=false;setMessage('Anteprima verificata. Nessun documento emesso; ordine invariato.');return}
-          if(!confirm((info.config?.brand?'Emettere il documento fiscale':'Registrare il pagamento senza documento fiscale')+' di '+euro(quote.totals.due)+' con '+payment+'?'+(payment==='carta'?' Conferma solo dopo l’esito positivo del POS.':'')))return;
+          if(!autoSubmit&&!confirm((info.config?.brand?'Emettere il documento fiscale':'Registrare il pagamento senza documento fiscale')+' di '+euro(quote.totals.due)+' con '+payment+'?'+(payment==='carta'?' Conferma solo dopo l’esito positivo del POS.':'')))return;
           if(info.config?.brand){const health=await api('http://127.0.0.1:17891/health');if(!health.fiscal)throw Error('Aggiorna Alpha Menu Windows alla versione 1.1.0 e chiudi il vecchio programma di stampa.')}
           const result=await api(paymentUrl,payload('confirm'),csrf);
           if(result.job){info.pagamento={id:result.id,stato:'in_attesa'};setMessage('Emissione in corso. Non chiudere l’app e non ripetere l’operazione.');const printed=await api('http://127.0.0.1:17891/fiscal/emit',{id:result.job.id,secret:result.job.secret},csrf);if(!printed.ok)throw Error(printed.result?.error||'Emissione non confermata. Verifica il registratore.');}
           await onComplete();dialog.close();
         }catch(error){setMessage(error.message+' Se l’invio è già iniziato, chiudi e riapri il pagamento per recuperare l’esito: non emettere di nuovo.',true)}finally{setBusy(false)}
       };
+      if(autoSubmit)await submit.onclick();
     } catch(error){setMessage(error.message,true)}
   }
   return {open,registerFunction:(label,handler)=>extraFunctions.set(label,handler)};
