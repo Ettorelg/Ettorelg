@@ -112,6 +112,20 @@
       body:has(.manual-order.banco-mode:not([hidden])) .banco-keypad{height:172px;grid-template-rows:repeat(4,40px);grid-auto-rows:40px}
       body:has(.manual-order.banco-mode:not([hidden])) .banco-keypad button{height:40px;min-height:40px}
     }
+    @media(min-width:851px){
+      body,body.sidebar-collapsed{padding-left:0}
+      main{width:100%;max-width:none;margin:0;padding:12px 10px 80px}
+      .manual-order{width:100%;max-width:none;margin:0}
+      .order-grid{grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:8px;padding:8px}
+      .group{margin:8px 0 16px}
+      .group-head{padding:11px 14px}
+      .prep{padding:11px 14px}
+      body.sidebar-collapsed .topbar{position:fixed;inset:7px auto auto 7px;z-index:40;width:44px;height:44px;padding:3px;border:0;background:transparent;box-shadow:none;overflow:visible}
+      body.sidebar-collapsed .side-brand-row{display:block}
+      body.sidebar-collapsed .brand,body.sidebar-collapsed .side-view-nav,body.sidebar-collapsed .default-page,body.sidebar-collapsed .side-tools{display:none}
+      body.sidebar-collapsed .sidebar-toggle{width:38px;height:38px;background:#1d3452;box-shadow:0 5px 18px #0008}
+      body:not(.sidebar-collapsed) .topbar{position:fixed;inset:0 auto 0 0;z-index:40;width:270px;height:100dvh}
+    }
 </style>
 </head>
 <body>
@@ -318,8 +332,8 @@
     const pagePreferenceKey='alpha-menu-fulfillment-default-page';
     const sidebarPreferenceKey='alpha-menu-fulfillment-sidebar-collapsed';
     let lastBoardMode='totali',counterMode=false;
-    function selectDisplayMode(mode){lastBoardMode=mode;displayMode=mode;counterMode=false;manualPanel.hidden=true;manualPanel.classList.remove('banco-mode');for(const element of boardElements)element.hidden=false;document.getElementById('summaryView').setAttribute('aria-pressed',String(mode==='totali'));document.getElementById('ordersView').setAttribute('aria-pressed',String(mode==='ordini'));addOrderView.setAttribute('aria-pressed','false');counterView.setAttribute('aria-pressed','false');document.getElementById('orderSearchWrap').hidden=mode!=='ordini';render(lastOrders);window.scrollTo({top:0,behavior:'smooth'})}
-    function openOrderPage(asCounter=false){counterMode=asCounter;for(const element of boardElements)element.hidden=true;manualPanel.hidden=false;manualPanel.classList.toggle('banco-mode',asCounter);if(asCounter)setSidebarCollapsed(true);document.getElementById('summaryView').setAttribute('aria-pressed','false');document.getElementById('ordersView').setAttribute('aria-pressed','false');addOrderView.setAttribute('aria-pressed',String(!asCounter));counterView.setAttribute('aria-pressed',String(asCounter));document.getElementById('manualCustomer').hidden=asCounter;document.querySelector('.manual-pickup').hidden=asCounter;document.getElementById('bancoPay').hidden=!asCounter;document.getElementById('bancoToolbar').hidden=!asCounter;document.querySelector('.manual-submit').hidden=asCounter;document.getElementById('manualOrderTitle').textContent=asCounter?'BANCO · Vendita immediata':'Aggiungi ordine';document.querySelector('.manual-order-head p').textContent=asCounter?'Scegli gli articoli e usa il tastierino per incassare ed emettere lo scontrino.':"Inserisci cliente, ritiro e articoli. L'ordine comparirà subito nel banco evasione.";document.getElementById('manualCartTitle').textContent=asCounter?'Scontrino':'Ordine';manualForm.noValidate=asCounter;if(!manualSettingsLoaded)loadManualSettings().catch(error=>{manualFeedback.textContent=error.message});else refreshManualDoughStock();if(!asCounter)searchCustomers();window.scrollTo({top:0,behavior:'smooth'});setTimeout(()=>document.getElementById(asCounter?'manualProductSearch':'customerSearch').focus(),0)}
+    function selectDisplayMode(mode){setSidebarCollapsed(true);lastBoardMode=mode;displayMode=mode;counterMode=false;manualPanel.hidden=true;manualPanel.classList.remove('banco-mode');for(const element of boardElements)element.hidden=false;document.getElementById('summaryView').setAttribute('aria-pressed',String(mode==='totali'));document.getElementById('ordersView').setAttribute('aria-pressed',String(mode==='ordini'));addOrderView.setAttribute('aria-pressed','false');counterView.setAttribute('aria-pressed','false');document.getElementById('orderSearchWrap').hidden=mode!=='ordini';render(lastOrders);window.scrollTo({top:0,behavior:'smooth'})}
+    function openOrderPage(asCounter=false){setSidebarCollapsed(true);counterMode=asCounter;for(const element of boardElements)element.hidden=true;manualPanel.hidden=false;manualPanel.classList.toggle('banco-mode',asCounter);document.getElementById('summaryView').setAttribute('aria-pressed','false');document.getElementById('ordersView').setAttribute('aria-pressed','false');addOrderView.setAttribute('aria-pressed',String(!asCounter));counterView.setAttribute('aria-pressed',String(asCounter));document.getElementById('manualCustomer').hidden=asCounter;document.querySelector('.manual-pickup').hidden=asCounter;document.getElementById('bancoPay').hidden=!asCounter;document.getElementById('bancoToolbar').hidden=!asCounter;document.querySelector('.manual-submit').hidden=asCounter;document.getElementById('manualOrderTitle').textContent=asCounter?'BANCO · Vendita immediata':'Aggiungi ordine';document.querySelector('.manual-order-head p').textContent=asCounter?'Scegli gli articoli e usa il tastierino per incassare ed emettere lo scontrino.':"Inserisci cliente, ritiro e articoli. L'ordine comparirà subito nel banco evasione.";document.getElementById('manualCartTitle').textContent=asCounter?'Scontrino':'Ordine';manualForm.noValidate=asCounter;if(!manualSettingsLoaded)loadManualSettings().catch(error=>{manualFeedback.textContent=error.message});else refreshManualDoughStock();if(!asCounter)searchCustomers();window.scrollTo({top:0,behavior:'smooth'});setTimeout(()=>document.getElementById(asCounter?'manualProductSearch':'customerSearch').focus(),0)}
     function openManualPage(){openOrderPage(false)}
     function openCounterPage(){openOrderPage(true)}
     function selectAppPage(page){if(page==='manuale')openManualPage();else if(page==='banco')openCounterPage();else selectDisplayMode(page==='ordini'?'ordini':'totali')}
