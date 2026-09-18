@@ -998,5 +998,7 @@ def test_counter_sale_page_has_catalog_keypad_and_fiscal_checkout():
     assert ".manual-dough-stock{width:calc(66.524% - 6.7px)}" in html
     assert "body:has(.manual-order.banco-mode:not([hidden])){height:100dvh;overflow:hidden}" in html
     assert ".manual-products{flex:1;max-height:none;overflow-y:auto}" in html
+    assert ".manual-cart-list{flex:0 1 auto;max-height:34dvh" in html
+    assert "grid-template-rows:auto minmax(120px,1fr) auto auto auto" in html
     assert '{"asporto", "banco"}' in endpoint
     assert '"banco" if mode == "banco"' in endpoint
