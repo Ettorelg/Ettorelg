@@ -17,7 +17,7 @@ except ImportError as exc:
 
 HOST = "127.0.0.1"
 PORT = 17891
-BRIDGE_VERSION = 15
+BRIDGE_VERSION = 16
 ORIGIN = "https://menu.alphasystemsrl.it"
 PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(value) for value in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
