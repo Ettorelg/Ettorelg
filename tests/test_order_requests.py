@@ -990,5 +990,7 @@ def test_counter_sale_page_has_catalog_keypad_and_fiscal_checkout():
     assert "modalita:'banco'" in html
     assert "AlphaPayment.open" in html
     assert "initialPayment" in payment and "initialTender" in payment and "autoSubmit" in payment
+    assert "if(!order.sale&&!autoSubmit&&!confirm(" in payment
+    assert "height:calc(100dvh - 20px)" in html
     assert '{"asporto", "banco"}' in endpoint
     assert '"banco" if mode == "banco"' in endpoint

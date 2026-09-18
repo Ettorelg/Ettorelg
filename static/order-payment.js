@@ -52,8 +52,8 @@ window.AlphaPayment = (() => {
           const quote=await api(paymentUrl,payload('preview'),csrf);
           dueLabel.textContent=euro(quote.totals.due);changeLabel.textContent=euro(quote.totals.change);
           if(info.config?.brand&&mode!=='live'){preview.textContent=typeof quote.xml==='string'?quote.xml:JSON.stringify(quote.xml,null,2);preview.hidden=false;setMessage('Anteprima verificata. Nessun documento emesso; ordine invariato.');return}
-          if(!autoSubmit&&!confirm((info.config?.brand?'Emettere il documento fiscale':'Registrare il pagamento senza documento fiscale')+' di '+euro(quote.totals.due)+' con '+payment+'?'+(payment==='carta'?' Conferma solo dopo l’esito positivo del POS.':'')))return;
-          if(info.config?.brand){const health=await api('http://127.0.0.1:17891/health');if(!health.fiscal)throw Error('Aggiorna Alpha Menu Windows alla versione 1.1.0 e chiudi il vecchio programma di stampa.')}
+          if(!order.sale&&!autoSubmit&&!confirm((info.config?.brand?'Emettere il documento fiscale':'Registrare il pagamento senza documento fiscale')+' di '+euro(quote.totals.due)+' con '+payment+'?'+(payment==='carta'?' Conferma solo dopo l’esito positivo del POS.':'')))return;
+          if(info.config?.brand){const health=await api('http://127.0.0.1:17891/health');if(!health.fiscal)throw Error('Aggiorna Alpha Menu Windows o Android e riavvia completamente l’app.')}
           const result=await api(paymentUrl,payload('confirm'),csrf);
           if(result.job){info.pagamento={id:result.id,stato:'in_attesa'};setMessage('Emissione in corso. Non chiudere l’app e non ripetere l’operazione.');const printed=await api('http://127.0.0.1:17891/fiscal/emit',{id:result.job.id,secret:result.job.secret},csrf);if(!printed.ok)throw Error(printed.result?.error||'Emissione non confermata. Verifica il registratore.');}
           await onComplete();dialog.close();
