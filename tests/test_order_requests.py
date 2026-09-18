@@ -994,5 +994,6 @@ def test_counter_sale_page_has_catalog_keypad_and_fiscal_checkout():
     assert "height:calc(100dvh - 20px)" in html
     assert "AlphaPayment.direct(counterPendingOrder" in html
     assert "return {open,direct,registerFunction" in payment
+    assert ".banco-mode .manual-order-head,.banco-mode .manual-dough-stock{display:none!important}" in html
     assert '{"asporto", "banco"}' in endpoint
     assert '"banco" if mode == "banco"' in endpoint
