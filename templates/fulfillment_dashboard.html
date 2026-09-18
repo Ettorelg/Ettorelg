@@ -111,6 +111,8 @@
       body:has(.manual-order.banco-mode:not([hidden])) .banco-pay{flex:0 0 auto;grid-template-rows:auto 172px auto auto}
       body:has(.manual-order.banco-mode:not([hidden])) .banco-keypad{height:172px;grid-template-rows:repeat(4,40px);grid-auto-rows:40px}
       body:has(.manual-order.banco-mode:not([hidden])) .banco-keypad button{height:40px;min-height:40px}
+      body:has(.manual-order.banco-mode:not([hidden])) .manual-products{grid-auto-rows:minmax(76px,auto)}
+      body:has(.manual-order.banco-mode:not([hidden])) .manual-product{height:auto;min-height:76px}
     }
     @media(min-width:851px){
       body,body.sidebar-collapsed{padding-left:0}
@@ -139,6 +141,9 @@
       body.sidebar-collapsed .sidebar-toggle{width:38px;height:38px;background:#1d3452;box-shadow:0 5px 18px #0008}
       body:not(.sidebar-collapsed) .topbar{position:fixed;inset:0 auto 0 0;z-index:40;width:270px;height:100dvh}
     }
+    .manual-product.simple-product{grid-template-columns:minmax(0,1fr) max-content;column-gap:12px;align-items:center}
+    .manual-product.simple-product strong{min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:normal;line-height:1.12}
+    .manual-product.simple-product .manual-product-price{position:static;align-self:center;justify-self:end;min-width:max-content;margin:0;white-space:nowrap}
 </style>
 </head>
 <body>
