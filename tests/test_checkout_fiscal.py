@@ -141,3 +141,66 @@ def test_axon_server_requires_matching_provider_and_amount():
     proof=dict(brand='axon_micrelec',before=0,number=1,zno=2,date='18-09-2026',serial='ABC',amount='12.50')
     result=client.post('/api/fiscale/esito',json={'id':job['id'],'axon':proof},headers=headers)
     assert result.json['state']=='emesso' and db.order_state=='evaso'
+
+
+class CounterDB(PaymentDB):
+    def __init__(self):
+        super().__init__()
+        self.reserved=False;self.sale_state='aperta';self.statements=[]
+    def execute(self,sql,args):
+        self.statements.append(sql)
+        if sql.startswith('SELECT carrello FROM vendite_banco'):
+            self.result=(ORDER,) if args[1]==7 else None
+        elif sql.startswith('SELECT stato,scorte_impegnate'):
+            self.result=(self.sale_state,self.reserved)
+        elif sql.startswith('SELECT scorte_impegnate'):
+            self.result=(self.reserved,)
+        elif sql.startswith('SELECT id,stato,riepilogo,risposta'):
+            self.result=(self.payment['id'],self.payment['state'],self.payment['totals'],{}) if self.payment else None
+        elif sql.startswith('UPDATE vendite_banco SET scorte_impegnate'):
+            self.reserved=True
+        elif sql.startswith('UPDATE vendite_banco SET stato='):
+            self.sale_state='conclusa'
+        else:
+            super().execute(sql,args)
+            if sql.startswith('INSERT INTO pagamenti_ordini'):
+                self.payment['order']=None
+
+
+def counter_client(db,stock,shop=7,config=None):
+    app=Flask(__name__);app.secret_key='test'
+    register_checkout(app,lambda:db,lambda:shop,Mock(side_effect=AssertionError('Must not read orders')),
+                      lambda:jsonify(config=validate_config(config or CONFIG|dict(live=True,verified=True))),stock)
+    return app.test_client()
+
+
+def test_direct_sale_reserves_once_and_never_creates_or_completes_order():
+    db=CounterDB();stock=Mock();client=counter_client(db,stock)
+    url='/api/banco/vendite/test-sale/pagamento'
+    assert client.get(url).json['editable']
+    assert client.post(url,json=dict(payment='contanti',action='preview')).status_code==200
+    stock.assert_not_called()
+    body=dict(payment='contanti',action='confirm',discount='10',discount_type='percent')
+    prepared=client.post(url,json=body)
+    assert prepared.status_code==200 and stock.call_count==1
+    assert not client.get(url).json['editable']
+    assert client.post(url,json=body).status_code==409 and stock.call_count==1
+    job=prepared.json['job'];headers={'Authorization':'Bearer '+job['secret']}
+    assert client.post('/api/fiscale/lavoro',json={'id':job['id']},headers=headers).status_code==200
+    result=client.post('/api/fiscale/esito',json={'id':job['id'],'xml':RESPONSE},headers=headers)
+    assert result.json['state']=='emesso' and db.sale_state=='conclusa'
+    assert not any('ordini_menu' in q for q in db.statements)
+
+
+def test_counter_is_shop_scoped_and_stock_error_does_not_create_attempt():
+    db=CounterDB();stock=Mock(side_effect=ValueError('Panette insufficienti'))
+    client=counter_client(db,stock)
+    result=client.post('/api/banco/vendite/test-sale/pagamento',json=dict(payment='contanti',action='confirm'))
+    assert result.status_code==409 and db.payment is None and not db.reserved
+    assert counter_client(db,stock,shop=8).get('/api/banco/vendite/test-sale/pagamento').status_code==404
+
+
+def test_counter_retry_after_manual_verification_does_not_reserve_twice():
+    db=CounterDB();db.reserved=True;stock=Mock();client=counter_client(db,stock)
+    assert client.post('/api/banco/vendite/test-sale/pagamento',json=dict(payment='contanti',action='confirm')).status_code==200
+    stock.assert_not_called()

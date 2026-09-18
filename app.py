@@ -65,7 +65,7 @@ def restrict_employee_access():
     if not employee_id:
         return None
     allowed = {"employee_orders", "api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti", "api_disponibilita_ordini", "api_crea_ordine_menu", "api_aggiorna_ordine", "api_ordini_notifiche", "api_ordini_push_key", "api_ordini_push_subscription", "api_token_dispositivo_chiamate", "api_chiamate_ordini", "logout", "static", "pwa_manifest", "pwa_service_worker"}
-    allowed.update({'api_pagamento_info', 'api_pagamento_prepara', 'api_pagamento_recupera', 'api_ordine_per_stampa', 'api_stampanti_categorie', 'api_registratore_fiscale'})
+    allowed.update({'api_pagamento_info', 'api_pagamento_prepara', 'api_pagamento_recupera', 'api_pagamento_vendite', 'api_ordine_per_stampa', 'api_stampanti_categorie', 'api_registratore_fiscale'})
     if (request.endpoint == "api_disponibilita_ordini" and request.path != "/api/ordini/disponibilita") or request.endpoint not in allowed or (request.endpoint in {"api_ordini_evasione", "api_ordini_configurazione", "api_prodotti_list", "api_ordini_clienti"} and request.method != "GET") or (request.endpoint == "api_crea_ordine_menu" and request.path != "/api/ordini/manuale"):
         if request.path.startswith("/api/"):
             return jsonify({"error": "Accesso non consentito al dipendente."}), 403
@@ -1284,6 +1284,20 @@ def init_db() -> None:
                     aggiornato_il TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )""")
                 cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS pagamento_ordine_attivo ON pagamenti_ordini(id_ordine) WHERE stato<>'non_emesso'")
+                cur.execute("""CREATE TABLE IF NOT EXISTS vendite_banco (
+                    id TEXT PRIMARY KEY,
+                    id_negozio INTEGER NOT NULL REFERENCES negozi(id) ON DELETE CASCADE,
+                    stato TEXT NOT NULL DEFAULT 'aperta',
+                    carrello JSONB NOT NULL,
+                    scorte_impegnate BOOLEAN NOT NULL DEFAULT FALSE,
+                    chiave_richiesta TEXT,
+                    impronta_richiesta TEXT,
+                    creato_il TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE(id_negozio,chiave_richiesta)
+                )""")
+                cur.execute("ALTER TABLE pagamenti_ordini ALTER COLUMN id_ordine DROP NOT NULL")
+                cur.execute("ALTER TABLE pagamenti_ordini ADD COLUMN IF NOT EXISTS id_vendita TEXT REFERENCES vendite_banco(id)")
+                cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS pagamento_vendita_attivo ON pagamenti_ordini(id_vendita) WHERE stato<>'non_emesso'")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS clienti_ordini_salvati (
                         id BIGSERIAL PRIMARY KEY,
@@ -5527,9 +5541,11 @@ def api_ordini_elimina_cliente(cliente_id: int):
 
 
 @app.post("/api/ordini/manuale")
+@app.post("/api/banco/vendite")
 @app.post("/api/menu/<slug>/ordini")
 def api_crea_ordine_menu(slug: str | None = None):
     manual = slug is None
+    direct_sale = request.path == '/api/banco/vendite'
     shop_id_manual = None
     if manual:
         if "user_id" not in session and "employee_id" not in session:
@@ -5546,6 +5562,8 @@ def api_crea_ordine_menu(slug: str | None = None):
     if not isinstance(save_customer, bool):
         return jsonify({"error": "Scelta di salvataggio cliente non valida."}), 400
     mode = str(data.get("modalita") or "asporto")
+    if direct_sale:
+        mode = 'banco'
     if mode not in ({"asporto", "banco"} if manual else {"asporto", "tavolo"}):
         return jsonify({"error": "Modalità d'ordine non valida."}), 400
     if mode == "tavolo" and save_customer:
@@ -5620,12 +5638,20 @@ def api_crea_ordine_menu(slug: str | None = None):
                     return jsonify({"error": "Questa modalità d'ordine non è disponibile per il locale."}), 403
                 shop_id = shop[0]
                 if request_key:
-                    cur.execute("SELECT id,totale,impronta_richiesta,COALESCE(numero_progressivo,id) FROM ordini_menu WHERE id_negozio=%s AND chiave_richiesta=%s", (shop_id, request_key))
-                    existing = cur.fetchone()
-                    if existing:
-                        if existing[2] != request_fingerprint:
-                            return jsonify({"error": "La richiesta è già stata utilizzata per un ordine diverso."}), 409
-                        return jsonify({"ok": True, "ordine_id": existing[0], "numero_ordine": existing[3], "totale": str(existing[1]), "messaggio": "Ordine ricevuto."}), 200
+                    if direct_sale:
+                        cur.execute("SELECT id,impronta_richiesta FROM vendite_banco WHERE id_negozio=%s AND chiave_richiesta=%s", (shop_id, request_key))
+                        existing_sale = cur.fetchone()
+                        if existing_sale:
+                            if existing_sale[1] != request_fingerprint:
+                                return jsonify(error='Richiesta già utilizzata per una vendita diversa.'), 409
+                            return jsonify(ok=True, vendita_id=existing_sale[0]), 200
+                    if not direct_sale:
+                        cur.execute("SELECT id,totale,impronta_richiesta,COALESCE(numero_progressivo,id) FROM ordini_menu WHERE id_negozio=%s AND chiave_richiesta=%s", (shop_id, request_key))
+                        existing = cur.fetchone()
+                        if existing:
+                            if existing[2] != request_fingerprint:
+                                return jsonify({"error": "La richiesta è già stata utilizzata per un ordine diverso."}), 409
+                            return jsonify({"ok": True, "ordine_id": existing[0], "numero_ordine": existing[3], "totale": str(existing[1]), "messaggio": "Ordine ricevuto."}), 200
                 if mode == "asporto":
                     if shop[4]:
                         if not requested_time:
@@ -5772,7 +5798,21 @@ def api_crea_ordine_menu(slug: str | None = None):
                     except ValueError as exc:
                         return jsonify({"error": str(exc)}), 409
                     # Una coppia formato/impasto senza scorta esplicita resta illimitata.
-                    cur.execute("UPDATE pizzeria_preparazione_config SET panette=%s::jsonb,aggiornato_il=NOW() WHERE id_negozio=%s", (json.dumps(normalized_stocks), shop_id))
+                    if not direct_sale:
+                        cur.execute("UPDATE pizzeria_preparazione_config SET panette=%s::jsonb,aggiornato_il=NOW() WHERE id_negozio=%s", (json.dumps(normalized_stocks), shop_id))
+                if direct_sale:
+                    import uuid
+                    sale_id = str(uuid.uuid4())
+                    cur.execute('SELECT id,id_categoria FROM prodotti WHERE id_negozio=%s AND id=ANY(%s)', (shop_id, list(quantities)))
+                    categories = dict(cur.fetchall())
+                    snapshot = dict(nome='BANCO', totale=str(total), prodotti=[dict(
+                        id_prodotto=line['product_id'], id_categoria=categories[line['product_id']],
+                        nome=line['name'], quantita=str(line['quantity']), totale=str(line['total']),
+                        configurazione=line['config']) for line in validated_lines],
+                        scorte=[dict(formato=k[0], impasto=k[1], quantita=str(v)) for k,v in stock_consumption.items()])
+                    cur.execute('INSERT INTO vendite_banco (id,id_negozio,carrello,chiave_richiesta,impronta_richiesta) VALUES (%s,%s,%s::jsonb,%s,%s)',
+                                (sale_id, shop_id, json.dumps(snapshot), request_key or None, request_fingerprint))
+                    return jsonify(ok=True, vendita_id=sale_id), 201
                 cur.execute("""INSERT INTO contatori_ordini_menu (id_negozio,ultimo_numero) VALUES (%s,1)
                                ON CONFLICT (id_negozio) DO UPDATE SET ultimo_numero=
                                  CASE WHEN contatori_ordini_menu.ultimo_numero>=200 THEN 1
@@ -8024,8 +8064,16 @@ def api_sottocategorie_delete(sottocategoria_id: int):
 
 
 from checkout import register_checkout
+def reserve_counter_stock(cur, shop, snapshot):
+    consumption = {(r['formato'], r['impasto']): Decimal(r['quantita']) for r in snapshot.get('scorte', [])}
+    if consumption:
+        cur.execute('SELECT panette FROM pizzeria_preparazione_config WHERE id_negozio=%s FOR UPDATE', (shop,))
+        row = cur.fetchone()
+        stocks = consume_pizzeria_stocks(row[0] if row else [], consumption)
+        cur.execute('UPDATE pizzeria_preparazione_config SET panette=%s::jsonb,aggiornato_il=NOW() WHERE id_negozio=%s', (json.dumps(stocks), shop))
+
 register_checkout(app, lambda: psycopg2.connect(**build_db_config()), order_notification_shop_id,
-                  api_ordine_per_stampa, api_registratore_fiscale)
+                  api_ordine_per_stampa, api_registratore_fiscale, reserve_counter_stock)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true")

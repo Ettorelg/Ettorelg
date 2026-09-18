@@ -121,7 +121,7 @@
   <script src="{{ url_for('static', filename='dough-reorder.js') }}?v=1"></script>
   <script src="{{ url_for('static', filename='order-print.js') }}?v=14"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='order-payment.css') }}?v=1">
-  <script src="{{ url_for('static', filename='order-payment.js') }}?v=2"></script>
+  <script src="{{ url_for('static', filename='order-payment.js') }}?v=3"></script>
   <script src="{{ url_for('static', filename='order-auto-print.js') }}?v=4"></script>
 <script>
     const csrf={{ csrf_token()|tojson }};
@@ -308,6 +308,14 @@
     const manualProductSearch=document.getElementById('manualProductSearch');
     const manualFeedback=document.getElementById('manualFeedback');
     let bancoMethod='contanti',bancoReceivedValue='',counterPendingOrder=null;
+    const createCounterOrder=node(document.getElementById('bancoPay'),'button','Crea un ordine invece dello scontrino');createCounterOrder.type='button';
+    function lockCounterCart(){document.querySelector('.manual-catalog').inert=!!counterPendingOrder;document.getElementById('manualCart').inert=!!counterPendingOrder}
+    async function editCounterCart(){if(counterPendingOrder){const response=await fetch('/api/banco/vendite/'+counterPendingOrder.id+'/pagamento');const data=await response.json();if(!response.ok||!data.editable)throw Error('Vendita già confermata o da verificare: recupera prima l’esito.');counterPendingOrder=null;lockCounterCart()}setManualFeedback('Carrello modificabile. Nessun ordine creato.')}
+    createCounterOrder.onclick=async()=>{try{await editCounterCart();openOrderPage(false)}catch(error){setManualFeedback(error.message,'error')}};
+    const editCounter=node(document.getElementById('bancoPay'),'button','Modifica carrello');editCounter.type='button';editCounter.onclick=()=>editCounterCart().catch(error=>setManualFeedback(error.message,'error'));
+    const recoverCounterSales=node(document.getElementById('bancoPay'),'button','Vendite da verificare');recoverCounterSales.type='button';
+    const counterRecoveryList=node(document.getElementById('bancoPay'),'div');
+    recoverCounterSales.onclick=async()=>{try{counterRecoveryList.replaceChildren();const response=await fetch('/api/banco/vendite');const data=await response.json();if(!response.ok)throw Error(data.error);if(!data.items.length){counterRecoveryList.textContent='Nessuna vendita da verificare.';return}for(const sale of data.items){const button=node(counterRecoveryList,'button',euro(sale.totale)+' · '+sale.stato+' · Recupera');button.type='button';button.onclick=()=>AlphaPayment.open({id:sale.id,sale:true},{csrf,onComplete:()=>{counterRecoveryList.replaceChildren();refreshManualDoughStock()}})}}catch(error){setManualFeedback(error.message,'error')}};
     const bancoReceived=document.getElementById('bancoReceived');
     function renderBancoReceived(){bancoReceived.textContent=bancoReceivedValue?euro(Number(bancoReceivedValue.replace(',','.'))):'€ 0,00'}
     document.querySelectorAll('[data-banco-method]').forEach(button=>button.addEventListener('click',()=>{bancoMethod=button.dataset.bancoMethod;document.querySelectorAll('[data-banco-method]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));if(bancoMethod==='carta')bancoReceivedValue='';renderBancoReceived()}));
@@ -477,6 +485,7 @@
     customerSearch.addEventListener('input',()=>{clearTimeout(customerSearchTimer);customerSearchTimer=setTimeout(searchCustomers,220)});
     document.getElementById('manualCustomerEdit').onclick=()=>{manualCustomer.classList.remove('compact');manualCustomerSummary.hidden=true;customerSearch.focus()};
     async function registerManualOrder(asCounter=false){
+      if(!asCounter&&counterPendingOrder){setManualFeedback('Concludi la vendita aperta oppure usa Modifica carrello prima di creare un ordine.','error');return}
       if(asCounter&&counterPendingOrder){await AlphaPayment.open(counterPendingOrder,{csrf,initialPayment:bancoMethod,initialTender:bancoReceivedValue,onComplete:completeCounterSale});return}
       const fields=new FormData(manualForm);
       const items=manualCart.map(item=>({id:item.id,quantita:item.quantita,...(item.pizzeria?{pizzeria:item.pizzeria}:{})}));
@@ -485,12 +494,13 @@
       const payload=asCounter?{modalita:'banco',salva_cliente:false,prodotti:items}:{nome:fields.get('nome'),telefono:fields.get('telefono'),email:fields.get('email'),data_richiesta:selectedDate,ora_richiesta:fields.get('ora_richiesta'),riferimento:fields.get('riferimento'),note:fields.get('note'),salva_cliente:fields.has('salva_cliente'),prodotti:items};
       const submit=asCounter?document.getElementById('bancoCheckout'):document.getElementById('manualSubmit');submit.disabled=true;setManualFeedback(asCounter?'Apertura vendita…':'Registrazione in corso…');
       try{
-        const response=await AlphaOrders.send('/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});
+        const response=await AlphaOrders.send(asCounter?'/api/banco/vendite':'/api/ordini/manuale',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});
         const result=await response.json();
         if(!response.ok)throw new Error(result.error||'Registrazione non riuscita.');
         if(asCounter){
-          setManualFeedback('Vendita #'+(result.numero_ordine||result.ordine_id)+' pronta per il pagamento.');
-          counterPendingOrder={id:result.ordine_id,numero:result.numero_ordine};
+          setManualFeedback('Vendita diretta pronta per il pagamento. Nessun ordine creato.');
+          counterPendingOrder={id:result.vendita_id,sale:true};
+          lockCounterCart();
           await AlphaPayment.open(counterPendingOrder,{csrf,initialPayment:bancoMethod,initialTender:bancoReceivedValue,onComplete:completeCounterSale});
           return;
         }
@@ -501,8 +511,8 @@
       }catch(error){setManualFeedback(error.message,'error')}
       finally{submit.disabled=false}
     }
-    async function completeCounterSale(){counterPendingOrder=null;manualCart=[];bancoReceivedValue='';renderBancoReceived();renderManualCart();setManualFeedback('Scontrino completato. Pronto per una nuova vendita.');await Promise.all([load(),refreshManualDoughStock()])}
-    manualForm.addEventListener('submit',async event=>{event.preventDefault();await registerManualOrder(false)});
+    async function completeCounterSale(){counterPendingOrder=null;lockCounterCart();manualCart=[];bancoReceivedValue='';renderBancoReceived();renderManualCart();setManualFeedback('Vendita completata. Pronto per una nuova vendita.');await Promise.all([load(),refreshManualDoughStock()])}
+    manualForm.addEventListener('submit',async event=>{event.preventDefault();await registerManualOrder(counterMode)});
     document.getElementById('bancoCheckout').addEventListener('click',()=>registerManualOrder(true));
     const historyPanel=document.getElementById('orderHistory');
     const showHistoryButton=document.getElementById('showHistoryButton');

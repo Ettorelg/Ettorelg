@@ -91,6 +91,7 @@ class FakeCursor:
         raise AssertionError(self.query)
 
     def fetchall(self):
+        if 'SELECT id,id_categoria FROM prodotti' in self.query: return [(3, 2)]
         if "GROUP BY o.ora_richiesta" in self.query: return self.slot_rows
         if "FROM prodotti p" in self.query: return [(3, "Articolo", Decimal("4.00"), self.product_unit)]
         raise AssertionError(self.query)
@@ -110,6 +111,21 @@ def payload(quantity):
         "data_richiesta": datetime.now(ZoneInfo("Europe/Rome")).date().isoformat(),
         "prodotti": [{"id": 3, "quantita": quantity}],
     }
+
+
+def test_counter_draft_does_not_create_order_or_consume_order_number():
+    db = FakeConnection()
+    with FLASK.test_request_context('/api/banco/vendite', method='POST', json={'prodotti':[{'id':3,'quantita':1}]}):
+        session['user_id'] = 1
+        response, status = order_function(db)()
+    assert status == 201
+    assert response.get_json()['vendita_id']
+    sql = '\n'.join(q for q,p in db.cur.statements)
+    assert 'INSERT INTO vendite_banco' in sql
+    assert 'INSERT INTO ordini_menu' not in sql
+    assert 'INSERT INTO righe_ordini_menu' not in sql
+    assert 'INSERT INTO contatori_ordini_menu' not in sql
+    assert 'UPDATE pizzeria_preparazione_config' not in sql
 
 
 def test_decimal_quantity_is_saved_with_exact_total():
