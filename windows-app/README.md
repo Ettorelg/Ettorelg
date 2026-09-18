@@ -1,4 +1,4 @@
-# Alpha Menu per Windows 1.1.7
+# Alpha Menu per Windows 1.1.8
 
 App Windows 10/11 x64 con logo Alpha Menu, finestra WebView2 dedicata,
 sessione persistente e bridge ESC/POS integrato (stessa implementazione del PC).
@@ -7,7 +7,7 @@ Non modifica i dati degli ordini o le impostazioni esistenti durante l'installaz
 
 ## Uso
 
-1. Installa `AlphaMenu-Setup-1.1.7.exe` e apri Alpha Menu dal desktop.
+1. Installa `AlphaMenu-Setup-1.1.8.exe` e apri Alpha Menu dal desktop.
 2. Accedi con l'account titolare/staff.
 3. Menu **Alpha Menu → Stampanti e pagamenti**: configura gli IP.
 4. **Stato collegamento stampa** verifica il bridge, non la raggiungibilità fisica delle stampanti.

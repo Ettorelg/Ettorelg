@@ -39,6 +39,16 @@ class EpsonProgrammingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Intestazione riga 1.*chiusura giornaliera'):
                 epson_bridge.write_programming({}, payload)
 
+    def test_header_write_centers_text_and_sets_double_height(self):
+        payload = {'confirmation': 'SCRIVI CONFIGURAZIONE EPSON', 'sections': ['headers'],
+                   'data': {'headers': [{'line': 1, 'text': 'NEGOZIO', 'centered': True, 'font': 3}]}}
+        with patch.object(epson_bridge, 'direct', return_value='') as direct:
+            epson_bridge.write_programming({}, payload)
+        calls = [call.args[1:] for call in direct.call_args_list]
+        self.assertEqual(calls[0], ('3016', '01' + 'NEGOZIO'.center(40)))
+        self.assertEqual(calls[1], ('3016', '99' + (' ' * 40)))
+        self.assertEqual(calls[2], ('4016', '13'))
+
 
 if __name__ == '__main__':
     unittest.main()

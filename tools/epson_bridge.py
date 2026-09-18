@@ -58,6 +58,13 @@ def _text(value, width):
     return value.ljust(width)
 
 
+def _header_text(value, centered=False):
+    value = str(value or '').strip()
+    if len(value) > 40 or any(ord(char) < 32 or ord(char) > 126 for char in value):
+        raise ValueError('Testo Epson non valido (massimo 40 caratteri senza accenti).')
+    return value.center(40) if centered else value.ljust(40)
+
+
 def read_programming(config, batch=None):
     batch = batch if isinstance(batch, dict) else {}
     start = int(batch.get('start', 1))
@@ -90,7 +97,14 @@ def read_programming(config, batch=None):
     headers = []
     for line in (range(1, 17) if details else []):
         raw = direct(config, '3216', f'{line:02d}')
-        headers.append(dict(line=line, text=raw[2:42].rstrip()))
+        text = raw[2:42].rstrip()
+        font = 1
+        if line <= 9:
+            font_raw = direct(config, '4216', str(line))
+            if len(font_raw) < 2 or font_raw[0] != str(line) or font_raw[1] not in '1234':
+                raise ValueError(f'Risposta formato intestazione riga {line} non valida.')
+            font = int(font_raw[1])
+        headers.append(dict(line=line, text=text.strip(), centered=bool(text[:1].isspace()), font=font))
     payments = []
     for index in (range(1, 6) if details else []):
         raw = direct(config, '4253', f'{index:02d}')
@@ -147,13 +161,21 @@ def write_programming(config, payload):
         if 'headers' in sections:
             for row in data.get('headers', []):
                 try:
-                    direct(config, '3016', _number(row.get('line'), 1, 16, 2) + _text(row.get('text'), 40))
+                    direct(config, '3016', _number(row.get('line'), 1, 16, 2) +
+                           _header_text(row.get('text'), row.get('centered') is True))
                 except ValueError as exc:
                     raise ValueError(f'Intestazione riga {row.get("line")}: {exc}. Esegui prima la chiusura giornaliera.') from exc
             try:
                 direct(config, '3016', '99' + (' ' * 40))
             except ValueError as exc:
                 raise ValueError(f'Conferma intestazione: {exc}. Esegui prima la chiusura giornaliera.') from exc
+            for row in data.get('headers', []):
+                line = int(row.get('line', 0))
+                if line <= 9:
+                    try:
+                        direct(config, '4016', _number(line, 1, 9, 1) + _number(row.get('font', 1), 1, 4, 1))
+                    except ValueError as exc:
+                        raise ValueError(f'Formato intestazione riga {line}: {exc}') from exc
             written.append('intestazione')
         if 'logo' in sections:
             logo = data.get('logo', {})
