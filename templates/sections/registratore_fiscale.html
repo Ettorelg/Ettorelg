@@ -1,5 +1,6 @@
-<div class="orders-settings" id="fiscalSettings">
-  <h3>Registratore fiscale · Epson FP-81II RT</h3>
+<details class="orders-settings" id="fiscalSettings" open>
+  <summary>Registratore fiscale · Epson FP-81II RT</summary>
+  <div class="panel-body">
   <p>Configura il registratore per la preparazione degli scontrini.</p>
   <label>Marca<select id="fiscalBrand"><option value="">Nessun registratore</option><option value="epson">Epson</option><option value="axon_micrelec">Axon-Micrelec</option><option value="altro">Altro produttore</option></select></label>
   <div id="fiscalFields" hidden>
@@ -11,15 +12,15 @@
     <label>Modalità<select id="fiscalMode"><option value="preview">Prova · nessuna emissione</option><option value="live">Reale · emette documenti commerciali</option></select></label>
     <label class="warning"><input type="checkbox" id="fiscalVerified"> Confermo che modello, reparti IVA e totalizzatori sono stati verificati sul registratore con il tecnico.</label>
     <p id="fiscalSupport"></p>
-    <p>Associa le categorie ai reparti già programmati sul registratore. Il reparto determina l’IVA: verifica la corrispondenza con il tecnico.</p>
-    <div id="fiscalDepartments"></div>
+    <details><summary>Categorie associate ai reparti</summary><p>Il reparto determina l’IVA: verifica la corrispondenza con il tecnico.</p>
+    <div id="fiscalDepartments" class="compact-scroll"></div></details>
   </div>
   <button id="fiscalSave" type="button" disabled>Salva registratore</button>
   <button id="fiscalProbe" type="button">Verifica collegamento (non stampa)</button>
   <button id="fiscalRead" type="button">Leggi configurazione Epson</button>
   <details id="fiscalProgramming" hidden><summary>Configurazione letta dalla stampante</summary>
     <p class="warning">La lettura non modifica il registratore. Per la scrittura seleziona soltanto le sezioni controllate: IVA, reparti e intestazione possono essere rifiutati se la giornata fiscale è aperta.</p>
-    <div id="fiscalProgrammingBody"></div>
+    <div id="fiscalProgrammingBody" class="compact-scroll"></div>
     <button id="fiscalWrite" type="button">Invia sezioni selezionate alla Epson</button>
   </details>
   <details id="fiscalPreview" hidden><summary>Anteprima tracciato Epson</summary>
@@ -29,7 +30,8 @@
     <button id="fiscalDownload" type="button">Scarica anteprima XML</button>
   </details>
   <p id="fiscalMessage" role="status"></p>
-</div>
+  </div>
+</details>
 <script>
 (()=>{
  const el=id=>document.getElementById('fiscal'+id);let models={},saved={},programming=null;
@@ -42,7 +44,7 @@
  el('Brand').onchange=()=>brandChanged();el('Save').onclick=async()=>{el('Save').disabled=true;try{if(el('Mode').value==='live'&&!el('Verified').checked)throw Error('Conferma prima la verifica della configurazione.');const departments={};el('Departments').querySelectorAll('input').forEach(input=>{if(input.value)departments[input.dataset.category]=input.value});const data=await responseData(await fetch('/api/ordini/registratore-fiscale',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand:el('Brand').value,model:el('Model').value,ip:el('Ip').value.trim(),port:el('Port').value,operator:el('Operator').value,cash_index:el('Cash').value,card_index:el('Card').value,live:el('Mode').value==='live',verified:el('Verified').checked,departments})}));saved=data.config;brandChanged(saved.model);el('Mode').value=saved.live?'live':'preview';el('Message').textContent=saved.live?'Modalità reale salvata: il pulsante di conferma pagamento emetterà il documento.':'Configurazione salvata. Nessuna emissione in modalità prova.'}catch(error){el('Message').textContent=error.message}finally{el('Save').disabled=false}};
  el('Probe').onclick=async()=>{el('Probe').disabled=true;try{if(saved.model!=='FP-81II RT')throw Error('Salva prima la configurazione Epson FP-81II RT.');const health=await localRequest('/health',{},5000);if(!health.fiscal)throw Error('Il componente Epson non è attivo. Installa la versione Windows più recente e riavvia completamente l’app.');const data=await localRequest('/fiscal/probe',{config:saved});el('Message').textContent=data.message}catch(error){el('Message').textContent='Verifica non riuscita: '+error.message}finally{el('Probe').disabled=false}};
  function input(value,type='text'){const node=document.createElement('input');node.type=type;node.value=value??'';return node}
- function section(name,title){const box=document.createElement('fieldset');box.dataset.section=name;const legend=document.createElement('legend');const check=input('', 'checkbox');check.dataset.include=name;legend.append(check,' '+title);box.append(legend);el('ProgrammingBody').append(box);return box}
+ function section(name,title){const box=document.createElement('details');box.className='programming-section';box.dataset.section=name;const summary=document.createElement('summary');const check=input('', 'checkbox');check.dataset.include=name;check.onclick=event=>event.stopPropagation();summary.append(check,' '+title);const body=document.createElement('div');body.className='programming-section-body';box.append(summary,body);el('ProgrammingBody').append(box);return body}
  function renderProgramming(){el('ProgrammingBody').replaceChildren();const meta=document.createElement('p');meta.textContent='Stampante: '+(programming.printer.serial||'matricola non disponibile')+' · '+programming.printer.ip;el('ProgrammingBody').append(meta);
   let box=section('departments','Reparti');for(const row of programming.departments){const line=document.createElement('div');line.className='printer-grid';line.append(document.createTextNode('N. '+row.number+' '));const desc=input(row.description);desc.dataset.field='description';desc.dataset.number=row.number;desc.maxLength=20;const vat=input(Number(row.vat_group),'number');vat.dataset.field='vat_group';vat.dataset.number=row.number;vat.min=0;vat.max=59;line.append(desc,vat);box.append(line)}
   box=section('vat','Aliquote IVA');for(const row of programming.vat){const label=document.createElement('label');label.textContent='Gruppo '+row.group+' · %';const rate=input((Number(row.rate)/100).toFixed(2),'number');rate.step='.01';rate.min='.01';rate.max='99.99';rate.dataset.vat=row.group;label.append(rate);box.append(label)}
