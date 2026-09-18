@@ -102,7 +102,10 @@ class PaymentDB:
             if self.payment:self.result=(self.payment['payload'],)
         elif sql.startswith('SELECT segreto,stato,riepilogo'):
             if self.payment:self.result=(self.payment['secret'],self.payment['state'],self.payment['totals'],self.payment['order'],self.payment['shop'])
+        elif sql.startswith('SELECT id,stato,riepilogo,payload'):
+            if self.payment:self.result=(self.payment['id'],self.payment['state'],self.payment['totals'],self.payment['payload'])
         elif "SET stato='inviato'" in sql:self.payment['state']='inviato'
+        elif "SET stato='emesso'" in sql:self.payment['state']='emesso'
         elif sql.startswith('UPDATE pagamenti_ordini SET stato='):self.payment['state']=args[0]
         elif "UPDATE ordini_menu SET stato='evaso'" in sql:self.order_state='evaso'
 
@@ -141,6 +144,18 @@ def test_axon_server_requires_matching_provider_and_amount():
     proof=dict(brand='axon_micrelec',before=0,number=1,zno=2,date='18-09-2026',serial='ABC',amount='12.50')
     result=client.post('/api/fiscale/esito',json={'id':job['id'],'axon':proof},headers=headers)
     assert result.json['state']=='emesso' and db.order_state=='evaso'
+
+
+def test_owner_can_reconcile_confirmed_dado_document_without_reissue():
+    app=Flask(__name__);app.secret_key='test';db=PaymentDB()
+    config=CONFIG|dict(brand='axon_micrelec',model='Dado RT / RT30',live=True,verified=True,card_index=4)
+    register_checkout(app,lambda:db,lambda:7,lambda _:jsonify(ordine=ORDER),lambda:jsonify(config=validate_config(config)))
+    client=app.test_client();client.post('/api/ordini/123/pagamento',json=dict(payment='contanti',action='confirm'))
+    db.payment['state']='incerto'
+    with client.session_transaction() as session: session['user_id']=9
+    result=client.post('/api/ordini/123/pagamento/conferma-emesso',json=dict(
+        confirmation='CONFERMO EMESSO',zno=1,document=1,note='Verificato scontrino cartaceo DADO'))
+    assert result.status_code==200 and db.payment['state']=='emesso' and db.order_state=='evaso'
 
 
 class CounterDB(PaymentDB):

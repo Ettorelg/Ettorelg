@@ -2,6 +2,7 @@ from unittest.mock import Mock
 import pytest
 from tools import axon_bridge as axon, epson_bridge as bridge
 from fiscal_printers import receipt_xml, payment_totals, validate_config, parse_axon_response
+import json
 
 CONFIG = dict(brand='axon_micrelec', model='Dado RT / RT30', ip='192.168.2.30', departments={'3': 1}, cash_index=1, card_index=4)
 ORDER = dict(totale='12.50', prodotti=[dict(nome='PIZZA / CAFFÈ', quantita=2, totale='12.50', id_categoria=3)])
@@ -32,6 +33,24 @@ def test_department_optional_flags_preserved_and_closed_day_required(monkeypatch
     sender.reset_mock();sender.return_value=(['0','0'],[0,0,2])
     with pytest.raises(ValueError, match='giornata'):axon.write_programming(CONFIG,payload)
     assert sender.call_count == 1
+
+
+def test_header_write_always_sends_eight_complete_rows(monkeypatch):
+    sender=Mock(return_value=(['0','0'],[0,0,0]));monkeypatch.setattr(axon,'command',sender)
+    rows=[dict(line=i,text='RIGA 1' if i==1 else '',font=0,centered=i==1) for i in range(1,13)]
+    payload=dict(confirmation='SCRIVI CONFIGURAZIONE AXON',sections=['headers'],data=dict(headers=rows))
+    axon.write_programming(CONFIG,payload)
+    packet=sender.call_args.args[1]
+    assert packet.startswith('L/0/RIGA 1/0/')
+    assert len(packet.split('/')) == 26  # L + 8 triples + terminal empty field
+
+
+def test_cp1252_json_response_is_accepted(monkeypatch):
+    response=Mock(status=200);response.read.return_value=b'{"response":"00/00/00/PREZZO \x80/99"}'
+    connection=Mock();connection.getresponse.return_value=response
+    monkeypatch.setattr(axon.http.client,'HTTPConnection',Mock(return_value=connection))
+    result=axon.request(CONFIG,'?/')
+    assert result['response'].endswith('PREZZO €/99')
 
 
 def test_emit_checks_document_and_total(monkeypatch):

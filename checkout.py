@@ -172,6 +172,42 @@ def register_checkout(app, connect, shop_id_for_request, read_order, read_config
         finally:
             conn.close()
 
+    @app.post('/api/ordini/<int:order_id>/pagamento/conferma-emesso')
+    @app.post('/api/banco/vendite/<string:order_id>/pagamento/conferma-emesso')
+    def api_pagamento_conferma_emesso(order_id):
+        shop = shop_id_for_request()
+        if not shop or session.get('employee_id'):
+            return jsonify(error='Conferma riservata al titolare.'), 403
+        data = request.get_json(silent=True) or {}
+        note = str(data.get('note', '')).strip()
+        try:
+            zno, document = int(data.get('zno')), int(data.get('document'))
+        except (TypeError, ValueError):
+            return jsonify(error='Inserire chiusura e numero documento DADO.'), 400
+        if data.get('confirmation') != 'CONFERMO EMESSO' or not 1 <= zno <= 9999 or not 1 <= document <= 9999 or not 12 <= len(note) <= 500:
+            return jsonify(error='Conferma emissione e descrivi la verifica effettuata sul DADO.'), 400
+        conn = connect()
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(f"SELECT id,stato,riepilogo,payload FROM pagamenti_ordini WHERE {reference(order_id)}=%s AND id_negozio=%s AND stato<>'non_emesso' FOR UPDATE", (order_id, shop))
+                    row = cur.fetchone()
+                    if not row or row[1] not in ('inviato', 'incerto'):
+                        return jsonify(error='Non esiste un tentativo incerto da confermare.'), 409
+                    if row[3].get('config', {}).get('brand') != 'axon_micrelec':
+                        return jsonify(error='Il tentativo non era destinato al DADO RT.'), 409
+                    proof = dict(brand='axon_micrelec', zno=zno, number=document,
+                                 amount=row[2]['due'], verifica_manuale=note,
+                                 verificato_da=session.get('user_id'))
+                    cur.execute("UPDATE pagamenti_ordini SET stato='emesso',risposta=%s::jsonb,aggiornato_il=NOW() WHERE id=%s", (json.dumps(proof), row[0]))
+                    if isinstance(order_id, str):
+                        cur.execute("UPDATE vendite_banco SET stato='conclusa' WHERE id=%s AND id_negozio=%s", (order_id, shop))
+                    else:
+                        cur.execute("UPDATE ordini_menu SET stato='evaso',aggiornato_il=NOW() WHERE id=%s AND id_negozio=%s", (order_id, shop))
+            return jsonify(ok=True, state='emesso', result=proof)
+        finally:
+            conn.close()
+
     @app.post('/api/fiscale/lavoro')
     def api_fiscale_lavoro():
         data = request.get_json(silent=True) or {}

@@ -32,7 +32,13 @@ def request(config, packet=None):
         raw = response.read(65537)
         if response.status != 200 or len(raw) > 65536:
             raise ValueError('Risposta HTTP Axon non valida.')
-        return json.loads(raw)
+        # Some G100/D100 firmwares return Windows-1252 bytes (notably 0x80
+        # for the euro sign) inside otherwise valid JSON.
+        try:
+            decoded = raw.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            decoded = raw.decode('cp1252')
+        return json.loads(decoded)
     finally:
         connection.close()
 
@@ -120,11 +126,13 @@ def write_programming(config, payload):
         rows = data['headers']
         if len(rows) != 12 or [r['line'] for r in rows] != list(range(1, 13)):
             raise ValueError('Intestazione Axon incompleta.')
-        last = max((i for i,r in enumerate(rows) if r['text'].strip()), default=-1)
-        if last < 0:
+        # Command L is fixed at 8 header rows on this protocol revision.
+        # O can expose 12 stored rows, but sending fewer fields yields 0x01.
+        rows = rows[:8]
+        if not any(r['text'].strip() for r in rows):
             raise ValueError('Intestazione vuota non consentita.')
         fields = ['L']
-        for row in rows[:last+1]:
+        for row in rows:
             font = number(row['font'], 0, 4)
             value = text(row['text'], 48)
             if row.get('centered'):
