@@ -121,7 +121,7 @@
   <script src="{{ url_for('static', filename='dough-reorder.js') }}?v=1"></script>
   <script src="{{ url_for('static', filename='order-print.js') }}?v=14"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='order-payment.css') }}?v=1">
-  <script src="{{ url_for('static', filename='order-payment.js') }}?v=7"></script>
+  <script src="{{ url_for('static', filename='order-payment.js') }}?v=8"></script>
   <script src="{{ url_for('static', filename='order-auto-print.js') }}?v=4"></script>
 <script>
     const csrf={{ csrf_token()|tojson }};
@@ -317,7 +317,7 @@
     recoverCounterSales.onclick=async()=>{try{counterRecoveryList.replaceChildren();const response=await fetch('/api/banco/vendite');const data=await response.json();if(!response.ok)throw Error(data.error);if(!data.items.length){counterRecoveryList.textContent='Nessuna vendita da verificare.';return}for(const sale of data.items){const button=node(counterRecoveryList,'button',euro(sale.totale)+' · '+sale.stato+' · Recupera');button.type='button';button.onclick=()=>AlphaPayment.open({id:sale.id,sale:true},{csrf,onComplete:()=>{counterRecoveryList.replaceChildren();refreshManualDoughStock()}})}}catch(error){setManualFeedback(error.message,'error')}};
     const bancoReceived=document.getElementById('bancoReceived');
     function renderBancoReceived(){bancoReceived.textContent=bancoReceivedValue?euro(Number(bancoReceivedValue.replace(',','.'))):'€ 0,00'}
-    document.querySelectorAll('[data-banco-method]').forEach(button=>button.addEventListener('click',async()=>{bancoMethod=button.dataset.bancoMethod;if(bancoMethod==='carta')bancoReceivedValue='';renderBancoReceived();await registerManualOrder(true,true)}));
+    document.querySelectorAll('[data-banco-method]').forEach(button=>button.addEventListener('click',async()=>{try{bancoMethod=button.dataset.bancoMethod;if(bancoMethod==='carta')bancoReceivedValue='';renderBancoReceived();await registerManualOrder(true,true)}catch(error){setManualFeedback(error.message+' Se l’invio è iniziato, usa Vendite da verificare: non emettere di nuovo.','error')}}));
     for(const key of ['7','8','9','4','5','6','1','2','3','C','0',',']){const button=node(document.getElementById('bancoKeypad'),'button',key);button.type='button';button.onclick=()=>{if(bancoMethod!=='contanti')return;if(key==='C')bancoReceivedValue='';else{const candidate=bancoReceivedValue+key;if(/^\d{0,6}(,\d{0,2})?$/.test(candidate))bancoReceivedValue=candidate}renderBancoReceived()}}
     function setManualFeedback(message,state='status'){
       manualFeedback.textContent=message||'';
@@ -485,7 +485,7 @@
     document.getElementById('manualCustomerEdit').onclick=()=>{manualCustomer.classList.remove('compact');manualCustomerSummary.hidden=true;customerSearch.focus()};
     async function registerManualOrder(asCounter=false,directPayment=false){
       if(!asCounter&&counterPendingOrder){setManualFeedback('Concludi o recupera prima la vendita fiscale aperta.','error');return}
-      if(asCounter&&counterPendingOrder){await AlphaPayment.open(counterPendingOrder,{csrf,initialPayment:bancoMethod,initialTender:bancoReceivedValue,onComplete:completeCounterSale,autoSubmit:directPayment});return}
+      if(asCounter&&counterPendingOrder){await AlphaPayment.direct(counterPendingOrder,{csrf,initialPayment:bancoMethod,initialTender:bancoReceivedValue,onComplete:completeCounterSale});return}
       const fields=new FormData(manualForm);
       const items=manualCart.map(item=>({id:item.id,quantita:item.quantita,...(item.pizzeria?{pizzeria:item.pizzeria}:{})}));
       if(!items.length){manualFeedback.textContent='Aggiungi almeno un articolo.';return}
@@ -500,14 +500,14 @@
           setManualFeedback('Vendita diretta pronta per il pagamento. Nessun ordine creato.');
           counterPendingOrder={id:result.vendita_id,sale:true};
           lockCounterCart();
-          await AlphaPayment.open(counterPendingOrder,{csrf,initialPayment:bancoMethod,initialTender:bancoReceivedValue,onComplete:completeCounterSale,autoSubmit:directPayment});
+          await AlphaPayment.direct(counterPendingOrder,{csrf,initialPayment:bancoMethod,initialTender:bancoReceivedValue,onComplete:completeCounterSale});
           return;
         }
         setManualFeedback('Ordine #'+(result.numero_ordine||result.ordine_id)+' registrato'+(payload.salva_cliente?' e cliente salvato in rubrica.':'.'));
         manualForm.reset();manualForm.elements.salva_cliente.checked=true;manualDate.value=selectedDate;manualCart=[];renderManualCart();renderManualSlots();customerSearch.value='';customerResults.replaceChildren();manualCustomer.classList.remove('compact');manualCustomerSummary.hidden=true;
         dateField.value=selectedDate;period.value='giorno';await Promise.all([load(),refreshManualDoughStock()]);
         if(document.getElementById('orderHistory').open)await loadHistory();
-      }catch(error){setManualFeedback(error.message,'error')}
+      }catch(error){setManualFeedback(error.message+(asCounter?' Se l’invio è iniziato, usa Vendite da verificare: non emettere di nuovo.':''),'error')}
       finally{submitButtons.forEach(button=>button.disabled=false)}
     }
     async function completeCounterSale(){counterPendingOrder=null;lockCounterCart();manualCart=[];bancoReceivedValue='';renderBancoReceived();renderManualCart();setManualFeedback('Vendita completata. Pronto per una nuova vendita.');await Promise.all([load(),refreshManualDoughStock()])}
