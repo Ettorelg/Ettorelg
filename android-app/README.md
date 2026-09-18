@@ -20,7 +20,7 @@ Funzioni della prima versione:
 
 La rubrica viene aggiornata anche automaticamente quando si apre una pagina Alpha Menu autenticata.
 
-## Menu app e aggiornamenti (1.3.0)
+## Menu app e aggiornamenti (1.4.0)
 
 I comandi del telefono sono nel menu **⋮**: riconoscimento chiamate, sincronizzazione,
 prova banco, stato collegamento e aggiornamenti. **Aggiornamenti → Cerca aggiornamenti**
@@ -33,3 +33,12 @@ stessa chiave delle versioni distribuite, copiare l'APK in `static/android/` e a
 `latest.json` nello stesso commit. Conservare i vecchi APK per i download già avviati.
 La versione privata attuale mantiene la firma delle precedenti build debug distribuite;
 non cambiare la chiave durante un aggiornamento.
+
+## DADO RT / RT30 su Android
+
+La versione 1.4.0 espone al sito anche il bridge fiscale locale. Con telefono o
+tablet collegato alla stessa Wi-Fi del registratore, la configurazione salvata nel
+dashboard (marca Axon-Micrelec, modello DADO RT / RT30, IP e porta) può essere
+verificata, letta e modificata direttamente dall'app. Il pagamento può emettere il
+documento commerciale senza PC. Ogni lavoro acquisito viene salvato prima dell'invio:
+in caso di risposta incerta il reinvio è bloccato e va usato Recupera esito.

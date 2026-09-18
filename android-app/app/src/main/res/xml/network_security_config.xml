@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false" />
+    <!-- I registratori fiscali sulla LAN espongono API HTTP e possono avere
+         qualunque indirizzo RFC1918 configurato dal tecnico. Il bridge Java
+         convalida comunque che l'IP sia privato prima di aprire la connessione. -->
+    <base-config cleartextTrafficPermitted="true" />
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">127.0.0.1</domain>
         <domain includeSubdomains="false">localhost</domain>

@@ -12,7 +12,7 @@ window.AlphaPayment = (() => {
     const tender=payment==='contanti'&&initialTender?String(Number(String(initialTender).replace(',','.'))):null;
     const payload=action=>({action,payment,discount_type:'euro',discount:'0',tendered:tender});
     await api(paymentUrl,payload('preview'),csrf);
-    if(info.config?.brand){const health=await api('http://127.0.0.1:17891/health');if(!health.fiscal)throw Error('Aggiorna Alpha Menu Windows e chiudi il vecchio programma di stampa.');}
+    if(info.config?.brand){const health=await api('http://127.0.0.1:17891/health');if(!health.fiscal)throw Error('Aggiorna Alpha Menu Windows o Android e riavvia completamente l’app.');}
     const result=await api(paymentUrl,payload('confirm'),csrf);
     if(result.job){const printed=await api('http://127.0.0.1:17891/fiscal/emit',{id:result.job.id,secret:result.job.secret},csrf);if(!printed.ok)throw Error(printed.result?.error||'Emissione non confermata. Usa Vendite da verificare.');}
     await onComplete();

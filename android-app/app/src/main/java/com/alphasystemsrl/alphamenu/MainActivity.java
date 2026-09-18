@@ -44,7 +44,7 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS,Manifest.permission.READ_CONTACTS}, 20);
         else if (checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, 21);
-        printBridge = new PrintBridgeServer();
+        printBridge = new PrintBridgeServer(this);
         printBridge.start();
         buildUi();
         handleIntent(getIntent());
