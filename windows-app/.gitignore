@@ -1,0 +1,7 @@
+.venv/
+build/
+dist/
+__pycache__/
+*.spec
+alpha-menu.ico
+MicrosoftEdgeWebview2Setup.exe

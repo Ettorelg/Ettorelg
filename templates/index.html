@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="it">
+  <head>
+  <link rel="icon" href="{{ url_for('static', filename='alpha-menu-favicon.png') }}" type="image/png">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b1220" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>Menu Online | Ristoranti & Bar</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <nav class="nav">
+        <img class="brand-logo-img" src="{{ url_for('static', filename='alpha-menu-logo.png') }}" alt="Alpha Menu">
+        <div class="nav-actions">
+          <a class="nav-link" href="#funzionalita">Funzionalità</a>
+          <a class="nav-link" href="#demo">Demo</a>
+          <a class="nav-link" href="#prezzi">Prezzi</a>
+          <a class="btn btn-outline" href="/login">Accedi</a>
+        </div>
+      </nav>
+
+      <div class="hero-content">
+        <div>
+          <p class="pill">Prova Professional gratuita per 14 giorni</p>
+          <h1>Il menu digitale del tuo locale, pronto in circa 1 minuto</h1>
+          <p class="subtitle">
+            Carica una foto o un PDF del menu: Alpha Menu riconosce prodotti, prezzi e allergeni.
+            Aggiorna tutto in autonomia e condividilo con un QR Code.
+          </p>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="{{ url_for('register') }}">Inizia gratis</a>
+            <a class="btn btn-secondary" href="#demo">Guarda la demo</a>
+          </div>
+          <div class="stats">
+            <div>
+              <strong>14 giorni</strong>
+              <span>gratis, senza carta</span>
+            </div>
+            <div>
+              <strong>1 minuto</strong>
+              <span>da foto o PDF</span>
+            </div>
+            <div>
+              <strong>10 lingue</strong>
+              <span>nel piano Professional</span>
+            </div>
+          </div>
+        </div>
+        <div class="hero-card" aria-label="Anteprima menu">
+          <div class="card-header">
+            <div>
+              <h3>Alpha System srl</h3>
+              <p>Menu dimostrativo reale</p>
+            </div>
+            <span class="badge">Aperto</span>
+          </div>
+          <div class="card-section">
+              <h4>Antipasti</h4>
+            <div class="menu-item">
+              <div>
+                <p>Tagliere siciliano</p>
+                <span>Selezione di salumi, formaggi e specialità locali</span>
+              </div>
+              <strong>€ 12</strong>
+            </div>
+            <div class="menu-item">
+              <div>
+                <p>Bruschette miste</p>
+                <span>Pomodoro, basilico e condimenti della casa</span>
+              </div>
+              <strong>€ 7</strong>
+            </div>
+          </div>
+          <div class="card-section">
+            <h4>Pizze</h4>
+            <div class="menu-item">
+              <div>
+                <p>Pizza Margherita</p>
+                <span>Pomodoro, mozzarella e basilico</span>
+              </div>
+              <strong>€ 8</strong>
+            </div>
+          </div>
+          <a class="btn btn-primary full" href="/menu/alpha-system-srl-2">Apri il menu dimostrativo</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="section" id="funzionalita">
+        <div class="section-header">
+          <h2>Tutto quello che serve per un menu smart</h2>
+          <p>Automatizza la gestione e aumenta lo scontrino medio con suggerimenti intelligenti.</p>
+        </div>
+        <div class="grid">
+          <article>
+            <h3>Importazione intelligente</h3>
+            <p>Parti da una foto o da un PDF e riduci drasticamente il tempo di inserimento.</p>
+          </article>
+          <article>
+            <h3>Multilingua immediato</h3>
+            <p>Traduzione automatica in 10 lingue complessive nel piano Professional.</p>
+          </article>
+          <article>
+            <h3>Allergeni automatici</h3>
+            <p>Rilevamento assistito dal nome e dagli ingredienti, sempre verificabile dal gestore.</p>
+          </article>
+          <article>
+            <h3>Statistiche utili</h3>
+            <p>Scopri quali categorie e prodotti attirano maggiormente l’attenzione dei clienti.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section highlight" id="demo">
+        <div class="section-header">
+          <p class="section-kicker">DEMO REALE</p>
+          <h2>Guarda Alpha Menu in funzione</h2>
+          <p>Questa è l’anteprima del menu Alpha System: esplora categorie, prodotti, immagini e allergeni senza lasciare la pagina.</p>
+        </div>
+        <div class="demo-shell">
+          <div class="demo-toolbar">
+            <div class="demo-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div><strong>Menu Alpha System</strong><small>Anteprima interattiva</small></div>
+            <a href="/menu/alpha-system-srl-2" target="_blank" rel="noopener">Apri a schermo intero ↗</a>
+          </div>
+          <iframe class="demo-frame" src="/menu/alpha-system-srl-2" title="Anteprima del menu Alpha System" loading="lazy"></iframe>
+        </div>
+      </section>
+
+      <section class="section" id="prezzi">
+        <div class="section-header">
+          <h2>Prezzi chiari, nessuna sorpresa</h2>
+          <p>Scegli il piano più adatto al tuo locale. Puoi sempre cambiare in seguito.</p>
+        </div>
+        <div class="pricing">
+          <article class="price-card">
+            <h3>Base</h3>
+            <p class="price">79 € + IVA<span>/anno</span></p>
+            <ul>
+              <li>Fino a 100 prodotti</li>
+              <li>Importazione da foto/PDF e allergeni</li>
+              <li>Categorie, disponibilità e QR Code</li>
+              <li>Logo, copertina, colori e orari</li>
+              <li>Branding promozionale Alpha Menu</li>
+            </ul>
+            <a class="btn btn-secondary" href="{{ url_for('register') }}">Prova gratis</a>
+          </article>
+          <article class="price-card featured">
+            <h3>Professional ⭐</h3>
+            <p class="price">129 € + IVA<span>/anno</span></p>
+            <ul>
+              <li>Tutto il piano Base</li>
+              <li>Prodotti illimitati e foto</li>
+              <li>Traduzione automatica in 10 lingue</li>
+              <li>Statistiche e piatti più visualizzati</li>
+              <li>Stampa A4 e QR senza branding promozionale</li>
+            </ul>
+            <a class="btn btn-primary" href="{{ url_for('register') }}">Inizia la prova Professional</a>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div>
+        <img class="brand-logo-img footer-logo" src="{{ url_for('static', filename='alpha-menu-logo.png') }}" alt="Alpha Menu">
+        <p>Digitalizza il tuo menu e sorprendi i clienti.</p>
+      </div>
+      <div>
+        <h4>Contatti</h4>
+        <p><a href="mailto:alphasystemsrl@gmail.com">alphasystemsrl@gmail.com</a></p>
+      </div>
+      <div>
+        <h4>Risorse</h4>
+        <p><a href="{{ url_for('privacy_policy') }}">Privacy</a></p>
+        <p><a href="{{ url_for('terms_of_service') }}">Termini d’uso</a></p>
+      </div>
+    </footer>
+
+    <div class="modal" id="action-modal" aria-hidden="true" hidden>
+      <div class="modal-overlay" data-close="true"></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button class="modal-close" type="button" data-close="true" aria-label="Chiudi">
+          ×
+        </button>
+        <h3 id="modal-title">Richiesta</h3>
+        <p id="modal-subtitle" class="modal-subtitle">
+          Compila i dettagli e ti ricontattiamo al più presto.
+        </p>
+        <form id="action-form">
+          <label>
+            Nome e cognome
+            <input name="name" type="text" placeholder="Es. Marco Bianchi" required />
+          </label>
+          <label>
+            Nome locale
+            <input name="venue" type="text" placeholder="Es. Osteria Mare Blu" required />
+          </label>
+          <label>
+            Email
+            <input name="email" type="email" placeholder="nome@email.it" required />
+          </label>
+          <label>
+            Tipologia richiesta
+            <select name="intent">
+              <option value="demo">Richiedi demo</option>
+              <option value="signup">Inizia gratis</option>
+              <option value="order">Ordina dal tavolo</option>
+              <option value="plan-starter">Piano Starter</option>
+              <option value="plan-pro">Piano Pro</option>
+              <option value="contact">Parla con noi</option>
+              <option value="login">Accesso area clienti</option>
+            </select>
+          </label>
+          <button class="btn btn-primary full" type="submit">Invia richiesta</button>
+        </form>
+        <div class="modal-success" id="modal-success" hidden>
+          <h4>Richiesta inviata</h4>
+          <p>Ti rispondiamo entro 24 ore con i prossimi passi.</p>
+          <button class="btn btn-secondary full" type="button" data-close="true">
+            Chiudi
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/service-worker.js');</script>
+  </body>
+</html>

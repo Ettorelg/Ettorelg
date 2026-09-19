@@ -1,0 +1,6 @@
+.order-notification-button{min-height:42px;padding:9px 13px;border:1px solid #e2bc6a;border-radius:9px;background:#594525;color:#fff3d5;font:750 .85rem system-ui;cursor:pointer}
+.order-notification-button[aria-pressed="true"]{border-color:#67d8a4;background:#1c644f;color:#effff6}
+.order-notification-button:disabled{opacity:.6;cursor:wait}
+.order-arrival-banner{position:fixed;top:80px;left:50%;z-index:1000;transform:translateX(-50%);width:min(560px,calc(100vw - 24px));padding:19px 22px;border:2px solid #ffd875;border-radius:15px;background:#5b3d14;color:#fff7de;box-shadow:0 18px 45px #0009;text-align:center;font:850 1.1rem system-ui}
+.order-arrival-banner[hidden]{display:none}
+@media(max-width:760px){.order-arrival-banner{top:14px;padding:16px;font-size:1rem}}

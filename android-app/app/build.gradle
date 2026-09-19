@@ -1,0 +1,26 @@
+plugins { id "com.android.application" }
+
+android {
+    namespace "com.alphasystemsrl.alphamenu"
+    compileSdk 37
+
+    defaultConfig {
+        applicationId "com.alphasystemsrl.alphamenu"
+        minSdk 29
+        targetSdk 35
+        versionCode 6
+        versionName "1.4.0"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+}
